@@ -7,7 +7,7 @@
 
 一群人聚在一起听歌，最怕的就是"放什么"争不出结果。OpenMusic 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
 
-- 在线体验：<https://m.qqovo.cn>
+- 原创作者项目：<https://github.com/qq01-hub/openmusic>
 - 代码托管：Gitee `https://gitee.com/yuchen0x1/zaixian-diange-fang`
 
 | 房间大厅 | 房间点歌与聊天 | 唱片与歌词 |
