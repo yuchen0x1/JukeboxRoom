@@ -1,0 +1,28 @@
+# Meting-API 自托管配置
+# 用途：OpenMusic 歌单导入（网易云/QQ）解析依赖 Meting-API。
+# 启动：docker compose -f deploy/docker-compose.meting.yml up -d
+# 然后在服务端 .env 配置：METING_API_URL=http://127.0.0.1:3300
+services:
+  meting-api:
+    image: inilib/meting-api:latest
+    container_name: openmusic-meting
+    restart: unless-stopped
+    ports:
+      - "3300:3000"
+    environment:
+      # 需要 Cookie 的平台可在此注入（按需填写，留空则匿名调用）
+      # NETEASE_COOKIE: ""
+      # QQ_COOKIE: ""
+      # EMAIL: ""
+      # PASSWORD: ""
+      ENABLE_AUTH: "false"
+    volumes:
+      - meting-cache:/app/cache
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  meting-cache:

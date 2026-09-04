@@ -1,0 +1,36 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+release/
+release-assets/
+server/.env
+client/.env.capacitor
+server/downloads/*.apk
+server/downloads/*.ipa
+
+# Capacitor / Android 本地构建产物
+client/android/.gradle/
+client/android/app/build/
+client/android/build/
+client/android/local.properties
+client/android/.idea/
+client/android/captures/
+client/android/*.iml
+
+# Capacitor / iOS 本地构建产物
+client/build/ios/
+client/build/ipa/
+
+# 本地运行时数据（JSON store，不入库）
+server/data/
+
+# TypeScript 增量编译缓存
+*.tsbuildinfo
+
+# 本地安全扫描运行状态
+.mimosa/
+
+# ZCode local session state
+.zcode/

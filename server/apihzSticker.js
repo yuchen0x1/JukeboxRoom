@@ -1,0 +1,57 @@
+import { isSafeHttpUrl } from './outboundUrl.js';
+import { fetchMeting } from './metingFetch.js';
+
+const API_BASE = 'https://cn.apihz.cn/api/img/apihzbqbbaidu.php';
+const APIHZ_IMG_ID = (process.env.APIHZ_IMG_ID || process.env.APIHZ_ID || '').trim();
+const APIHZ_IMG_KEY = (process.env.APIHZ_IMG_KEY || process.env.APIHZ_KEY || '').trim();
+const DEFAULT_LIMIT = 15;
+const MAX_LIMIT = 20;
+const SEARCH_TIMEOUT_MS = 10000;
+
+export function isApihzStickerConfigured() {
+  return Boolean(APIHZ_IMG_ID && APIHZ_IMG_KEY);
+}
+
+export async function searchApihzStickers(words, page = 1, limit = DEFAULT_LIMIT) {
+  if (!isApihzStickerConfigured()) {
+    throw new Error('未配置表情包搜索');
+  }
+
+  const normalizedWords = String(words || '').trim();
+  if (!normalizedWords) throw new Error('请输入搜索关键词');
+  if (normalizedWords.length > 32) throw new Error('关键词过长');
+
+  const safePage = Math.max(1, Math.min(200, Number(page) || 1));
+  const safeLimit = Math.max(1, Math.min(MAX_LIMIT, Number(limit) || DEFAULT_LIMIT));
+
+  const params = new URLSearchParams({
+    id: APIHZ_IMG_ID,
+    key: APIHZ_IMG_KEY,
+    limit: String(safeLimit),
+    page: String(safePage),
+    words: normalizedWords,
+  });
+
+  const rawUrl = `${API_BASE}?${params.toString()}`;
+  if (!(await isSafeHttpUrl(rawUrl))) {
+    return { images: [], page: safePage, maxPage: 1, count: 0 };
+  }
+  const res = await fetchMeting(rawUrl, { cache: false }, SEARCH_TIMEOUT_MS);
+  if (!res.ok) throw new Error('搜索服务暂时不可用');
+
+  const data = await res.json();
+  if (Number(data?.code) !== 200) {
+    throw new Error(data?.msg || data?.message || '搜索失败');
+  }
+
+  const images = Array.isArray(data.res)
+    ? data.res.filter((item) => typeof item === 'string' && item.startsWith('https://'))
+    : [];
+
+  return {
+    images,
+    page: Number(data.page) || safePage,
+    maxPage: Math.max(1, Number(data.maxpage) || 1),
+    count: Number(data.count) || images.length,
+  };
+}

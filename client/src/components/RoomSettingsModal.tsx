@@ -1,0 +1,694 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Minus, Plus, Sparkles, X } from 'lucide-react';
+import { NETEASE_FM_MODE_OPTIONS, getFmModeLabel, normalizeFmMode } from '../api/music/fmMode';
+import type { BannedSong } from '../types';
+import type { DislikeSkipMode } from '../lib/dislikeSkip';
+import SourceBadge from './SourceBadge';
+
+const ANNOUNCEMENT_MAX_LENGTH = 2000;
+const MIN_STAY_MINUTES_MAX = 24 * 60;
+const MAX_PER_USER_MAX = 50;
+const DISLIKE_SKIP_THRESHOLD_MAX = 50;
+const CLEAR_ON_LEAVE_DELAY_MINUTES_MAX = 24 * 60;
+const COOLDOWN_OPTIONS = [0, 10, 30, 60, 120] as const;
+const QUEUE_LIMIT_OPTIONS = [50, 100, 200] as const;
+
+type SettingsTab = 'fm' | 'member' | 'announcement' | 'songRequest';
+
+export interface SongRequestSettings {
+  enabled: boolean;
+  memberJumpEnabled: boolean;
+  dislikeSkipMode: DislikeSkipMode;
+  dislikeSkipThreshold: number;
+  dislikeSkipPercent: number;
+  clearSongsOnLeaveEnabled: boolean;
+  clearSongsOnLeaveDelayMinutes: number;
+  minStayMinutes: number;
+  maxPerUser: number;
+  cooldownSec: number;
+  queueMaxLength: number;
+}
+
+function songRequestEqual(a: SongRequestSettings, b: SongRequestSettings) {
+  return a.enabled === b.enabled
+    && a.memberJumpEnabled === b.memberJumpEnabled
+    && a.dislikeSkipMode === b.dislikeSkipMode
+    && a.dislikeSkipThreshold === b.dislikeSkipThreshold
+    && a.dislikeSkipPercent === b.dislikeSkipPercent
+    && a.clearSongsOnLeaveEnabled === b.clearSongsOnLeaveEnabled
+    && a.clearSongsOnLeaveDelayMinutes === b.clearSongsOnLeaveDelayMinutes
+    && a.minStayMinutes === b.minStayMinutes
+    && a.maxPerUser === b.maxPerUser
+    && a.cooldownSec === b.cooldownSec
+    && a.queueMaxLength === b.queueMaxLength;
+}
+
+interface Props {
+  open: boolean;
+  isOwner: boolean;
+  canModerate: boolean;
+  fmMode: string;
+  fmSaving?: boolean;
+  announcementEnabled: boolean;
+  announcementText: string;
+  announcementSaving?: boolean;
+  songRequest: SongRequestSettings;
+  songRequestSaving?: boolean;
+  bannedSongs?: BannedSong[];
+  onUnbanSong?: (name: string) => void | Promise<void>;
+  memberTierCount: number;
+  onClose: () => void;
+  onSaveFmMode: (mode: string) => void;
+  onOpenMemberModal: () => void;
+  onSaveAnnouncement: (options: { enabled: boolean; text: string }) => void;
+  onSaveSongRequest: (settings: SongRequestSettings) => void;
+}
+
+function clampInt(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+function Toggle({
+  checked,
+  disabled,
+  onChange,
+  label,
+  description,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  description?: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 glass-surface glass-surface--panel rounded-xl px-3 py-2.5">
+      <div>
+        <p className="text-sm font-medium text-white">{label}</p>
+        {description && <p className="mt-0.5 text-xs text-netease-muted">{description}</p>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+          checked ? 'bg-[var(--om-accent)]' : 'bg-white/20'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
+    </label>
+  );
+}
+
+function NumberStepper({
+  id,
+  value,
+  min,
+  max,
+  disabled,
+  suffix,
+  onChange,
+}: {
+  id?: string;
+  value: number;
+  min: number;
+  max: number;
+  disabled?: boolean;
+  suffix?: string;
+  onChange: (next: number) => void;
+}) {
+  const setValue = (next: number) => onChange(clampInt(next, min, max));
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <div className="inline-flex items-stretch overflow-hidden rounded-lg border border-[var(--om-glass-border)] bg-black/20">
+        <button
+          type="button"
+          disabled={disabled || value <= min}
+          onClick={() => setValue(value - 1)}
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-netease-muted transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="减少"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={value}
+          disabled={disabled}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, '');
+            if (!digits) {
+              setValue(min);
+              return;
+            }
+            setValue(Number(digits));
+          }}
+          className="h-8 w-14 flex-shrink-0 border-x border-netease-border/60 bg-transparent text-center text-sm tabular-nums text-white outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <button
+          type="button"
+          disabled={disabled || value >= max}
+          onClick={() => setValue(value + 1)}
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-netease-muted transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="增加"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {suffix && <span className="text-sm text-netease-muted">{suffix}</span>}
+    </div>
+  );
+}
+
+export default function RoomSettingsModal({
+  open,
+  isOwner,
+  canModerate,
+  fmMode,
+  fmSaving = false,
+  announcementEnabled,
+  announcementText,
+  announcementSaving = false,
+  songRequest,
+  songRequestSaving = false,
+  bannedSongs = [],
+  onUnbanSong,
+  memberTierCount,
+  onClose,
+  onSaveFmMode,
+  onOpenMemberModal,
+  onSaveAnnouncement,
+  onSaveSongRequest,
+}: Props) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('announcement');
+  const [draftAnnouncementEnabled, setDraftAnnouncementEnabled] = useState(announcementEnabled);
+  const [draftAnnouncementText, setDraftAnnouncementText] = useState(announcementText);
+  const [draftSongRequest, setDraftSongRequest] = useState(songRequest);
+  const wasOpenRef = useRef(false);
+  const appliedAnnouncementRef = useRef({ enabled: announcementEnabled, text: announcementText });
+  const appliedSongRequestRef = useRef(songRequest);
+
+  const tabs = useMemo(() => {
+    const items: { id: SettingsTab; label: string }[] = [];
+    if (isOwner) {
+      items.push({ id: 'fm', label: '漫游' });
+      items.push({ id: 'member', label: '贵宾' });
+    }
+    if (canModerate) {
+      items.push({ id: 'announcement', label: '公告' });
+      items.push({ id: 'songRequest', label: '点歌' });
+    }
+    return items;
+  }, [isOwner, canModerate]);
+
+  // 仅在弹框从关闭→打开时初始化 tab/草稿，避免 room_update 反复把 tab 打回「漫游」
+  useEffect(() => {
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (!justOpened) return;
+
+    setDraftAnnouncementEnabled(announcementEnabled);
+    setDraftAnnouncementText(announcementText);
+    setDraftSongRequest(songRequest);
+    appliedAnnouncementRef.current = { enabled: announcementEnabled, text: announcementText };
+    appliedSongRequestRef.current = songRequest;
+    setActiveTab(tabs[0]?.id ?? 'announcement');
+  }, [open, announcementEnabled, announcementText, songRequest, tabs]);
+
+  // 打开期间：服务端公告变化时，若用户未编辑（草稿仍等于上次应用值），则跟随服务端
+  useEffect(() => {
+    if (!open) return;
+    const applied = appliedAnnouncementRef.current;
+    const serverChanged = applied.enabled !== announcementEnabled
+      || applied.text !== announcementText;
+    if (!serverChanged) return;
+
+    setDraftAnnouncementEnabled((prev) => {
+      if (prev !== applied.enabled) return prev; // 用户已改开关
+      return announcementEnabled;
+    });
+    setDraftAnnouncementText((prev) => {
+      if (prev !== applied.text) return prev; // 用户已改文案
+      return announcementText;
+    });
+    appliedAnnouncementRef.current = { enabled: announcementEnabled, text: announcementText };
+  }, [open, announcementEnabled, announcementText]);
+
+  useEffect(() => {
+    if (!open) return;
+    const applied = appliedSongRequestRef.current;
+    if (songRequestEqual(applied, songRequest)) return;
+
+    setDraftSongRequest((prev) => {
+      if (!songRequestEqual(prev, applied)) return prev; // 用户有未保存修改
+      return songRequest;
+    });
+    appliedSongRequestRef.current = songRequest;
+  }, [open, songRequest]);
+
+  // 权限变化导致当前 tab 不可用时，落到第一个可用 tab
+  useEffect(() => {
+    if (!open || tabs.length === 0) return;
+    if (!tabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(tabs[0].id);
+    }
+  }, [open, tabs, activeTab]);
+
+  if (!open) return null;
+
+  const currentFm = normalizeFmMode(fmMode);
+  const announcementDirty = draftAnnouncementEnabled !== announcementEnabled
+    || draftAnnouncementText.trim() !== announcementText.trim();
+  const songRequestDirty = draftSongRequest.enabled !== songRequest.enabled
+    || draftSongRequest.memberJumpEnabled !== songRequest.memberJumpEnabled
+    || draftSongRequest.dislikeSkipMode !== songRequest.dislikeSkipMode
+    || draftSongRequest.dislikeSkipThreshold !== songRequest.dislikeSkipThreshold
+    || draftSongRequest.dislikeSkipPercent !== songRequest.dislikeSkipPercent
+    || draftSongRequest.clearSongsOnLeaveEnabled !== songRequest.clearSongsOnLeaveEnabled
+    || draftSongRequest.clearSongsOnLeaveDelayMinutes !== songRequest.clearSongsOnLeaveDelayMinutes
+    || draftSongRequest.minStayMinutes !== songRequest.minStayMinutes
+    || draftSongRequest.maxPerUser !== songRequest.maxPerUser
+    || draftSongRequest.cooldownSec !== songRequest.cooldownSec
+    || draftSongRequest.queueMaxLength !== songRequest.queueMaxLength;
+
+  const formatCooldownLabel = (sec: number) => {
+    if (sec <= 0) return '不限制';
+    return `${sec} 秒`;
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="glass-scrim absolute inset-0"
+        onClick={onClose}
+        aria-label="关闭"
+      />
+      <div
+        className="relative flex max-h-[min(88vh,640px)] w-full max-w-lg animate-fade-in flex-col rounded-2xl glass-surface glass-surface--modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--om-glass-border)] px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-white">房间设置</h2>
+            <p className="mt-0.5 text-xs text-netease-muted">漫游、贵宾、公告与点歌规则</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="关闭"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {tabs.length > 1 && (
+          <div className="flex flex-shrink-0 gap-1 overflow-x-auto border-b border-[var(--om-glass-border)] px-4 py-2.5">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-[rgba(var(--om-accent-rgb),0.14)] font-medium text-white'
+                    : 'text-netease-muted hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {activeTab === 'fm' && isOwner && (
+            <section>
+              <p className="mb-3 text-xs text-netease-muted">
+                队列为空时通过私人漫游自动推荐下一首
+              </p>
+              <div className="space-y-1.5">
+                {NETEASE_FM_MODE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={fmSaving}
+                    onClick={() => onSaveFmMode(opt.value)}
+                    className={`w-full rounded-xl border px-3 py-2 text-left transition-colors disabled:opacity-50 ${
+                      currentFm === opt.value
+                        ? 'border-[rgba(var(--om-accent-rgb),0.3)] bg-[rgba(var(--om-accent-rgb),0.08)]'
+                        : 'border-transparent bg-white/[0.03] hover:bg-white/[0.06]'
+                    }`}
+                  >
+                    <p className={`text-sm font-medium ${currentFm === opt.value ? 'text-white' : 'text-white/90'}`}>
+                      {opt.label}
+                      {currentFm === opt.value && (
+                        <span className="ml-2 text-[10px] font-normal text-netease-red">当前</span>
+                      )}
+                    </p>
+                    {opt.description && (
+                      <p className="mt-0.5 text-xs text-netease-muted">{opt.description}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[10px] text-netease-muted">
+                当前：{getFmModeLabel(currentFm)}
+              </p>
+            </section>
+          )}
+
+          {activeTab === 'member' && isOwner && (
+            <section>
+              <div className="mb-2 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-medium text-white">贵宾角标</h3>
+              </div>
+              <p className="mb-3 text-xs text-netease-muted">
+                为在线用户赋予角标，进房欢迎与点歌边框自动生效
+              </p>
+              <button
+                type="button"
+                onClick={onOpenMemberModal}
+                className="flex w-full items-center justify-between glass-surface glass-surface--panel rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06]"
+              >
+                <span className="text-sm text-white">管理贵宾</span>
+                <span className="text-xs text-netease-muted">
+                  {memberTierCount > 0 ? `已设置 ${memberTierCount} 人` : '未设置'}
+                </span>
+              </button>
+            </section>
+          )}
+
+          {activeTab === 'announcement' && canModerate && (
+            <section>
+              <div className="space-y-3">
+                <Toggle
+                  checked={draftAnnouncementEnabled}
+                  disabled={announcementSaving}
+                  onChange={setDraftAnnouncementEnabled}
+                  label="开启公告"
+                  description="新进房间的用户将弹窗展示公告"
+                />
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label htmlFor="settings-announcement-text" className="text-xs text-netease-muted">
+                      公告内容
+                    </label>
+                    <span className="text-[10px] text-netease-muted">
+                      {draftAnnouncementText.length}/{ANNOUNCEMENT_MAX_LENGTH}
+                    </span>
+                  </div>
+                  <textarea
+                    id="settings-announcement-text"
+                    value={draftAnnouncementText}
+                    onChange={(e) => setDraftAnnouncementText(e.target.value.slice(0, ANNOUNCEMENT_MAX_LENGTH))}
+                    disabled={announcementSaving}
+                    rows={6}
+                    placeholder="输入房间公告…"
+                    className="glass-input w-full resize-none rounded-xl px-3 py-2 text-sm text-white disabled:opacity-50"
+                  />
+                </div>
+                {announcementDirty && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={announcementSaving}
+                      onClick={() => onSaveAnnouncement({
+                        enabled: draftAnnouncementEnabled,
+                        text: draftAnnouncementText.trim(),
+                      })}
+                      className="glass-button-primary rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50"
+                    >
+                      {announcementSaving ? '保存中…' : '保存公告'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'songRequest' && canModerate && (
+            <section>
+              <div className="space-y-3">
+                <Toggle
+                  checked={draftSongRequest.enabled}
+                  disabled={songRequestSaving}
+                  onChange={(enabled) => setDraftSongRequest((prev) => ({ ...prev, enabled }))}
+                  label="允许成员点歌"
+                  description="关闭后仅房主与管理员可点歌"
+                />
+
+                <Toggle
+                  checked={draftSongRequest.memberJumpEnabled}
+                  disabled={songRequestSaving}
+                  onChange={(memberJumpEnabled) => setDraftSongRequest((prev) => ({ ...prev, memberJumpEnabled }))}
+                  label="允许成员插队"
+                  description="开启后成员可对自己的点歌插队；房主与管理员始终可插队"
+                />
+
+                <div className="glass-surface glass-surface--panel rounded-xl px-3 py-2.5">
+                  <label className="text-sm font-medium text-white">
+                    踩歌切歌规则
+                  </label>
+                  <p className="mt-0.5 text-xs text-netease-muted">
+                    正在播放的歌曲被踩满后自动切歌
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      disabled={songRequestSaving}
+                      onClick={() => setDraftSongRequest((prev) => ({ ...prev, dislikeSkipMode: 'count' }))}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+                        draftSongRequest.dislikeSkipMode === 'count'
+                          ? 'bg-[rgba(var(--om-accent-rgb),0.16)] text-white'
+                          : 'bg-white/5 text-netease-muted hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      固定人数
+                    </button>
+                    <button
+                      type="button"
+                      disabled={songRequestSaving}
+                      onClick={() => setDraftSongRequest((prev) => ({ ...prev, dislikeSkipMode: 'percent' }))}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+                        draftSongRequest.dislikeSkipMode === 'percent'
+                          ? 'bg-[rgba(var(--om-accent-rgb),0.16)] text-white'
+                          : 'bg-white/5 text-netease-muted hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      在线比例
+                    </button>
+                  </div>
+                  {draftSongRequest.dislikeSkipMode === 'count' ? (
+                    <NumberStepper
+                      id="settings-dislike-threshold"
+                      value={draftSongRequest.dislikeSkipThreshold}
+                      min={1}
+                      max={DISLIKE_SKIP_THRESHOLD_MAX}
+                      disabled={songRequestSaving}
+                      suffix="人"
+                      onChange={(dislikeSkipThreshold) => setDraftSongRequest((prev) => ({ ...prev, dislikeSkipThreshold }))}
+                    />
+                  ) : (
+                    <NumberStepper
+                      id="settings-dislike-percent"
+                      value={draftSongRequest.dislikeSkipPercent}
+                      min={1}
+                      max={100}
+                      disabled={songRequestSaving}
+                      suffix="%"
+                      onChange={(dislikeSkipPercent) => setDraftSongRequest((prev) => ({ ...prev, dislikeSkipPercent }))}
+                    />
+                  )}
+                </div>
+
+                <Toggle
+                  checked={draftSongRequest.clearSongsOnLeaveEnabled}
+                  disabled={songRequestSaving}
+                  onChange={(clearSongsOnLeaveEnabled) => setDraftSongRequest((prev) => ({ ...prev, clearSongsOnLeaveEnabled }))}
+                  label="退出后清除已点歌曲"
+                  description="成员离房后，在等待时间到期仍未回来则清除其待播点歌"
+                />
+
+                {draftSongRequest.clearSongsOnLeaveEnabled && (
+                  <div className="glass-surface glass-surface--panel rounded-xl px-3 py-2.5">
+                    <label htmlFor="settings-clear-on-leave-delay" className="text-sm font-medium text-white">
+                      退出清除等待时间
+                    </label>
+                    <p className="mt-0.5 text-xs text-netease-muted">
+                      0 表示立即清除；期内重新进房会取消清除
+                    </p>
+                    <NumberStepper
+                      id="settings-clear-on-leave-delay"
+                      value={draftSongRequest.clearSongsOnLeaveDelayMinutes}
+                      min={0}
+                      max={CLEAR_ON_LEAVE_DELAY_MINUTES_MAX}
+                      disabled={songRequestSaving}
+                      suffix="分钟"
+                      onChange={(clearSongsOnLeaveDelayMinutes) => setDraftSongRequest((prev) => ({
+                        ...prev,
+                        clearSongsOnLeaveDelayMinutes,
+                      }))}
+                    />
+                  </div>
+                )}
+
+                <div className="glass-surface glass-surface--panel rounded-xl px-3 py-2.5">
+                  <label htmlFor="settings-min-stay" className="text-sm font-medium text-white">
+                    进房等待时间
+                  </label>
+                  <p className="mt-0.5 text-xs text-netease-muted">
+                    新成员需待在房间一定时间后才能点歌，0 表示不限制
+                  </p>
+                  <NumberStepper
+                    id="settings-min-stay"
+                    value={draftSongRequest.minStayMinutes}
+                    min={0}
+                    max={MIN_STAY_MINUTES_MAX}
+                    disabled={songRequestSaving}
+                    suffix="分钟"
+                    onChange={(minStayMinutes) => setDraftSongRequest((prev) => ({ ...prev, minStayMinutes }))}
+                  />
+                </div>
+
+                <div className="glass-surface glass-surface--panel rounded-xl px-3 py-2.5">
+                  <label htmlFor="settings-max-per-user" className="text-sm font-medium text-white">
+                    每人最多点歌
+                  </label>
+                  <p className="mt-0.5 text-xs text-netease-muted">
+                    队列中每人最多保留几首（含正在播放），0 表示不限制
+                  </p>
+                  <NumberStepper
+                    id="settings-max-per-user"
+                    value={draftSongRequest.maxPerUser}
+                    min={0}
+                    max={MAX_PER_USER_MAX}
+                    disabled={songRequestSaving}
+                    suffix="首"
+                    onChange={(maxPerUser) => setDraftSongRequest((prev) => ({ ...prev, maxPerUser }))}
+                  />
+                </div>
+
+                <div className="glass-surface glass-surface--panel rounded-xl px-3 py-2.5">
+                  <label className="text-sm font-medium text-white">
+                    点歌冷却时间
+                  </label>
+                  <p className="mt-0.5 text-xs text-netease-muted">
+                    每人每次点歌的最短间隔，防止连续刷屏占列表
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {COOLDOWN_OPTIONS.map((sec) => (
+                      <button
+                        key={sec}
+                        type="button"
+                        disabled={songRequestSaving}
+                        onClick={() => setDraftSongRequest((prev) => ({ ...prev, cooldownSec: sec }))}
+                        className={`rounded-lg px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+                          draftSongRequest.cooldownSec === sec
+                            ? 'bg-[rgba(var(--om-accent-rgb),0.16)] text-white'
+                            : 'bg-white/5 text-netease-muted hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {formatCooldownLabel(sec)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="glass-surface glass-surface--panel rounded-xl px-3 py-2.5">
+                  <label className="text-sm font-medium text-white">
+                    队列长度上限
+                  </label>
+                  <p className="mt-0.5 text-xs text-netease-muted">
+                    待播队列最多保留几首，超出后无法继续点歌
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {QUEUE_LIMIT_OPTIONS.map((limit) => (
+                      <button
+                        key={limit}
+                        type="button"
+                        disabled={songRequestSaving}
+                        onClick={() => setDraftSongRequest((prev) => ({ ...prev, queueMaxLength: limit }))}
+                        className={`rounded-lg px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+                          draftSongRequest.queueMaxLength === limit
+                            ? 'bg-[rgba(var(--om-accent-rgb),0.16)] text-white'
+                            : 'bg-white/5 text-netease-muted hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {limit} 首
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="glass-surface glass-surface--panel rounded-xl px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-sm font-medium text-white">禁播歌曲</label>
+                    <span className="text-[11px] text-netease-muted">{bannedSongs.length} 首</span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-netease-muted">
+                    可在播放队列中禁播某首歌；同名歌曲（任意平台）均无法点入
+                  </p>
+                  {bannedSongs.length > 0 ? (
+                     <div className="glass-scrollbar mt-2 max-h-40 space-y-1 overflow-y-auto pr-0.5">
+                      {bannedSongs.map((song) => (
+                        <div
+                          key={`${song.name}:${song.bannedAt ?? ''}`}
+                          className="flex items-center gap-2 rounded-lg bg-black/20 px-2 py-1.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs text-white/90">{song.name || '未知歌曲'}</p>
+                            <p className="truncate text-[10px] text-netease-muted">{song.artist || '未知歌手'}</p>
+                          </div>
+                          <SourceBadge source={song.source} className="flex-shrink-0 rounded-full px-1.5 py-0 text-[9px]" />
+                          <button
+                            type="button"
+                            disabled={songRequestSaving}
+                            onClick={() => onUnbanSong?.(song.name)}
+                            className="flex-shrink-0 rounded-md px-2 py-1 text-[10px] text-netease-muted transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
+                          >
+                            解除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-netease-muted/80">暂无禁播歌曲</p>
+                  )}
+                </div>
+
+                {songRequestDirty && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={songRequestSaving}
+                      onClick={() => onSaveSongRequest(draftSongRequest)}
+                      className="glass-button-primary rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50"
+                    >
+                      {songRequestSaving ? '保存中…' : '保存点歌规则'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

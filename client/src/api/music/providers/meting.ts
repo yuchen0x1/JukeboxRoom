@@ -1,0 +1,137 @@
+import type { MusicProvider, SearchResult } from '../types';
+import type { MusicSource } from '../../../types';
+import { fetchWithTimeout } from '../../http';
+
+const API_BASE = '/api/meting';
+
+async function metingFetch<T>(server: MusicSource, params: Record<string, string>): Promise<T> {
+  const query = new URLSearchParams({ server, ...params });
+  const res = await fetchWithTimeout(`${API_BASE}?${query}`);
+  if (!res.ok) throw new Error('API 请求失败');
+  return res.json();
+}
+
+async function metingText(server: MusicSource, params: Record<string, string>): Promise<string> {
+  const query = new URLSearchParams({ server, ...params });
+  const res = await fetchWithTimeout(`${API_BASE}?${query}`, { redirect: 'manual' });
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get('Location') || res.headers.get('location') || '';
+    if (location) return location;
+  }
+  if (!res.ok) throw new Error('API 请求失败');
+  return res.text();
+}
+
+function extractIdFromUrl(url: string): string {
+  try {
+    const match = url.match(/[?&]id=([^&]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  } catch {
+    return '';
+  }
+}
+
+function normalizeSong(raw: Record<string, unknown>, source: MusicSource): SearchResult {
+  const artist = raw.artist ?? raw.author;
+  const artistStr = Array.isArray(artist)
+    ? (artist as Array<{ name?: string }>).map((a) => a.name).join(' / ')
+    : String(artist || '未知歌手');
+
+  const urlStr = raw.url ? String(raw.url) : '';
+  const id = String(raw.id || extractIdFromUrl(urlStr) || '');
+
+  return {
+    id,
+    source,
+    name: String(raw.name || raw.title || '未知歌曲'),
+    artist: artistStr,
+    album: String(raw.album || raw.album_name || ''),
+    pic: String(raw.pic || raw.cover || raw.album_pic || ''),
+    duration: Number(raw.duration || raw.dt || 0) || undefined,
+    url: urlStr || undefined,
+    lrc: raw.lrc ? String(raw.lrc) : undefined,
+  };
+}
+
+function createMetingProvider(
+  source: Extract<MusicSource, 'netease' | 'tencent'>,
+  meta: Omit<import('../types').MusicProviderMeta, 'id'>,
+): MusicProvider {
+  return {
+    id: source,
+    ...meta,
+    async search(keyword) {
+      if (!meta.supportsSearch || !keyword.trim()) return [];
+      const data = await metingFetch<Record<string, unknown>[]>(source, {
+        type: 'search',
+        id: keyword.trim(),
+      });
+      if (!Array.isArray(data)) return [];
+      return data.map((item) => normalizeSong(item, source)).filter((s) => s.id);
+    },
+    async getSongById(id) {
+      if (!id.trim()) return null;
+      const data = await metingFetch<Record<string, unknown> | Record<string, unknown>[]>(source, {
+        type: 'song',
+        id: id.trim(),
+      });
+      const raw = Array.isArray(data) ? data[0] : data;
+      if (!raw) return null;
+      const song = normalizeSong(raw, source);
+      return song.id ? song : null;
+    },
+    async getSongUrl(song, quality) {
+      if (song.url?.startsWith('http')) return song.url;
+      const query = new URLSearchParams({ server: song.source, type: 'url', id: song.id });
+      if (quality) query.set('quality', quality);
+      const res = await fetchWithTimeout(`${API_BASE}?${query}`, { redirect: 'manual' });
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get('Location') || res.headers.get('location') || '';
+        const trimmed = location.trim();
+        if (trimmed.startsWith('@')) return trimmed.slice(1);
+        if (trimmed.startsWith('http')) return trimmed;
+      }
+      if (!res.ok) throw new Error('API 请求失败');
+      const text = (await res.text()).trim();
+      if (text.startsWith('@')) return text.slice(1);
+      if (text.startsWith('http')) return text;
+      throw new Error('empty url');
+    },
+    async getLyrics(song) {
+      if (song.lrc?.startsWith('[')) return song.lrc;
+      return metingText(song.source, { type: 'lrc', id: song.id });
+    },
+    getCoverUrl(song) {
+      if (song.pic) return song.pic;
+      return `${API_BASE}?server=${song.source}&type=pic&id=${song.id}`;
+    },
+  };
+}
+
+export const neteaseProvider = createMetingProvider('netease', {
+  name: '红点',
+  shortName: '红点',
+  color: 'var(--color-danger)',
+  supportsSearch: true,
+  supportsIdLookup: true,
+});
+
+export const tencentProvider = createMetingProvider('tencent', {
+  name: '绿点',
+  shortName: '绿点',
+  color: 'var(--color-primary-hover)',
+  supportsSearch: true,
+  supportsIdLookup: false,
+});
+
+export async function metingSearchPlaylists(
+  server: Extract<MusicSource, 'netease' | 'tencent'>,
+  keyword: string,
+): Promise<Record<string, unknown>[]> {
+  if (!keyword.trim()) return [];
+  const data = await metingFetch<Record<string, unknown>[]>(server, {
+    type: 'search_playlist',
+    id: keyword.trim(),
+  });
+  return Array.isArray(data) ? data : [];
+}

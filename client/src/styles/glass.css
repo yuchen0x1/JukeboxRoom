@@ -1,0 +1,264 @@
+/* OpenMusic glass system: transparent surfaces sit above ambient music visuals. */
+:root {
+  --om-bg: #07090d;
+  --om-bg-elevated: #10141b;
+  --om-text: #f4f7fa;
+  --om-text-muted: #aab4c2;
+  --om-text-subtle: #748092;
+  --om-accent: #82f7de;
+  --om-accent-rgb: 130, 247, 222;
+  --om-accent-secondary: #9cb7ff;
+  --om-danger: #ff6b7a;
+  --om-warning: #f6c86a;
+  --om-glass-base: rgba(12, 17, 24, 0.58);
+  --om-glass-panel: rgba(16, 22, 31, 0.68);
+  --om-glass-elevated: rgba(21, 29, 40, 0.76);
+  --om-glass-modal: rgba(24, 32, 44, 0.84);
+  --om-glass-border: rgba(255, 255, 255, 0.12);
+  --om-glass-border-strong: rgba(255, 255, 255, 0.2);
+  --om-glass-highlight: rgba(255, 255, 255, 0.16);
+  --om-glass-shadow: 0 18px 52px rgba(0, 0, 0, 0.28);
+  --om-glass-shadow-elevated: 0 24px 72px rgba(0, 0, 0, 0.38);
+  --om-glass-blur-base: 12px;
+  --om-glass-blur-panel: 18px;
+  --om-glass-blur-elevated: 24px;
+  --om-glass-blur-modal: 32px;
+  --om-motion-fast: 160ms;
+  --om-motion-normal: 240ms;
+  --om-focus-ring: 0 0 0 3px rgba(var(--om-accent-rgb), 0.22);
+}
+
+[data-theme='light'] {
+  --om-bg: #e9eef5;
+  --om-bg-elevated: #f5f8fc;
+  --om-text: #17202b;
+  --om-text-muted: #4d5c6d;
+  --om-text-subtle: #6c7b8d;
+  --om-glass-base: rgba(255, 255, 255, 0.46);
+  --om-glass-panel: rgba(255, 255, 255, 0.62);
+  --om-glass-elevated: rgba(255, 255, 255, 0.74);
+  --om-glass-modal: rgba(255, 255, 255, 0.86);
+  --om-glass-border: rgba(35, 53, 73, 0.12);
+  --om-glass-border-strong: rgba(35, 53, 73, 0.2);
+  --om-glass-highlight: rgba(255, 255, 255, 0.74);
+  --om-glass-shadow: 0 18px 52px rgba(49, 72, 98, 0.16);
+  --om-glass-shadow-elevated: 0 24px 72px rgba(49, 72, 98, 0.2);
+}
+
+.glass-surface {
+  position: relative;
+  isolation: isolate;
+  background: var(--om-glass-base);
+  border: 1px solid var(--om-glass-border);
+  box-shadow: var(--om-glass-shadow), inset 0 1px 0 var(--om-glass-highlight);
+  -webkit-backdrop-filter: blur(var(--om-glass-blur-base)) saturate(1.16);
+  backdrop-filter: blur(var(--om-glass-blur-base)) saturate(1.16);
+}
+
+.glass-surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 38%, rgba(0, 0, 0, 0.08));
+}
+
+.glass-surface--panel {
+  background: var(--om-glass-panel);
+  -webkit-backdrop-filter: blur(var(--om-glass-blur-panel)) saturate(1.18);
+  backdrop-filter: blur(var(--om-glass-blur-panel)) saturate(1.18);
+}
+
+.glass-surface--elevated {
+  background: var(--om-glass-elevated);
+  border-color: var(--om-glass-border-strong);
+  box-shadow: var(--om-glass-shadow-elevated), inset 0 1px 0 var(--om-glass-highlight);
+  -webkit-backdrop-filter: blur(var(--om-glass-blur-elevated)) saturate(1.2);
+  backdrop-filter: blur(var(--om-glass-blur-elevated)) saturate(1.2);
+}
+
+.glass-surface--modal {
+  background: var(--om-glass-modal);
+  border-color: var(--om-glass-border-strong);
+  box-shadow: var(--om-glass-shadow-elevated), inset 0 1px 0 var(--om-glass-highlight);
+  -webkit-backdrop-filter: blur(var(--om-glass-blur-modal)) saturate(1.22);
+  backdrop-filter: blur(var(--om-glass-blur-modal)) saturate(1.22);
+}
+
+.glass-interactive {
+  transition: background var(--om-motion-normal) ease, border-color var(--om-motion-normal) ease, box-shadow var(--om-motion-normal) ease, transform var(--om-motion-fast) ease;
+}
+
+.glass-interactive:hover {
+  background: color-mix(in srgb, var(--om-glass-elevated) 88%, var(--om-accent) 12%);
+  border-color: rgba(var(--om-accent-rgb), 0.34);
+  box-shadow: var(--om-glass-shadow-elevated), 0 0 28px rgba(var(--om-accent-rgb), 0.08);
+  transform: translateY(-1px);
+}
+
+.glass-interactive:active { transform: translateY(0); }
+
+.glass-focus:focus-visible,
+.glass-surface button:focus-visible,
+.glass-surface a:focus-visible,
+.glass-surface input:focus-visible,
+.glass-surface textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--om-focus-ring);
+}
+
+.glass-input {
+  color: var(--om-text);
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--om-glass-border);
+  transition: border-color var(--om-motion-fast) ease, background var(--om-motion-fast) ease, box-shadow var(--om-motion-fast) ease;
+}
+
+.glass-input::placeholder { color: var(--om-text-subtle); }
+.glass-input:hover { border-color: var(--om-glass-border-strong); }
+
+.glass-input:focus {
+  outline: none;
+  border-color: rgba(var(--om-accent-rgb), 0.56);
+  background: rgba(0, 0, 0, 0.24);
+  box-shadow: var(--om-focus-ring);
+}
+
+.glass-button-primary {
+  color: #07110f;
+  background: linear-gradient(135deg, var(--om-accent), #b4fff0);
+  box-shadow: 0 12px 28px rgba(var(--om-accent-rgb), 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.glass-button-primary:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 16px 36px rgba(var(--om-accent-rgb), 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.glass-button-secondary {
+  color: var(--om-text);
+  background: var(--om-glass-base);
+  border: 1px solid var(--om-glass-border);
+}
+
+.glass-button-secondary:hover {
+  background: var(--om-glass-elevated);
+  border-color: rgba(var(--om-accent-rgb), 0.34);
+}
+
+.glass-surface {
+  color: var(--om-text);
+}
+
+.glass-tab {
+  color: var(--om-text-muted);
+  border: 1px solid transparent;
+  transition: background var(--om-motion-fast) ease, color var(--om-motion-fast) ease, border-color var(--om-motion-fast) ease;
+}
+
+.glass-tab:hover {
+  color: var(--om-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.glass-tab--active {
+  color: var(--om-text);
+  background: rgba(var(--om-accent-rgb), 0.14);
+  border-color: rgba(var(--om-accent-rgb), 0.3);
+}
+
+.glass-chip {
+  color: var(--om-text-muted);
+  background: var(--om-glass-base);
+  border: 1px solid var(--om-glass-border);
+  transition: color var(--om-motion-fast) ease, background var(--om-motion-fast) ease, border-color var(--om-motion-fast) ease;
+}
+
+.glass-chip:hover {
+  color: var(--om-text);
+  border-color: rgba(var(--om-accent-rgb), 0.32);
+}
+
+.glass-chip--active {
+  color: var(--om-text);
+  background: rgba(var(--om-accent-rgb), 0.16);
+  border-color: rgba(var(--om-accent-rgb), 0.36);
+}
+
+.glass-row {
+  border-radius: 0.75rem;
+  transition: background var(--om-motion-fast) ease;
+}
+
+.glass-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.glass-sheet-header {
+  border-bottom: 1px solid var(--om-glass-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+}
+
+.glass-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.glass-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.glass-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+
+.glass-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ambient-stage {
+  background: radial-gradient(circle at 15% 10%, rgba(var(--om-accent-rgb), 0.1), transparent 32%), radial-gradient(circle at 85% 82%, rgba(156, 183, 255, 0.12), transparent 28%), var(--om-bg);
+}
+
+.glass-scrim {
+  background: rgba(2, 5, 9, 0.54);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 720px) {
+  :root {
+    --om-glass-blur-base: 8px;
+    --om-glass-blur-panel: 12px;
+    --om-glass-blur-elevated: 16px;
+    --om-glass-blur-modal: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-surface, .glass-surface--panel, .glass-surface--elevated, .glass-surface--modal {
+    background: var(--om-bg-elevated);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (update: slow) {
+  .glass-surface, .glass-surface--panel, .glass-surface--elevated, .glass-surface--modal {
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+}

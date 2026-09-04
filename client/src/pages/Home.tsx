@@ -1,0 +1,663 @@
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Music, Users, Radio, ArrowRight, Lock, ListMusic,
+  Loader2, RefreshCw, Plus, Hash, X, Disc3, Sparkles, History, Download, LogIn,
+} from 'lucide-react';
+import { createRoom, checkRoom, listRooms } from '../api/meting';
+import { useRoomStore } from '../stores/roomStore';
+import { useSocket } from '../hooks/useSocket';
+import type { RoomSummary } from '../types';
+import { createRandomNickname } from '../lib/randomNickname';
+import { usePageSeo } from '../lib/seo';
+import { partitionRoomsByRecent } from '../lib/recentRooms';
+import { areRoomListsEqual } from '../lib/roomListCompare';
+import { isMobileDevice } from '../lib/audioUnlock';
+import { ANDROID_APK_URL } from '../lib/androidDownload';
+import { IOS_IPA_URL } from '../lib/iosDownload';
+import Tooltip from '../components/Tooltip';
+import GlassSurface from '../components/GlassSurface';
+
+function GiteeIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 1024 1024" fill="currentColor" className={className} aria-hidden>
+      <path d="M512 1024q-104 0-199-40-92-39-163-110T40 711Q0 616 0 512t40-199Q79 221 150 150T313 40q95-40 199-40t199 40q92 39 163 110t110 163q40 95 40 199t-40 199q-39 92-110 163T711 984q-95 40-199 40z m259-569H480q-10 0-17.5 7.5T455 480v64q0 10 7.5 17.5T480 569h177q11 0 18.5 7.5T683 594v13q0 31-22.5 53.5T607 683H367q-11 0-18.5-7.5T341 657V417q0-31 22.5-53.5T417 341h354q11 0 18-7t7-18v-63q0-11-7-18t-18-7H417q-38 0-72.5 14T283 283q-27 27-41 61.5T228 417v354q0 11 7 18t18 7h373q46 0 85.5-22.5t62-62Q796 672 796 626V480q0-10-7-17.5t-18-7.5z" />
+    </svg>
+  );
+}
+
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 1024 1024" fill="currentColor" className={className} aria-hidden>
+      <path d="M512 0C229.12 0 0 229.12 0 512c0 226.56 146.688 418.688 349.696 486.592 25.6 4.672 34.944-11.104 34.944-24.704 0-12.224-0.512-52.544-0.768-95.232-142.24 30.944-172.256-60.416-172.256-60.416-23.264-59.104-56.8-74.848-56.8-74.848-46.432-31.744 3.52-31.136 3.52-31.136 51.36 3.616 78.4 52.736 78.4 52.736 45.632 78.208 119.776 55.616 148.992 42.528 4.64-33.056 17.856-55.616 32.448-68.416-113.664-12.96-233.216-56.896-233.216-253.12 0-55.904 20-101.568 52.736-137.376-5.344-12.928-22.848-64.928 4.96-135.392 0 0 43.008-13.76 140.896 52.48 40.832-11.36 84.64-17.056 128.192-17.28 43.52 0.224 87.36 5.888 128.256 17.248 97.824-66.24 140.768-52.448 140.768-52.448 27.872 70.464 10.368 122.464 5.024 135.392 32.768 35.84 52.672 81.472 52.672 137.376 0 196.608-119.744 239.968-233.76 252.608 18.368 15.84 34.656 46.976 34.656 94.656 0 68.352-0.608 123.392-0.608 140.16 0 13.632 9.216 29.568 35.168 24.576C877.376 930.624 1024 738.56 1024 512 1024 229.12 794.88 0 512 0z" />
+    </svg>
+  );
+}
+
+const repoLinkCls = 'p-2.5 rounded-xl text-white/50 border border-white/10 hover:text-white hover:bg-white/5 transition-colors';
+
+function PlayingBars() {
+  return (
+    <span className="inline-flex items-end gap-[3px] h-3.5">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-[3px] rounded-full bg-netease-red animate-pulse"
+          style={{
+            height: `${8 + (i % 2) * 6}px`,
+            animationDelay: `${i * 0.15}s`,
+            animationDuration: '0.8s',
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
+const RoomCard = memo(function RoomCard({
+  room,
+  onJoin,
+  isRecent,
+}: {
+  room: RoomSummary;
+  onJoin: (room: RoomSummary) => void;
+  isRecent?: boolean;
+}) {
+  const isActive = room.isPlaying && room.currentSong;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onJoin(room)}
+      className={`glass-surface glass-surface--panel glass-interactive group relative w-full text-left rounded-2xl overflow-hidden
+        ${isActive
+          ? 'border-[rgba(var(--om-accent-rgb),0.34)] shadow-[0_0_30px_rgba(var(--om-accent-rgb),0.08)]'
+          : ''
+        }`}
+    >
+      {isActive && (
+        <div className="absolute inset-0 bg-gradient-to-r from-netease-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      )}
+
+      <div className="relative p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {isRecent && (
+              <span className="flex-shrink-0 flex items-center gap-1 text-[10px] uppercase tracking-wide text-sky-400/90 bg-sky-500/10 px-1.5 py-0.5 rounded-md font-medium">
+                <History className="w-3 h-3" />
+                最近
+              </span>
+            )}
+            <h3 className="text-base font-semibold text-white truncate group-hover:text-netease-red transition-colors">
+              {room.name}
+            </h3>
+            {room.hasPassword && (
+              <span className="flex-shrink-0 p-1 rounded-md bg-amber-500/10 text-amber-400/90">
+                <Lock className="w-3.5 h-3.5" />
+              </span>
+            )}
+            {room.isLocked && !room.hasPassword && (
+              <Tooltip content="已上锁">
+                <span className="flex-shrink-0 p-1 rounded-md bg-red-500/10 text-red-400/90">
+                  <Lock className="w-3.5 h-3.5" />
+                </span>
+              </Tooltip>
+            )}
+          </div>
+          <span className="flex-shrink-0 flex items-center gap-1.5 rounded-full border border-[var(--om-glass-border)] bg-white/[0.04] px-2.5 py-1 text-xs text-white/60">
+            <Users className="w-3.5 h-3.5" />
+            {room.userCount}
+          </span>
+        </div>
+
+        <div className="min-h-[3.5rem] mb-4">
+          {room.currentSong ? (
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                {room.isPlaying && <PlayingBars />}
+                <span className="text-[10px] uppercase tracking-wider text-netease-red/80 font-medium">
+                  {room.isPlaying ? '正在播放' : '已暂停'}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-white/90 truncate leading-snug">
+                {room.currentSong.name}
+              </p>
+              <p className="text-xs text-white/40 truncate mt-0.5">
+                {room.currentSong.artist}
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-white/30">
+              <Disc3 className="w-4 h-4" />
+              <span className="text-sm">等待点播</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between pt-3 border-t border-white/5">
+          <span className="flex items-center gap-1.5 text-xs text-white/35">
+            <ListMusic className="w-3.5 h-3.5" />
+            队列 {room.queueLength} 首
+          </span>
+          <span className="flex items-center gap-1 text-xs text-netease-red/80 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+            进入
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+});
+
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="关闭"
+      />
+      <GlassSurface variant="modal" className="relative w-full max-w-sm rounded-2xl p-6 animate-fade-in">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-semibold text-white">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        {children}
+      </GlassSurface>
+    </div>
+  );
+}
+
+export default function Home() {
+  const navigate = useNavigate();
+  const nickname = useRoomStore((s) => s.nickname);
+  const setNickname = useRoomStore((s) => s.setNickname);
+  const { leaveRoom } = useSocket();
+
+  usePageSeo({
+    title: '一起听歌 · 房间大厅',
+    description: '创建或加入点歌房间，和好友一起听歌、多人实时同步播放；支持多音源搜索点歌与歌词跟唱。',
+    path: '/',
+  });
+
+  const [rooms, setRooms] = useState<RoomSummary[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
+  const [createRoomName, setCreateRoomName] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [joinPassword, setJoinPassword] = useState('');
+  const [passwordTarget, setPasswordTarget] = useState<RoomSummary | null>(null);
+  const [cardPassword, setCardPassword] = useState('');
+
+  const fetchRooms = useCallback(async (silent = false) => {
+    if (!silent) setRoomsLoading(true);
+    try {
+      const data = await listRooms();
+      setRooms((prev) => (areRoomListsEqual(prev, data) ? prev : data));
+    } catch {
+      if (!silent) setError('加载房间列表失败');
+    } finally {
+      if (!silent) setRoomsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (useRoomStore.getState().room) {
+      leaveRoom();
+    }
+  }, [leaveRoom]);
+
+  useEffect(() => {
+    fetchRooms();
+    const timer = setInterval(() => fetchRooms(true), 5000);
+    return () => clearInterval(timer);
+  }, [fetchRooms]);
+
+  const ensureNickname = () => {
+    const trimmed = nickname.trim();
+    if (trimmed) return trimmed;
+    const generated = createRandomNickname();
+    setNickname(generated);
+    return generated;
+  };
+
+  const goToRoom = (roomId: string, password?: string) => {
+    navigate(`/room/${roomId}`, { state: password ? { password } : undefined });
+  };
+
+  const handleCreate = async () => {
+    ensureNickname();
+    setActionLoading(true);
+    setError('');
+    try {
+      const room = await createRoom(createRoomName, createPassword);
+      setShowCreate(false);
+      setCreateRoomName('');
+      setCreatePassword('');
+      goToRoom(room.id, createPassword.trim() || undefined);
+    } catch {
+      setError('创建房间失败，请重试');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleJoinByCode = async () => {
+    ensureNickname();
+    const code = joinCode.trim().toUpperCase();
+    if (!code) {
+      setError('请输入房间号');
+      return;
+    }
+    setActionLoading(true);
+    setError('');
+    try {
+      const result = await checkRoom(code);
+      if (!result.exists) {
+        setError('房间不存在，请检查房间号');
+        return;
+      }
+      if (result.isLocked && !result.hasPassword) {
+        setError('房间已上锁，禁止进入');
+        return;
+      }
+      if (result.hasPassword && !joinPassword.trim()) {
+        setError('该房间需要密码');
+        return;
+      }
+      setShowJoin(false);
+      goToRoom(code, joinPassword.trim() || undefined);
+    } catch {
+      setError('加入房间失败，请重试');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRoomCardClick = useCallback((room: RoomSummary) => {
+    const trimmed = nickname.trim();
+    if (!trimmed) {
+      const generated = createRandomNickname();
+      setNickname(generated);
+    }
+    setError('');
+    if (room.isLocked && !room.hasPassword) {
+      setError('房间已上锁，禁止进入');
+      return;
+    }
+    if (room.hasPassword) {
+      setPasswordTarget(room);
+      setCardPassword('');
+    } else {
+      navigate(`/room/${room.id}`);
+    }
+  }, [nickname, navigate, setNickname]);
+
+  const handlePasswordJoin = () => {
+    if (!passwordTarget) return;
+    ensureNickname();
+    if (!cardPassword.trim()) {
+      setError('请输入房间密码');
+      return;
+    }
+    const id = passwordTarget.id;
+    setPasswordTarget(null);
+    goToRoom(id, cardPassword.trim());
+  };
+
+  const { recent: recentRooms, others: otherRooms } = useMemo(
+    () => partitionRoomsByRecent(rooms),
+    [rooms],
+  );
+
+  const inputCls = 'glass-input w-full rounded-xl border px-4 py-2.5 text-sm';
+
+  return (
+    <div className="ambient-stage h-full flex flex-col relative overflow-hidden">
+      <div className="pointer-events-none absolute left-[18%] top-[-16rem] h-[34rem] w-[34rem] rounded-full bg-[rgba(var(--om-accent-rgb),0.08)] blur-[130px]" />
+      <div className="pointer-events-none absolute bottom-[-12rem] right-[12%] h-[28rem] w-[28rem] rounded-full bg-[rgba(156,183,255,0.1)] blur-[120px]" />
+
+      {/* 顶栏：昵称 + 创建/加入 */}
+      <header className="glass-surface glass-surface--elevated relative z-20 flex-shrink-0 border-x-0 border-t-0 safe-top">
+        <div className="relative h-14 sm:h-16">
+          <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-30 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="glass-button-secondary hidden items-center gap-1.5 rounded-xl px-3 py-2 text-xs sm:flex"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              登录
+            </button>
+            {!isMobileDevice() && (
+              <>
+                <Tooltip content="下载 Android 客户端">
+                  <a
+                    href={ANDROID_APK_URL}
+                    download="openmusic.apk"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-emerald-400/90 border border-emerald-500/25 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Android</span>
+                  </a>
+                </Tooltip>
+                <Tooltip content="下载 iOS IPA（需 Sideloadly / AltStore 安装）">
+                  <a
+                    href={IOS_IPA_URL}
+                    download="openmusic.ipa"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-sky-400/90 border border-sky-500/25 hover:text-sky-300 hover:bg-sky-500/10 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>iOS</span>
+                  </a>
+                </Tooltip>
+              </>
+            )}
+            <a
+              href="https://gitee.com/yuchen0x1/openmusic"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={repoLinkCls}
+              aria-label="Gitee 仓库"
+            >
+              <GiteeIcon className="w-4 h-4" />
+            </a>
+            <a
+              href="https://github.com/yuchen0x1/zaixian-diange-fang"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`hidden sm:flex ${repoLinkCls}`}
+              aria-label="GitHub 仓库"
+            >
+              <GithubIcon className="w-4 h-4" />
+            </a>
+          </div>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 pr-14 sm:pr-72 h-full flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-netease-red/15 flex items-center justify-center">
+              <Music className="w-5 h-5 text-netease-red" />
+            </div>
+            <span className="hidden sm:block text-lg font-bold text-gradient">OpenMusic</span>
+          </div>
+
+          <div className="flex-1 min-w-0 max-w-xs">
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => { setNickname(e.target.value); setError(''); }}
+              placeholder="你的昵称"
+              aria-label="你的昵称"
+              maxLength={20}
+              className={`${inputCls} py-2`}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => { setError(''); setShowJoin(true); }}
+              className="glass-button-secondary hidden sm:flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm"
+            >
+              <Hash className="w-4 h-4" />
+              加入
+            </button>
+            <button
+              type="button"
+              onClick={() => { setError(''); setShowJoin(true); }}
+              className="glass-button-secondary sm:hidden rounded-xl p-2.5"
+              aria-label="加入房间"
+            >
+              <Hash className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => { setError(''); setShowCreate(true); }}
+              className="glass-button-primary glass-interactive flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">创建房间</span>
+              <span className="sm:hidden">创建</span>
+            </button>
+          </div>
+        </div>
+        </div>
+      </header>
+
+      {/* 中间：房间列表 */}
+      <main className="relative z-10 flex-1 overflow-y-auto">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">
+                <span className="sr-only">OpenMusic 在线点歌 - </span>
+                房间大厅
+              </h1>
+              <p className="text-sm text-white/40">选择一个房间加入，或创建你自己的</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => fetchRooms()}
+              disabled={roomsLoading}
+              className="glass-button-secondary flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${roomsLoading ? 'animate-spin' : ''}`} />
+              刷新
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-4 rounded-xl border border-[rgba(255,107,122,0.22)] bg-[rgba(255,107,122,0.1)] px-4 py-3 text-center text-sm text-[#ff9aa5]">
+              {error}
+            </div>
+          )}
+
+          {roomsLoading && rooms.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-white/30">
+              <Loader2 className="w-8 h-8 animate-spin mb-3" />
+              <p className="text-sm">加载房间中...</p>
+            </div>
+          ) : rooms.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 sm:py-28">
+              <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+                <Radio className="w-9 h-9 text-white/20" />
+              </div>
+              <p className="text-lg font-medium text-white/60 mb-2">还没有活跃房间</p>
+              <p className="text-sm text-white/35 mb-6">成为第一个创建房间的人吧</p>
+              <button
+                type="button"
+                onClick={() => { setError(''); setShowCreate(true); }}
+                className="glass-button-primary glass-interactive flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                创建房间
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {recentRooms.length > 0 && (
+                <section>
+                  <div className="flex items-center gap-2 mb-4">
+                    <History className="w-4 h-4 text-sky-400/80" />
+                    <h2 className="text-sm font-medium text-white/70">最近访问</h2>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {recentRooms.map((room) => (
+                      <RoomCard key={room.id} room={room} onJoin={handleRoomCardClick} isRecent />
+                    ))}
+                  </div>
+                </section>
+              )}
+              {otherRooms.length > 0 && (
+                <section>
+                  {recentRooms.length > 0 && (
+                    <h2 className="text-sm font-medium text-white/50 mb-4">全部房间</h2>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {otherRooms.map((room) => (
+                      <RoomCard key={room.id} room={room} onJoin={handleRoomCardClick} />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* 底栏 */}
+      <footer className="relative z-10 flex-shrink-0 border-t border-white/5 py-3 px-4">
+        <div className="flex flex-col items-center gap-2.5">
+          <div className="flex justify-center gap-6 sm:gap-10 text-white/25 text-xs">
+            <span className="flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5" />
+              多人实时同步
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Music className="w-3.5 h-3.5" />
+              三平台曲库
+            </span>
+          </div>
+          <p className="text-xs text-white/35">
+            友链：
+            <a
+              href="https://linux.do/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-1 text-white/50 transition-colors hover:text-white/75"
+            >
+              Linux.do
+            </a>
+          </p>
+          {/* <p className="flex flex-wrap items-center justify-center gap-1 text-xs text-white/35">
+            本网站由
+            <a
+              href="https://www.upyun.com/?utm_source=lianmeng&utm_medium=referral"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex opacity-80 hover:opacity-100 transition-opacity"
+              aria-label="又拍云"
+            >
+              <img src="/又拍云_logo5.png" alt="又拍云" className="h-6 w-auto" />
+            </a>
+            提供 CDN 加速 / 云存储服务
+          </p> */}
+        </div>
+      </footer>
+
+      {showCreate && (
+        <Modal title="创建房间" onClose={() => { setShowCreate(false); setCreateRoomName(''); setCreatePassword(''); }}>
+          <p className="text-sm text-white/45 mb-4">先给你的房间起个名字，方便大家在大厅里找到</p>
+          <label className="block text-xs text-white/50 mb-1.5">房间名称</label>
+          <input
+            type="text"
+            value={createRoomName}
+            onChange={(e) => setCreateRoomName(e.target.value)}
+            placeholder="例如：周杰伦专场"
+            maxLength={30}
+            className={`${inputCls} mb-4`}
+          />
+          <label className="block text-xs text-white/50 mb-1.5">房间密码（可选）</label>
+          <input
+            type="password"
+            value={createPassword}
+            onChange={(e) => setCreatePassword(e.target.value)}
+            placeholder="留空则无需密码"
+            maxLength={32}
+            className={`${inputCls} mb-5`}
+          />
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={actionLoading}
+            className="glass-button-primary glass-interactive w-full flex items-center justify-center gap-2 disabled:opacity-50 font-medium py-3 rounded-xl"
+          >
+            {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            创建并进入
+          </button>
+        </Modal>
+      )}
+
+      {showJoin && (
+        <Modal title="加入房间" onClose={() => { setShowJoin(false); setJoinCode(''); setJoinPassword(''); }}>
+          <label className="block text-xs text-white/50 mb-1.5">房间号</label>
+          <input
+            type="text"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            placeholder="6 位房间号"
+            maxLength={6}
+            className={`${inputCls} uppercase tracking-widest mb-4`}
+          />
+          <label className="block text-xs text-white/50 mb-1.5">密码（如有）</label>
+          <input
+            type="password"
+            value={joinPassword}
+            onChange={(e) => setJoinPassword(e.target.value)}
+            placeholder="无密码可留空"
+            maxLength={32}
+            className={`${inputCls} mb-5`}
+          />
+          <button
+            type="button"
+            onClick={handleJoinByCode}
+            disabled={actionLoading}
+            className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 disabled:opacity-50 text-white font-medium py-3 rounded-xl border border-white/10 transition-colors"
+          >
+            {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+            加入房间
+          </button>
+        </Modal>
+      )}
+
+      {passwordTarget && (
+        <Modal
+          title={`进入 ${passwordTarget.name}`}
+          onClose={() => { setPasswordTarget(null); setCardPassword(''); }}
+        >
+          <div className="flex items-center gap-2 text-amber-400/90 text-sm mb-4">
+            <Lock className="w-4 h-4" />
+            该房间已设置密码
+          </div>
+          <input
+            type="password"
+            value={cardPassword}
+            onChange={(e) => setCardPassword(e.target.value)}
+            placeholder="输入房间密码"
+            maxLength={32}
+            className={`${inputCls} mb-5`}
+            onKeyDown={(e) => e.key === 'Enter' && handlePasswordJoin()}
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={handlePasswordJoin}
+            className="glass-button-primary glass-interactive w-full flex items-center justify-center gap-2 font-medium py-3 rounded-xl"
+          >
+            <ArrowRight className="w-5 h-5" />
+            确认进入
+          </button>
+        </Modal>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,20 @@
+{
+  "name": "OpenMusic 一起听歌",
+  "short_name": "OpenMusic",
+  "description": "和好友一起听歌、多人同步播放的在线点歌房间。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0e0f13",
+  "theme_color": "#ec4141",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

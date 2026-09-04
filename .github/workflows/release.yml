@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v2.0.0'
+        required: true
+        default: v2.0.0
+      server_url:
+        description: 'Remote OpenMusic server URL used by mobile shells'
+        required: true
+        default: https://m.qqovo.cn
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  APP_SERVER_URL: ${{ inputs.server_url || 'https://m.qqovo.cn' }}
+
+jobs:
+  desktop:
+    name: Desktop web deployment package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix server
+          npm ci --prefix client
+      - name: Build deployment package
+        run: npm run package:build
+      - name: Rename package
+        run: mv release/openmusic-build.zip "openmusic-desktop-${RELEASE_TAG}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-package
+          path: openmusic-desktop-${{ env.RELEASE_TAG }}.zip
+
+  android:
+    name: Android installable package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+      - name: Sync Capacitor with remote server URL
+        env:
+          CAPACITOR_SERVER_URL: ${{ env.APP_SERVER_URL }}
+        run: npm run cap:sync:android
+        working-directory: client
+      - name: Build signed debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+        working-directory: client
+      - name: Rename APK
+        run: cp client/android/app/build/outputs/apk/debug/app-debug.apk "openmusic-android-${RELEASE_TAG}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-package
+          path: openmusic-android-${{ env.RELEASE_TAG }}.apk
+
+  ios:
+    name: iOS IPA
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+      - name: Sync Capacitor with remote server URL
+        env:
+          CAPACITOR_SERVER_URL: ${{ env.APP_SERVER_URL }}
+        run: npm run cap:sync:ios
+        working-directory: client
+      - name: Install CocoaPods dependencies
+        run: pod install
+        working-directory: client/ios/App
+      - name: Build unsigned IPA
+        run: |
+          set -euo pipefail
+          DERIVED="$PWD/client/build/ios"
+          APP_DIR="$DERIVED/Build/Products/Release-iphoneos/App.app"
+          OUT_DIR="$PWD/client/build/ipa"
+          mkdir -p "$OUT_DIR"
+          xcodebuild \
+            -workspace client/ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$DERIVED" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          test -d "$APP_DIR"
+          rm -rf "$OUT_DIR/Payload"
+          mkdir -p "$OUT_DIR/Payload"
+          cp -R "$APP_DIR" "$OUT_DIR/Payload/App.app"
+          (cd "$OUT_DIR" && zip -qr "openmusic-ios-${RELEASE_TAG}.ipa" Payload)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-package
+          path: client/build/ipa/openmusic-ios-${{ env.RELEASE_TAG }}.ipa
+
+  publish:
+    name: Publish GitHub Release
+    needs: [desktop, android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: '*-package'
+          merge-multiple: true
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${RELEASE_TAG}" release-assets/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "OpenMusic ${RELEASE_TAG}" \
+            --generate-notes

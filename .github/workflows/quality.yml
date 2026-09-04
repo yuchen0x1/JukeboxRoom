@@ -1,0 +1,60 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Audit server production dependencies
+        working-directory: server
+        run: npm audit --omit=dev
+
+      - name: Audit client production dependencies
+        working-directory: client
+        run: npm audit --omit=dev
+
+      - name: Check server syntax
+        working-directory: server
+        run: node --check index.js
+
+      - name: Run server tests
+        working-directory: server
+        run: npm test
+
+      - name: Run client tests
+        working-directory: client
+        run: npm test
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run local health smoke check
+        run: |
+          PORT=4100 node server/index.js > /tmp/openmusic-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+          sleep 3
+          OPENMUSIC_URL=http://127.0.0.1:4100 OPENMUSIC_SKIP_UPDATE=1 npm run check:health

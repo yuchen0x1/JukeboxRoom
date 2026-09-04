@@ -1,0 +1,198 @@
+import { memo, useState, useEffect } from 'react';
+import { Flame, Plus, Loader2, TrendingUp } from 'lucide-react';
+import type { HotSongItem, SearchResult } from '../types';
+import { getHotSongs, songKey } from '../api/music';
+import SongCover from './SongCover';
+import Tooltip from './Tooltip';
+import TruncateTip from './TruncateTip';
+
+interface Props {
+  addingId: string | null;
+  onAdd: (song: SearchResult) => void;
+  refreshKey?: number;
+  compact?: boolean;
+  embedded?: boolean;
+  limit?: number;
+}
+
+function rankStyle(rank: number) {
+  if (rank === 1) return 'bg-[var(--om-accent)] text-[#07110f]';
+  if (rank === 2) return 'bg-orange-500/90 text-white';
+  if (rank === 3) return 'bg-amber-500/80 text-white';
+  return 'bg-white/10 text-white/50';
+}
+
+const HOT_SONG_LIST_LIMIT = 15;
+
+/** 固定两行高度，短文案也占位换行区域 */
+const HOT_NAME_LINE_CLS =
+  'w-full min-w-0 line-clamp-2 break-words leading-snug min-h-[2.5em]';
+const HOT_ARTIST_LINE_CLS =
+  'w-full min-w-0 line-clamp-2 break-words leading-snug min-h-[2.2em]';
+
+export default memo(function HotSongPanel({
+  addingId,
+  onAdd,
+  refreshKey = 0,
+  compact = false,
+  embedded = false,
+  limit,
+}: Props) {
+  const fetchLimit = limit ?? HOT_SONG_LIST_LIMIT;
+  const [songs, setSongs] = useState<HotSongItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHot = async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const data = await getHotSongs(fetchLimit);
+        if (cancelled) return;
+        setSongs(data);
+      } catch {
+        // 接口失败：保留现有数据，跳过本次更新
+      } finally {
+        if (!cancelled && !silent) setLoading(false);
+      }
+    };
+
+    void loadHot();
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      void loadHot(true);
+    }, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [compact, embedded, fetchLimit, refreshKey]);
+
+  const handleAdd = (song: HotSongItem) => {
+    onAdd({
+      id: song.id,
+      source: song.source,
+      name: song.name,
+      artist: song.artist,
+      album: song.album,
+      pic: song.pic,
+      duration: song.duration,
+    });
+  };
+
+  if (compact) {
+    return (
+      <div className="glass-surface glass-surface--panel flex-shrink-0 overflow-hidden rounded-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--om-glass-border)] px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <Flame className="w-4 h-4 text-orange-400" />
+            <h2 className="text-sm font-medium">点歌热榜</h2>
+          </div>
+        </div>
+        <div className="p-2 overflow-x-auto">
+          {loading && songs.length === 0 ? (
+            <p className="text-xs text-netease-muted text-center py-3">加载中...</p>
+          ) : songs.length === 0 ? (
+            <p className="text-xs text-netease-muted text-center py-3">暂无点歌记录</p>
+          ) : (
+            <div className="flex gap-2 min-w-min pb-1">
+              {songs.map((song, i) => (
+                <button
+                  key={songKey(song)}
+                  type="button"
+                  onClick={() => handleAdd(song)}
+                  disabled={addingId === songKey(song)}
+                  className="glass-row flex w-28 flex-shrink-0 flex-col border border-[var(--om-glass-border)] bg-[var(--om-glass-base)] p-2 text-left transition-colors disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className={`text-[10px] font-bold w-4 h-4 rounded flex items-center justify-center ${rankStyle(i + 1)}`}>
+                      {i + 1}
+                    </span>
+                    <span className="text-[10px] text-netease-muted truncate">{song.count} 次</span>
+                  </div>
+                  <TruncateTip text={song.name} className={`text-xs font-medium ${HOT_NAME_LINE_CLS}`} />
+                  <TruncateTip text={song.artist} className={`text-[10px] text-netease-muted ${HOT_ARTIST_LINE_CLS}`} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex min-h-0 flex-col ${embedded ? 'h-full flex-1' : 'glass-surface glass-surface--panel h-full overflow-hidden rounded-2xl'}`}>
+      <div className={`flex flex-shrink-0 items-center justify-between border-b border-[var(--om-glass-border)] px-4 ${embedded ? 'py-2' : 'py-2.5'}`}>
+        <div className="flex items-center gap-1.5">
+          <Flame className="w-4 h-4 text-orange-400" />
+          <h2 className="text-sm font-medium">点歌热榜</h2>
+        </div>
+        <TrendingUp className="w-3.5 h-3.5 text-netease-muted" />
+      </div>
+
+      <div className="glass-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
+        {loading && songs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-netease-muted">
+            <Loader2 className="w-5 h-5 animate-spin mb-2" />
+            <p className="text-xs">加载热榜...</p>
+          </div>
+        ) : songs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-netease-muted px-3">
+            <Flame className="w-6 h-6 mb-2 opacity-30" />
+            <p className="text-xs text-center">还没有点歌记录</p>
+            <p className="text-[10px] text-center mt-1 opacity-70">点歌后会出现在这里</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {songs.map((song, i) => {
+              const rank = i + 1;
+              const key = songKey(song);
+              const isAdding = addingId === key;
+
+              return (
+                  <div
+                    key={key}
+                    className={`glass-row group flex items-start gap-2 ${embedded ? 'p-1.5' : 'p-2'}`}
+                  >
+                  <span
+                    className={`flex-shrink-0 w-5 h-5 rounded text-[11px] font-bold flex items-center justify-center ${rankStyle(rank)}`}
+                  >
+                    {rank}
+                  </span>
+                  <SongCover
+                    song={song}
+                    className="w-9 h-9 rounded-md object-cover bg-netease-card flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <TruncateTip text={song.name} className={`text-xs font-medium ${HOT_NAME_LINE_CLS}`} />
+                    <TruncateTip text={song.artist} className={`text-[10px] text-netease-muted ${HOT_ARTIST_LINE_CLS}`} />
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0 self-center">
+                    <span className="text-[10px] text-orange-400/90 font-medium">{song.count} 次</span>
+                  </div>
+                  <Tooltip content="点歌">
+                    <button
+                      type="button"
+                      onClick={() => handleAdd(song)}
+                      disabled={isAdding}
+                      className="glass-button-secondary flex-shrink-0 self-center rounded-lg p-1.5 text-[var(--om-accent)] opacity-0 transition-all group-hover:opacity-100 hover:bg-[var(--om-accent)] hover:text-[#07110f] disabled:opacity-50"
+                      aria-label="点歌"
+                    >
+                      {isAdding ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </Tooltip>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});

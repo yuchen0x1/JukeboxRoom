@@ -1,0 +1,410 @@
+import { memo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { Play, Pause, SkipForward, ChevronUp, Loader2 } from 'lucide-react';
+import { useRoomStore } from '../stores/roomStore';
+import { useAudioStore } from '../stores/audioStore';
+import { useSocket } from '../hooks/useSocket';
+
+import SourceBadge from './SourceBadge';
+import SongCover from './SongCover';
+
+import ProgressBar from './ProgressBar';
+import PlaybackProgressBar from './playback/PlaybackProgressBar';
+import PlaybackTimeLabel from './playback/PlaybackTimeLabel';
+import MiniPlayerLyricTicker from './playback/MiniPlayerLyricTicker';
+import VolumeControl from './VolumeControl';
+import FavoriteButton from './FavoriteButton';
+import Tooltip from './Tooltip';
+import { updateMediaSessionPlaybackState } from '../lib/mediaSession';
+
+interface Props {
+  onExpand: () => void;
+  transparentBar?: boolean;
+  barClassName?: string;
+  variant?: 'default' | 'immersive';
+}
+
+
+
+export default memo(function MiniPlayer({
+  onExpand,
+  transparentBar = true,
+  barClassName,
+  variant = 'default',
+}: Props) {
+
+  const { current, isPlaying, fmLoading, skipRequests, hasRoom } = useRoomStore(useShallow((s) => {
+    const r = s.room;
+    return {
+      current: r?.current ?? null,
+      isPlaying: r?.isPlaying ?? false,
+      fmLoading: Boolean(r?.randomLoading && !r?.current),
+      skipRequests: r?.skipRequests,
+      hasRoom: Boolean(r),
+    };
+  }));
+
+  const canControlPlayback = useRoomStore((s) => s.canControlPlayback);
+  const trackLoading = useAudioStore((s) => s.trackLoading);
+  const setTrackLoading = useAudioStore((s) => s.setTrackLoading);
+  const seekPlayback = useAudioStore((s) => s.seekPlayback);
+  const localPlayback = useAudioStore((s) => s.localPlayback);
+  const { togglePlay, skipSong, requestSkip } = useSocket();
+
+  const [skipError, setSkipError] = useState('');
+  const [skipMsg, setSkipMsg] = useState('');
+  const mySocketId = useRoomStore((s) => s.mySocketId);
+  const hasPendingSkip = skipRequests?.some((r) => r.requestedBy === mySocketId) ?? false;
+
+  const handlePlayPause = () => {
+    if (!hasRoom) return;
+    const next = !isPlaying;
+    if (!next) {
+      localPlayback?.(false);
+    }
+    updateMediaSessionPlaybackState(next ? 'playing' : 'paused');
+    togglePlay(next);
+    if (next) localPlayback?.(true);
+  };
+
+  const handleSeek = (time: number) => seekPlayback?.(time);
+
+  const handleSkip = async () => {
+    setSkipError('');
+    setSkipMsg('');
+    setTrackLoading(true);
+    const res = await skipSong();
+    if (!res.success) {
+      setTrackLoading(false);
+      setSkipError(res.error || '切歌失败');
+    }
+  };
+
+  const handleRequestSkip = async () => {
+    setSkipError('');
+    setSkipMsg('');
+    const res = await requestSkip();
+    if (res.success) {
+      setSkipMsg('已提交切歌申请');
+      setTimeout(() => setSkipMsg(''), 3000);
+    } else {
+      setSkipError(res.error || '申请失败');
+    }
+  };
+
+
+
+  if (!current && !fmLoading) return null;
+
+  if (variant === 'immersive') {
+    if (fmLoading) {
+      return (
+        <div id="bottom-bar" className="mineradio-bottom-bar visible room-immersive-bottom mx-auto">
+          <div className="mineradio-progress-bar">
+            <div className="mineradio-progress-fill" style={{ width: '0%' }} />
+          </div>
+          <div className="mineradio-controls">
+            <div className="control-cluster actions">
+              <div className="control-track">
+                <div className="control-cover cover-empty" aria-hidden />
+                <div className="control-meta">
+                  <div className="control-title">私人漫游</div>
+                  <div className="control-artist">正在加载…</div>
+                </div>
+              </div>
+            <div className="mineradio-ctrl-btn mineradio-ctrl-btn-placeholder" aria-hidden />
+            </div>
+            <div className="control-cluster transport">
+              <button type="button" className="mineradio-play-btn" disabled aria-label="播放控制">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </button>
+            </div>
+            <div className="control-cluster modes">
+            <div className="mineradio-ctrl-btn mineradio-ctrl-btn-placeholder" aria-hidden />
+              <div className="mineradio-time-display">0:00 / 0:00</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!current) return null;
+
+    return (
+      <div id="bottom-bar" className="mineradio-bottom-bar visible room-immersive-bottom mx-auto">
+        {(skipError || skipMsg) && (
+          <p className={`mb-1 text-center text-[10px] ${skipMsg ? 'text-amber-300' : 'text-red-300'}`}>
+            {skipMsg || skipError}
+          </p>
+        )}
+        <PlaybackProgressBar
+          song={current}
+          onSeek={handleSeek}
+          disabled={!current.duration}
+          variant="mineradio"
+        />
+        <div className="mineradio-controls">
+          <div className="control-cluster actions">
+            <button type="button" className="control-track text-left" onClick={onExpand}>
+              <SongCover
+                song={current}
+                size="tiny"
+                eager
+                className="control-cover"
+              />
+              <div className="control-meta">
+                <div className="control-title">{current.name}</div>
+                <div className="control-artist">{current.artist}</div>
+              </div>
+            </button>
+            <FavoriteButton
+              song={current}
+              className="mineradio-ctrl-btn text-white/65 hover:text-rose-300"
+              iconClassName="h-4 w-4"
+            />
+          </div>
+
+          <div className="control-cluster transport">
+            <Tooltip content={canControlPlayback ? '暂停/播放' : isPlaying ? '房主正在播放' : '房主已暂停'}>
+              <button
+                type="button"
+                onClick={canControlPlayback ? handlePlayPause : undefined}
+                disabled={trackLoading || !canControlPlayback}
+                className="mineradio-play-btn"
+                aria-label="播放控制"
+              >
+                {trackLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : isPlaying ? (
+                  <Pause className="h-5 w-5" />
+                ) : (
+                  <Play className="ml-0.5 h-5 w-5" />
+                )}
+              </button>
+            </Tooltip>
+
+            {canControlPlayback ? (
+              <Tooltip content="切歌">
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  disabled={trackLoading}
+                  className="mineradio-ctrl-btn"
+                  aria-label="切歌"
+                >
+                  {trackLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <SkipForward className="h-4 w-4" />}
+                </button>
+              </Tooltip>
+            ) : (
+              <Tooltip content={hasPendingSkip ? '已申请切歌' : '申请切歌'}>
+                <button
+                  type="button"
+                  onClick={handleRequestSkip}
+                  disabled={hasPendingSkip}
+                  className="mineradio-ctrl-btn"
+                  aria-label="申请切歌"
+                >
+                  <SkipForward className="h-4 w-4" />
+                </button>
+              </Tooltip>
+            )}
+          </div>
+
+          <div className="control-cluster modes">
+            <PlaybackTimeLabel
+              song={current}
+              className="mineradio-time-display"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const playerBarClass = barClassName
+    ? `glass-surface glass-surface--elevated fixed bottom-0 left-0 right-0 z-40 border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)] ${barClassName}`
+    : transparentBar
+      ? 'fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/25 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-xl [-webkit-backdrop-filter:blur(24px)]'
+      : 'glass-surface glass-surface--elevated fixed bottom-0 left-0 right-0 z-40 border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)]';
+
+  if (fmLoading) {
+    return (
+      <div className={playerBarClass}>
+        <div className="py-1.5 -my-1.5">
+          <ProgressBar
+            progress={0}
+            duration={0}
+            onSeek={() => {}}
+            disabled
+            className="h-0.5"
+            trackClassName="bg-netease-border"
+            fillClassName="bg-netease-red"
+          />
+        </div>
+
+        <div className="max-w-5xl mx-auto flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0 max-w-[38%] sm:max-w-[32%] min-w-0">
+            <div className="flex h-10 w-10 sm:h-11 sm:w-11 flex-shrink-0 items-center justify-center rounded-lg bg-netease-card">
+              <Loader2 className="h-4 w-4 animate-spin text-netease-red" />
+            </div>
+            <div className="min-w-0 hidden sm:block">
+              <p className="truncate text-sm font-medium text-netease-muted">私人漫游</p>
+              <p className="truncate text-[11px] text-netease-muted/80 sm:text-xs">正在加载…</p>
+            </div>
+            <ChevronUp className="h-4 w-4 flex-shrink-0 text-transparent sm:hidden" aria-hidden />
+          </div>
+
+          <div className="min-w-0 flex-1 px-1 text-center sm:px-2">
+            <p className="truncate text-xs font-medium leading-tight text-netease-muted sm:text-sm">正在加载私人漫游…</p>
+            <p className="mt-0.5 truncate text-[10px] leading-tight text-netease-muted/70 sm:text-xs">{'\u00A0'}</p>
+          </div>
+
+          <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2">
+            <span className="hidden text-[10px] text-transparent sm:block">0:00</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10" aria-hidden>
+              <Play className="ml-0.5 h-4 w-4 text-white/30" />
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center" aria-hidden>
+              <SkipForward className="h-4 w-4 text-white/20" />
+            </div>
+            <div className="h-8 w-8 flex-shrink-0" aria-hidden />
+            <div className="h-8 w-8 flex-shrink-0" aria-hidden />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!current) return null;
+
+  return (
+
+    <div className={playerBarClass}>
+
+      {(skipError || skipMsg) && (
+
+        <p className={`text-center text-[10px] py-0.5 ${skipMsg ? 'text-amber-400' : 'text-netease-red'}`}>
+          {skipMsg || skipError}
+        </p>
+
+      )}
+
+      <div className="py-1.5 -my-1.5">
+        <PlaybackProgressBar
+          song={current}
+          onSeek={handleSeek}
+          disabled={!canControlPlayback}
+          className="h-0.5"
+          trackClassName="bg-netease-border"
+          fillClassName="bg-netease-red"
+        />
+      </div>
+
+
+
+      <div className="max-w-5xl mx-auto flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5">
+
+        <button onClick={onExpand} className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0 max-w-[38%] sm:max-w-[32%] min-w-0 text-left">
+
+          <SongCover
+            song={current}
+            size="tiny"
+            eager
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg object-cover flex-shrink-0"
+          />
+
+          <div className="min-w-0 hidden sm:block">
+
+            <div className="flex items-center gap-1 sm:gap-1.5">
+
+              <p className="text-sm font-medium truncate">{current.name}</p>
+
+              <SourceBadge source={current.source || 'netease'} className="hidden sm:inline-flex" />
+
+            </div>
+
+            <p className="text-[11px] sm:text-xs text-netease-muted truncate">
+
+              {current.artist}
+              {current.requestedBy && (
+                <span className="text-netease-muted/70"> · {current.requestedBy}点的歌</span>
+              )}
+
+            </p>
+
+          </div>
+
+          <ChevronUp className="w-4 h-4 text-netease-muted flex-shrink-0 sm:hidden" />
+
+        </button>
+
+        <MiniPlayerLyricTicker song={current} onExpand={onExpand} />
+
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+
+        <PlaybackTimeLabel
+          song={current}
+          className="text-[10px] text-netease-muted hidden sm:block"
+        />
+
+
+
+        <Tooltip content={canControlPlayback ? '暂停/播放' : (isPlaying ? '房主正在播放' : '房主已暂停')}>
+          <button
+            onClick={canControlPlayback ? handlePlayPause : undefined}
+            disabled={trackLoading || !canControlPlayback}
+            className={`w-9 h-9 flex items-center justify-center rounded-full transition-all disabled:opacity-70 ${canControlPlayback ? 'bg-white text-black hover:scale-105' : 'bg-white/10 text-white/70 cursor-not-allowed'}`}
+            aria-label="播放控制"
+          >
+            {trackLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : isPlaying ? (
+              <Pause className="w-4 h-4" />
+            ) : (
+              <Play className="w-4 h-4 ml-0.5" />
+            )}
+          </button>
+        </Tooltip>
+
+        {canControlPlayback ? (
+          <Tooltip content="切歌">
+            <button
+              onClick={handleSkip}
+              disabled={trackLoading}
+              className="w-8 h-8 flex items-center justify-center text-netease-muted hover:text-white transition-colors disabled:opacity-50"
+              aria-label="切歌"
+            >
+              {trackLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <SkipForward className="w-4 h-4" />
+              )}
+            </button>
+          </Tooltip>
+        ) : (
+          <Tooltip content={hasPendingSkip ? '已申请切歌' : '申请切歌'}>
+            <button
+              onClick={handleRequestSkip}
+              disabled={hasPendingSkip}
+              className="w-8 h-8 flex items-center justify-center text-netease-muted hover:text-white transition-colors disabled:opacity-40"
+              aria-label="申请切歌"
+            >
+              <SkipForward className="w-4 h-4" />
+            </button>
+          </Tooltip>
+        )}
+
+        <VolumeControl compact className="flex-shrink-0" />
+        <FavoriteButton song={current} className="w-8 h-8 text-netease-muted hover:text-rose-300" />
+
+        </div>
+
+      </div>
+
+    </div>
+
+  );
+
+});
+
+
