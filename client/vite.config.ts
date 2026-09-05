@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { buildRobotsTxt, buildSitemapXml, resolveDevSiteOrigin } from '../server/seoFiles.js';
+
+const appVersion = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as { version: string }).version;
 
 function seoDevMiddleware() {
   return {
@@ -25,6 +28,10 @@ function seoDevMiddleware() {
 
 export default defineConfig({
   plugins: [react(), seoDevMiddleware()],
+  define: {
+    // 客户端展示用版本号；更新对比以服务端 /api/update 的 currentVersion 为准
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   build: {
     chunkSizeWarningLimit: 900,
     rollupOptions: {

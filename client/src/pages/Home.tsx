@@ -17,6 +17,7 @@ import { ANDROID_APK_URL } from '../lib/androidDownload';
 import { IOS_IPA_URL } from '../lib/iosDownload';
 import Tooltip from '../components/Tooltip';
 import GlassSurface from '../components/GlassSurface';
+import VersionStatus from '../components/VersionStatus';
 
 function GiteeIcon({ className }: { className?: string }) {
   return (
@@ -374,7 +375,7 @@ export default function Home() {
               </>
             )}
             <a
-              href="https://gitee.com/yuchen0x1/openmusic"
+              href="https://gitee.com/yuchen0x1/zaixian-diange-fang"
               target="_blank"
               rel="noopener noreferrer"
               className={repoLinkCls}
@@ -537,17 +538,7 @@ export default function Home() {
               三平台曲库
             </span>
           </div>
-          <p className="text-xs text-white/35">
-            友链：
-            <a
-              href="https://linux.do/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-1 text-white/50 transition-colors hover:text-white/75"
-            >
-              Linux.do
-            </a>
-          </p>
+          <VersionStatus />
           {/* <p className="flex flex-wrap items-center justify-center gap-1 text-xs text-white/35">
             本网站由
             <a
