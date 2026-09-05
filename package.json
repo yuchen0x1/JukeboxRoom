@@ -24,7 +24,9 @@
     "cap:open:ios": "npm run cap:open:ios --prefix client",
     "cap:run:android": "npm run cap:run:android --prefix client",
     "cap:run:ios": "npm run cap:run:ios --prefix client",
-    "cap:build:apk": "npm run cap:build:apk --prefix client"
+    "cap:build:apk": "npm run cap:build:apk --prefix client",
+    "desktop:dev": "npm run build && npm run start --prefix desktop",
+    "desktop:build": "npm run build && npm run dist --prefix desktop"
   },
   "devDependencies": {
     "concurrently": "^9.2.4"

@@ -1,0 +1,53 @@
+{
+  "name": "openmusic-desktop",
+  "productName": "OpenMusic",
+  "version": "2.0.1",
+  "private": true,
+  "description": "OpenMusic 桌面版（内置本地服务端）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.openmusic.app",
+    "productName": "OpenMusic",
+    "directories": {
+      "output": "../release/desktop",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../server",
+        "to": "server",
+        "filter": [
+          "**/*",
+          "!**/.env",
+          "!data/**",
+          "!downloads/**"
+        ]
+      },
+      {
+        "from": "../client/dist",
+        "to": "client/dist"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "openmusic-desktop-${version}.exe"
+    }
+  }
+}

@@ -259,6 +259,14 @@ pm2 start deploy/ecosystem.config.cjs
 5. 房主在房间设置中调整点歌限制、公告、视觉背景、成员权限、音质和 FM 模式；
 6. 大屏展示访问 `https://你的域名/tv/房间号`。
 
+### 桌面版（Windows .exe）
+
+独立桌面客户端，双击即用：内置本地服务端和完整页面，**无需安装 Node.js**，窗口关闭时本地服务随之退出。
+
+- 首次启动会在 `%APPDATA%\OpenMusic\openmusic.env` 自动生成配置模板和随机安全密钥；搜歌/播放依赖 Meting-API，按模板注释填写 `METING_API_URL` 后重启生效；
+- 房间、收藏等本地数据保存在 `%APPDATA%\OpenMusic\data`；
+- 构建：`npm run desktop:build`（先构建前端，再用 Electron 打包为 `release/desktop/openmusic-desktop-<版本>.exe`）。
+
 ### 手机 App（Capacitor 壳）
 
 App 采用远程 URL 模式，在 WebView 内打开线上站点。先复制 `client/.env.capacitor.example` 为 `client/.env.capacitor`，填写线上 HTTPS 地址（与 `CLIENT_URL` 一致），然后在根目录执行：
@@ -319,6 +327,7 @@ curl http://localhost:4000/api/music/sources
 │   ├── audit/  db/  data/  # 审计日志、存储适配、本地 JSON 数据目录
 │   └── *.test.js           # Node 内置测试运行器的测试文件
 ├── deploy/                 # Meting Compose、PM2、Nginx 示例与宝塔部署文档
+├── desktop/                # Electron 桌面壳（Windows 独立 .exe，内置本地服务端）
 ├── docs/                   # 部署文档与项目截图
 ├── scripts/                # 健康检查、打包与视觉资源脚本
 ├── .github/workflows/      # CI 工作流
