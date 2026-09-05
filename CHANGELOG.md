@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.2 - 2026-09-05
+
+- Added a home footer version badge with a manual check-for-updates action.
+- Showed a footer link to the latest stable Gitee release when a newer version is detected.
+- Injected the client version at build time so the badge stays visible while the update API is unavailable.
+- Fixed the home header Gitee repository link to point to the actual repository.
+
 ## 2.0.1 - 2026-08-29
 
 - Added automatic online update detection from the latest stable Gitee Release.

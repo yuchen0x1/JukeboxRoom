@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-brightgreen.svg)
-![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 
 一群人聚在一起听歌，最怕的就是"放什么"争不出结果。OpenMusic 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
@@ -393,7 +393,7 @@ npm run check:health       # 对已启动实例做存活/就绪/更新接口冒�
 
 ## 版本
 
-当前版本 `2.0.1`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 Gitee 最新稳定 Release 提供更新检测（`GET /api/update`）。
+当前版本 `2.0.2`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 Gitee 最新稳定 Release 提供更新检测（`GET /api/update`）。
 
 ## 参与贡献
 
