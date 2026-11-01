@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Music, Users, Radio, ArrowRight, Lock, ListMusic,
-  Loader2, RefreshCw, Plus, Hash, X, Disc3, Sparkles, History, Download,
+  Loader2, RefreshCw, Plus, Hash, X, Disc3, Sparkles, History,
 } from 'lucide-react';
 import { createRoom, checkRoom, listRooms } from '../api/meting';
 import { useRoomStore } from '../stores/roomStore';
@@ -12,9 +12,6 @@ import { createRandomNickname } from '../lib/randomNickname';
 import { usePageSeo } from '../lib/seo';
 import { partitionRoomsByRecent } from '../lib/recentRooms';
 import { areRoomListsEqual } from '../lib/roomListCompare';
-import { isMobileDevice } from '../lib/audioUnlock';
-import { ANDROID_APK_URL } from '../lib/androidDownload';
-import { IOS_IPA_URL } from '../lib/iosDownload';
 import Tooltip from '../components/Tooltip';
 import GlassSurface from '../components/GlassSurface';
 import VersionStatus from '../components/VersionStatus';
@@ -334,30 +331,6 @@ export default function Home() {
       <header className="glass-surface glass-surface--elevated relative z-20 flex-shrink-0 border-x-0 border-t-0 safe-top">
         <div className="relative h-14 sm:h-16">
           <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-30 flex items-center gap-2">
-            {!isMobileDevice() && (
-              <>
-                <Tooltip content="下载 Android 客户端">
-                  <a
-                    href={ANDROID_APK_URL}
-                    download="openmusic.apk"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-emerald-400/90 border border-emerald-500/25 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Android</span>
-                  </a>
-                </Tooltip>
-                <Tooltip content="下载 iOS IPA（需 Sideloadly / AltStore 安装）">
-                  <a
-                    href={IOS_IPA_URL}
-                    download="openmusic.ipa"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-sky-400/90 border border-sky-500/25 hover:text-sky-300 hover:bg-sky-500/10 transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>iOS</span>
-                  </a>
-                </Tooltip>
-              </>
-            )}
             <a
               href="https://gitee.com/yuchen0x1/JukeboxRoom"
               target="_blank"
