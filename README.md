@@ -1,14 +1,14 @@
-# OpenMusic · 多人实时在线点歌系统
+# JukeboxRoom · 多人实时在线点歌系统
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-brightgreen.svg)
-![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 
-一群人聚在一起听歌，最怕的就是"放什么"争不出结果。OpenMusic 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
+一群人聚在一起听歌，最怕的就是"放什么"争不出结果。JukeboxRoom 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
 
-- 原创作者项目：<https://github.com/qq01-hub/openmusic>
-- 代码托管：Gitee `https://gitee.com/yuchen0x1/zaixian-diange-fang`
+- 原创作者项目：<https://github.com/qq01-hub/openmusic>（本项目基于 OpenMusic 二次开发）
+- 代码托管：Gitee <https://gitee.com/yuchen0x1/zaixian-diange-fang>
 
 | 房间大厅 | 房间点歌与聊天 | 唱片与歌词 |
 |:---:|:---:|:---:|
@@ -16,7 +16,7 @@
 
 ## 项目简介
 
-OpenMusic 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web 客户端**（Vite + TypeScript）组成，可直接私有部署。用户创建或加入音乐房间后，共享播放队列、播放进度和歌词，并在房间内聊天；服务端同时负责音乐源适配、媒体代理、房间管理、可选持久化和管理类接口。
+JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web 客户端**（Vite + TypeScript）组成，可直接私有部署。用户创建或加入音乐房间后，共享播放队列、播放进度和歌词，并在房间内聊天；服务端同时负责音乐源适配、媒体代理、房间管理、可选持久化和管理类接口。
 
 典型场景：私人聚会、线上陪伴听歌、小型直播点歌、办公室/宿舍共享歌单、TV 大屏展示。项目处于正常维护与持续更新中。
 
@@ -30,10 +30,11 @@ OpenMusic 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web 客�
 **播放与音乐**
 
 - 基于 Socket.IO 的实时同步播放：播放状态、队列和进度全房同步，支持暂停/播放/拖动进度；
-- 音乐搜索与播放：网易云（红点）、QQ（绿点）和可选的酷狗/迟言 API（蓝点），支持音质选择（如 Hi-Res、无损 FLAC）；
+- 音乐搜索与播放：网易云、QQ音乐、酷狗音乐、汽水音乐四平台聚合搜索，支持音质选择（如 Hi-Res、无损 FLAC）；
+- **音源登录（房主专属）**：房主在「音源登录」面板扫码/授权登录网易云、QQ音乐、酷狗音乐、汽水音乐，全房成员点歌即使用该账号的 VIP / 高品质音源；凭据仅存服务端；
 - 歌单与收藏：网易云热榜、歌单搜索、外部歌单导入、个人收藏；
 - 歌词滚动与逐字高亮（卡拉OK 效果）、封面背景、Mini Player、同源媒体代理；
-- 队列为空时可自动随机推荐（需配置迟言 API）。
+- 队列为空时可自动随机推荐（私人漫游）。
 
 **房主管理**
 
@@ -167,7 +168,7 @@ pm2 start deploy/ecosystem.config.cjs
 
 ### 关于 Docker
 
-仓库仅提供 Meting-API 的 Docker Compose 示例，**不包含** OpenMusic 主服务的 Dockerfile 或完整应用 Compose 文件。主服务请使用 Node/PM2、宝塔或自行制作容器镜像部署。
+仓库仅提供 Meting-API 的 Docker Compose 示例，**不包含** JukeboxRoom 主服务的 Dockerfile 或完整应用 Compose 文件。主服务请使用 Node/PM2、宝塔或自行制作容器镜像部署。
 
 ## 环境变量参考
 
@@ -194,7 +195,7 @@ pm2 start deploy/ecosystem.config.cjs
 | `METING_API_AUTH` | — | 推荐配置。Meting-API 鉴权令牌 |
 | `ALLOW_PRIVATE_UPSTREAMS` | 关闭 | 设为 `1` 允许访问私有地址的 Meting 上游（仅限本机/内网自托管，不要用于用户可控 URL） |
 | `CYAPI_BASE` | `https://cyapi.top/API` | 迟言 API 根地址 |
-| `CYAPI_KEY` | — | 启用蓝点（酷狗）搜索/播放和队列随机推荐 |
+| `CYAPI_KEY` | — | 可选：迟言 API（酷狗第三方源）；酷狗搜索现已默认走官方网页接口，无需此项 |
 | `VMY_LRC_URL` | `https://api.52vmy.cn/api/music/lrc` | 按歌名的歌词备用接口 |
 
 **Redis（可选）**
@@ -263,8 +264,8 @@ pm2 start deploy/ecosystem.config.cjs
 
 独立桌面客户端，双击即用：内置本地服务端和完整页面，**无需安装 Node.js**，窗口关闭时本地服务随之退出。
 
-- 首次启动会在 `%APPDATA%\OpenMusic\openmusic.env` 自动生成配置模板和随机安全密钥；搜歌/播放依赖 Meting-API，按模板注释填写 `METING_API_URL` 后重启生效；
-- 房间、收藏等本地数据保存在 `%APPDATA%\OpenMusic\data`；
+- 首次启动会在 `%APPDATA%\JukeboxRoom\jukeboxroom.env` 自动生成配置模板和随机安全密钥；搜歌/播放依赖 Meting-API，按模板注释填写 `METING_API_URL` 后重启生效；
+- 房间、收藏等本地数据保存在 `%APPDATA%\JukeboxRoom\data`；
 - 构建：`npm run desktop:build`（先构建前端，再用 Electron 打包为 `release/desktop/openmusic-desktop-<版本>.exe`）。
 
 ### 手机 App（Capacitor 壳）
@@ -362,9 +363,9 @@ npm run check:health       # 对已启动实例做存活/就绪/更新接口冒�
 检查 Nginx 是否配置了 `/socket.io/` 的 WebSocket 升级，并确认 `CLIENT_URL` 与访问域名一致。
 
 **搜不到歌或无法播放**
-检查 `METING_API_URL`、Meting 服务状态及 `METING_API_AUTH`；蓝点还需要 `CYAPI_KEY`。
+检查 `METING_API_URL`、Meting 服务状态及 `METING_API_AUTH`；酷狗无需额外配置（房主登录酷狗后可用 VIP 音源）。
 
-**蓝点播放卡顿**
+**酷狗音乐播放卡顿**
 为 `/api/media-proxy` 关闭 Nginx 缓冲，见 `deploy/nginx.conf.example`。
 
 **生产启动后跨域失败**
@@ -393,7 +394,7 @@ npm run check:health       # 对已启动实例做存活/就绪/更新接口冒�
 
 ## 版本
 
-当前版本 `2.0.2`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 Gitee 最新稳定 Release 提供更新检测（`GET /api/update`）。
+当前版本 `0.0.1`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 Gitee 最新稳定 Release 提供更新检测（`GET /api/update`）。
 
 ## 参与贡献
 

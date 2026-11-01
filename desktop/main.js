@@ -1,7 +1,7 @@
 /**
- * OpenMusic 桌面版（Electron 壳）。
- * 启动时在本机拉起 OpenMusic 服务端（内嵌 Node 运行），再用窗口加载页面。
- * 配置与数据目录：%APPDATA%/OpenMusic（openmusic.env 可覆盖任意服务端环境变量）。
+ * JukeboxRoom 桌面版（Electron 壳）。
+ * 启动时在本机拉起 JukeboxRoom 服务端（内嵌 Node 运行），再用窗口加载页面。
+ * 配置与数据目录：%APPDATA%/openmusic-desktop（jukeboxroom.env 可覆盖任意服务端环境变量）。
  */
 const { app, BrowserWindow, dialog, shell } = require('electron');
 const { spawn } = require('child_process');
@@ -17,7 +17,7 @@ const serverEntry = path.join(serverDir, 'index.js');
 
 const READY_TIMEOUT_MS = 20_000;
 const CONFIG_TEMPLATE = [
-  '# OpenMusic 桌面版配置：每行一个 KEY=VALUE，修改后重启应用生效。',
+  '# JukeboxRoom 桌面版配置：每行一个 KEY=VALUE，修改后重启应用生效。',
   '# 搜歌/播放依赖 Meting-API，必填一个可用地址（自托管或可信公共服务）：',
   '#   METING_API_URL=https://your-meting-api',
   '#   METING_API_AUTH=your-meting-token',
@@ -91,14 +91,14 @@ function stopServer() {
 
 async function startServer() {
   const port = await getFreePort();
-  const configPath = path.join(app.getPath('userData'), 'openmusic.env');
+  const configPath = path.join(app.getPath('userData'), 'jukeboxroom.env');
   if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, CONFIG_TEMPLATE, 'utf8');
   const userEnv = readConfigFile(configPath);
 
   const missingSecrets = !userEnv.CLIENT_ID_SECRET || !userEnv.AUTH_JWT_SECRET;
   if (missingSecrets) {
     const generated = [
-      '# 以下由 OpenMusic 自动生成，删除会导致账号身份和登录态失效',
+      '# 以下由 JukeboxRoom 自动生成，删除会导致账号身份和登录态失效',
       `CLIENT_ID_SECRET=${crypto.randomBytes(32).toString('hex')}`,
       `AUTH_JWT_SECRET=${crypto.randomBytes(32).toString('hex')}`,
       '',
@@ -132,9 +132,9 @@ async function startServer() {
     if (reportedExit) return;
     reportedExit = true;
     dialog.showErrorBox(
-      'OpenMusic 本地服务已退出',
+      'JukeboxRoom 本地服务已退出',
       `本地服务进程异常退出（code=${code ?? 'unknown'}）。\n` +
-        '常见原因：openmusic.env 配置了无效变量，或端口/数据目录不可用。\n' +
+        '常见原因：jukeboxroom.env 配置了无效变量，或端口/数据目录不可用。\n' +
         `配置位置：${configPath}`,
     );
     app.quit();
@@ -147,7 +147,7 @@ async function createWindow() {
   try {
     port = await startServer();
   } catch (err) {
-    dialog.showErrorBox('OpenMusic 启动失败', `无法启动本地服务：${err.message}`);
+    dialog.showErrorBox('JukeboxRoom 启动失败', `无法启动本地服务：${err.message}`);
     app.quit();
     return;
   }
@@ -155,7 +155,7 @@ async function createWindow() {
   const base = `http://127.0.0.1:${port}`;
   const ready = await waitUntilReady(`${base}/api/health/ready`);
   if (!ready) {
-    dialog.showErrorBox('OpenMusic 启动失败', `本地服务在 ${READY_TIMEOUT_MS / 1000} 秒内未就绪，请重启重试。`);
+    dialog.showErrorBox('JukeboxRoom 启动失败', `本地服务在 ${READY_TIMEOUT_MS / 1000} 秒内未就绪，请重启重试。`);
     app.quit();
     return;
   }
@@ -167,7 +167,7 @@ async function createWindow() {
     minWidth: 960,
     minHeight: 600,
     autoHideMenuBar: true,
-    title: 'OpenMusic',
+    title: 'JukeboxRoom',
     backgroundColor: '#141414',
     webPreferences: {
       contextIsolation: true,
