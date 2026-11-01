@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-brightgreen.svg)
-![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.3-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 
 一群人聚在一起听歌，最怕的就是"放什么"争不出结果。JukeboxRoom 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
@@ -10,9 +10,9 @@
 - 原创作者项目：<https://github.com/qq01-hub/openmusic>（本项目基于 OpenMusic 二次开发）
 - 代码托管：Gitee <https://gitee.com/yuchen0x1/JukeboxRoom>
 
-| 房间大厅 | 房间点歌与聊天 | 唱片与歌词 |
+| 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
 |:---:|:---:|:---:|
-| ![房间大厅](docs/screenshots/home.png) | ![房间点歌](docs/screenshots/room.png) | ![歌词](docs/screenshots/lyrics.png) |
+| ![房间大厅](docs/screenshots/home.png) | ![房间点歌](docs/screenshots/room.png) | ![音源登录](docs/screenshots/login.png) |
 
 ## 项目简介
 
