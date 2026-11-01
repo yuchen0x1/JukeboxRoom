@@ -142,6 +142,8 @@ import {
 } from './apihzSticker.js';
 import { isAllowedReleaseRedirectUrl, updateService } from './update.js';
 import { getProviderHealth } from './mediaHealth.js';
+import { applySelfUpdate, getSelfUpdateState } from './selfUpdate.js';
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4000;
@@ -377,6 +379,7 @@ function createRateLimiter({ windowMs, max, maxBuckets = MAX_RATE_LIMIT_BUCKETS 
 const limitRoomCreate = createRateLimiter({ windowMs: 60_000, max: 20 });
 const limitJoinAttempt = createRateLimiter({ windowMs: 60_000, max: 30 });
 const limitProxyRequest = createRateLimiter({ windowMs: 60_000, max: 120 });
+const limitUpdateApply = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 3 });
 const limitSocketAction = createSocketRateLimiter({ windowMs: 60_000, max: 90, keyFn: (socket) => getClientIp(socket) || socket.id });
 const limitSocketChat = createSocketRateLimiter({ windowMs: 60_000, max: 30, keyFn: (socket) => getClientIp(socket) || socket.id });
 
@@ -732,6 +735,22 @@ app.get('/api/music/sources', (_req, res) => {
     },
   ];
   res.json(sources);
+});
+
+/** 一键更新：拉取最新 Release 对应的代码并自动重建（限流 + 全局单飞） */
+app.post('/api/update/apply', (req, res) => {
+  const info = getSelfUpdateState();
+  if (!info.supported) return res.status(501).json({ ok: false, error: info.error || '当前部署方式不支持自动更新' });
+  if (!limitUpdateApply(`update-apply:${getRequestIp(req)}`)) {
+    return res.status(429).json({ ok: false, error: '请求过于频繁，请稍后再试' });
+  }
+  const result = applySelfUpdate();
+  if (result.error) return res.status(400).json({ ok: false, error: result.error });
+  res.json({ ok: true, ...result, hint: '更新中：约 1-3 分钟后服务自动重启，页面会自动恢复' });
+});
+
+app.get('/api/update/apply/status', (_req, res) => {
+  res.json({ ok: true, ...getSelfUpdateState() });
 });
 
 app.get('/api/music/health', (_req, res) => {
@@ -2737,6 +2756,25 @@ autoAdvanceTimer.unref?.();
 await initRooms();
 runtime.setReady(true);
 ensureSeedRoom(); // 固定测试房（每次启动确保存在）
+
+// 每日自动检查更新：发现新版本且部署环境支持时自动完成拉取/构建/重启（AUTO_UPDATE=0 关闭）
+const AUTO_UPDATE_ENABLED = process.env.AUTO_UPDATE !== '0';
+const AUTO_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+if (AUTO_UPDATE_ENABLED) {
+  const autoUpdateTick = async () => {
+    try {
+      const info = await updateService.getUpdateInfo();
+      if (info?.updateAvailable) {
+        console.info(`[auto-update] 发现新版本 v${info.latestVersion}，开始自动更新…`);
+        applySelfUpdate();
+      }
+    } catch (error) {
+      console.warn('[auto-update] 检查失败:', error.message);
+    }
+  };
+  setTimeout(() => void autoUpdateTick(), 2 * 60 * 1000);
+  setInterval(() => void autoUpdateTick(), AUTO_UPDATE_INTERVAL_MS);
+}
 
 if (process.env.LIBRARY_WATCH_ENABLED === '1') {
   const libraryPaths = (process.env.MUSIC_LIBRARY_PATHS || '').split(';').map((item) => item.trim()).filter(Boolean);
