@@ -88,16 +88,23 @@ export async function searchTencent(keyword, page = 1, limit = 30) {
   });
   const songs = data?.req_1?.data?.body?.song?.list;
   if (!Array.isArray(songs)) throw new Error('QQ 音乐搜索返回异常');
-  return songs.map((s) => ({
-    id: s.mid,
-    name: s.name || '未知歌曲',
-    artist: (s.singer || []).map((x) => x?.name).filter(Boolean).join(' / ') || '未知歌手',
-    album: s.album?.name || '',
-    duration: Number(s.interval) > 0 ? Number(s.interval) * 1000 : undefined,
-    vip: Boolean(s.pay?.pay_play),
-    pic: s.album?.mid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${s.album.mid}.jpg` : undefined,
-    source: 'tencent',
-  })).filter((s) => s.id);
+  return songs.map((s) => {
+    const singerMid = s.singer?.[0]?.singerMid;
+    return {
+      id: s.mid,
+      name: s.name || '未知歌曲',
+      artist: (s.singer || []).map((x) => x?.name).filter(Boolean).join(' / ') || '未知歌手',
+      album: s.album?.name || '',
+      duration: Number(s.interval) > 0 ? Number(s.interval) * 1000 : undefined,
+      vip: Boolean(s.pay?.pay_play),
+      pic: s.album?.mid
+        ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${s.album.mid}.jpg`
+        : singerMid
+          ? `https://y.gtimg.cn/music/photo_new/T001R300x300M000${singerMid}.jpg`
+          : undefined,
+      source: 'tencent',
+    };
+  }).filter((s) => s.id);
 }
 
 /**

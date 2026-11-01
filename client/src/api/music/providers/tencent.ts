@@ -37,6 +37,7 @@ export const tencentProvider: MusicProvider = {
     return '';
   },
   getCoverUrl(song) {
-    return song.pic || '';
+    // 有 pic 用 pic；没有时走 Meting 按歌曲 id 解析专辑封面（旧队列条目也能补上封面）
+    return song.pic || `/api/meting?server=tencent&type=pic&id=${encodeURIComponent(song.id)}`;
   },
 };
