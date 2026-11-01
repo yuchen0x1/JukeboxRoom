@@ -10,7 +10,7 @@ import {
   resolveChannel,
 } from './update.js';
 
-const giteeAsset = (name) => `https://gitee.com/yuchen0x1/zaixian-diange-fang/releases/download/v2.0.2/${name}`;
+const giteeAsset = (name) => `https://gitee.com/yuchen0x1/JukeboxRoom/releases/download/v2.0.2/${name}`;
 
 test('版本比较支持 v 前缀和缺省的小版本号', () => {
   assert.deepEqual(parseVersion('v2.3'), [2, 3, 0]);
@@ -23,7 +23,7 @@ test('Release 只解析 Gitee 官方桌面、Android 和 iOS 资产', () => {
   const release = normalizeRelease({
     tag_name: 'v2.0.2',
     name: 'OpenMusic v2.0.2',
-    html_url: 'https://gitee.com/yuchen0x1/zaixian-diange-fang/releases/tag/v2.0.2',
+    html_url: 'https://gitee.com/yuchen0x1/JukeboxRoom/releases/tag/v2.0.2',
     assets: [
       { name: 'openmusic-desktop-v2.0.2.zip', browser_download_url: giteeAsset('desktop.zip'), size: 10 },
       { name: 'openmusic-android-v2.0.2.apk', browser_download_url: giteeAsset('android.apk'), size: 20 },
@@ -34,7 +34,7 @@ test('Release 只解析 Gitee 官方桌面、Android 和 iOS 资产', () => {
   assert.equal(release.assets.desktop.url, giteeAsset('desktop.zip'));
   assert.equal(release.assets.android.url, giteeAsset('android.apk'));
   assert.equal(release.assets.ios.url, giteeAsset('ios.ipa'));
-  assert.equal(release.releaseUrl, 'https://gitee.com/yuchen0x1/zaixian-diange-fang/releases/tag/v2.0.2');
+  assert.equal(release.releaseUrl, 'https://gitee.com/yuchen0x1/JukeboxRoom/releases/tag/v2.0.2');
 });
 
 test('国外更新地址和资产直链全部被拒绝', () => {
@@ -112,7 +112,7 @@ test('Gitee API 受限时从 Gitee Release 页面读取版本', async () => {
       return {
         ok: true,
         async text() {
-          return `<a class='releases-sidebar-item' data-tag='v2.0.1' href='#release-v2.0.1'>最新</a><a class="title" href="/yuchen0x1/zaixian-diange-fang/releases/tag/v2.0.1">国内发行版 v2.0.1</a>`;
+          return `<a class='releases-sidebar-item' data-tag='v2.0.1' href='#release-v2.0.1'>最新</a><a class="title" href="/yuchen0x1/JukeboxRoom/releases/tag/v2.0.1">国内发行版 v2.0.1</a>`;
         },
       };
     },
@@ -132,7 +132,7 @@ test('Gitee API 受限时可解析 Gitee 的 JSON 页面响应', async () => {
       return {
         ok: true,
         async text() {
-          return JSON.stringify({ releases: [{ tag: { name: 'v2.0.1' }, release: { title: '国内 JSON 发行版', path: '/yuchen0x1/zaixian-diange-fang/releases/tag/v2.0.1', description: 'JSON fallback' } }] });
+          return JSON.stringify({ releases: [{ tag: { name: 'v2.0.1' }, release: { title: '国内 JSON 发行版', path: '/yuchen0x1/JukeboxRoom/releases/tag/v2.0.1', description: 'JSON fallback' } }] });
         },
       };
     },

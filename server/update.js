@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { isPrivateHostname, resolveValidatedHttpUrl } from './outboundUrl.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_REPOSITORY = 'yuchen0x1/zaixian-diange-fang';
+const DEFAULT_REPOSITORY = 'yuchen0x1/JukeboxRoom';
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_STALE_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 8000;

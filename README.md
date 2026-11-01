@@ -8,7 +8,7 @@
 一群人聚在一起听歌，最怕的就是"放什么"争不出结果。JukeboxRoom 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
 
 - 原创作者项目：<https://github.com/qq01-hub/openmusic>（本项目基于 OpenMusic 二次开发）
-- 代码托管：Gitee <https://gitee.com/yuchen0x1/zaixian-diange-fang>
+- 代码托管：Gitee <https://gitee.com/yuchen0x1/JukeboxRoom>
 
 | 房间大厅 | 房间点歌与聊天 | 唱片与歌词 |
 |:---:|:---:|:---:|
@@ -80,8 +80,8 @@ JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web �
 ### 第 1 步：克隆并安装依赖
 
 ```bash
-git clone https://gitee.com/yuchen0x1/zaixian-diange-fang.git
-cd zaixian-diange-fang
+git clone https://gitee.com/yuchen0x1/JukeboxRoom.git
+cd JukeboxRoom
 npm run install:all   # 依次安装根目录、server 和 client 的依赖
 ```
 
@@ -244,7 +244,7 @@ pm2 start deploy/ecosystem.config.cjs
 | `APIHZ_IMG_ID` / `APIHZ_IMG_KEY` | — | 接口盒子表情包搜索凭据（不配置则隐藏搜索入口） |
 | `METRICS_ENABLED` | 关闭 | 设为 `1` 开启 `/metrics` |
 | `METRICS_TOKEN` | — | `/metrics` 访问令牌，生产环境不要开放无保护指标 |
-| `UPDATE_REPOSITORY` | `yuchen0x1/zaixian-diange-fang` | 在线更新检查的 Gitee 仓库 |
+| `UPDATE_REPOSITORY` | `yuchen0x1/JukeboxRoom` | 在线更新检查的 Gitee 仓库 |
 | `UPDATE_GITEE_TOKEN` | — | Gitee API 受限时填写 |
 | `TASK_AUDIT_RETENTION_DAYS` | `90` | 任务审计保留天数 |
 | `TASK_RUNS_KEEP` | `500` | 任务运行记录数量上限 |

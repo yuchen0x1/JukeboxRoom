@@ -359,7 +359,7 @@ export default function Home() {
               </>
             )}
             <a
-              href="https://gitee.com/yuchen0x1/zaixian-diange-fang"
+              href="https://gitee.com/yuchen0x1/JukeboxRoom"
               target="_blank"
               rel="noopener noreferrer"
               className={repoLinkCls}
