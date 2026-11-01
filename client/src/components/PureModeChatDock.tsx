@@ -94,7 +94,7 @@ export default function PureModeChatDock() {
           <button
             type="button"
             onClick={handleClose}
-            className="glass-surface glass-surface--panel absolute left-0 top-1/2 z-10 flex h-10 w-5 -translate-x-full -translate-y-1/2 items-center justify-center rounded-l-lg border-r-0 text-[var(--om-text-muted)]"
+            className="glass-surface glass-surface--panel !absolute left-0 top-1/2 z-10 flex h-10 w-5 -translate-x-full -translate-y-1/2 items-center justify-center rounded-l-lg border-r-0 text-[var(--om-text-muted)]"
             aria-label="收起聊天室"
           >
             <ChevronLeft className="h-4 w-4" />

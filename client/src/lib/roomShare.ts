@@ -31,7 +31,7 @@ export function buildRoomShareText(options: {
   }
 
   const lines = [
-    `${inviter} 邀请你加入 OpenMusic 房间「${roomName}」`,
+    `${inviter} 邀请你加入 JukeboxRoom 房间「${roomName}」`,
     playbackLine,
     `房间号：${roomId}`,
   ];

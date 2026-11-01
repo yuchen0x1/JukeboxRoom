@@ -101,7 +101,7 @@ export function updateMediaSessionMetadata(
     session.metadata = new MediaMetadata({
       title: pure ? '正在播放' : (song.name || '未知歌曲'),
       artist: pure ? '' : (song.artist || '未知歌手'),
-      album: pure ? 'OpenMusic' : (song.album || 'OpenMusic'),
+      album: pure ? 'JukeboxRoom' : (song.album || 'JukeboxRoom'),
       artwork: pure ? [] : buildArtwork(song),
     });
   } catch {

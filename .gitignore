@@ -34,3 +34,4 @@ server/data/
 
 # ZCode local session state
 .zcode/
+server/.qishui-device

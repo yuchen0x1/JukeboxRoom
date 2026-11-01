@@ -6,10 +6,11 @@ import AppErrorBoundary from './components/AppErrorBoundary';
 import './index.css';
 import './styles/glass.css';
 
-// Theme initialization: set data-theme before first render to avoid flash
+// Theme initialization: set data-theme before first render to avoid flash.
+// 未显式选择时强制深色——跟随系统的 light 主题会把房间渲染成灰白玻璃，观感很差。
 (function initTheme() {
   const saved = localStorage.getItem('theme');
-  const theme = saved === 'light' || saved === 'dark' ? saved : 'auto';
+  const theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
   document.documentElement.setAttribute('data-theme', theme);
 })();
 import { installOpenMusicDebug } from './lib/debugTools';

@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import type { MusicSource } from '../types';
+import { useRoomStore } from '../stores/roomStore';
 import Tooltip from './Tooltip';
 
 export type SearchFilterMode = 'smart' | MusicSource;
 
 const OPTIONS: { value: SearchFilterMode; label: string; hint?: string }[] = [
   { value: 'smart', label: '智能去重', hint: '歌名与歌手相同视为同一首' },
-  { value: 'netease', label: '红点' },
-  { value: 'tencent', label: '绿点' },
-  { value: 'kugou', label: '蓝点' },
+  { value: 'netease', label: '网易云' },
+  { value: 'tencent', label: 'QQ音乐' },
+  { value: 'kugou', label: '酷狗音乐' },
+  { value: 'qishui', label: '汽水音乐' },
 ];
+
+/** 房主已登录的音源在筛选里显示 VIP 徽标，提示成员该平台已解锁 VIP 音源 */
+function useSourceLogins() {
+  return useRoomStore((state) => state.room?.sourceLogins);
+}
 
 function getLabel(mode: SearchFilterMode): string {
   return OPTIONS.find((o) => o.value === mode)?.label ?? '智能去重';
@@ -24,6 +31,7 @@ interface Props {
 export default function SearchFilterSelect({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const sourceLogins = useSourceLogins();
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +86,9 @@ export default function SearchFilterSelect({ value, onChange }: Props) {
                       className={`w-3.5 h-3.5 flex-shrink-0 ${value === opt.value ? 'opacity-100' : 'opacity-0'}`}
                     />
                     <span>{opt.label}</span>
+                    {opt.value !== 'smart' && sourceLogins?.[opt.value as 'netease' | 'tencent' | 'kugou' | 'qishui'] && (
+                      <span className="ml-auto rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[9px] leading-none text-amber-300">VIP</span>
+                    )}
                   </button>
                 </Tooltip>
               ) : (
@@ -96,6 +107,9 @@ export default function SearchFilterSelect({ value, onChange }: Props) {
                     className={`w-3.5 h-3.5 flex-shrink-0 ${value === opt.value ? 'opacity-100' : 'opacity-0'}`}
                   />
                   <span>{opt.label}</span>
+                  {opt.value !== 'smart' && sourceLogins?.[opt.value as 'netease' | 'tencent' | 'kugou' | 'qishui'] && (
+                    <span className="ml-auto rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[9px] leading-none text-amber-300">VIP</span>
+                  )}
                 </button>
               )}
             </div>

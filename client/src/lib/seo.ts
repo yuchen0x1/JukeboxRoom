@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 
-export const SITE_NAME = 'OpenMusic';
+export const SITE_NAME = 'JukeboxRoom';
 
-export const DEFAULT_TITLE = 'OpenMusic - Multiplayer Music Room';
+export const DEFAULT_TITLE = 'JukeboxRoom - Multiplayer Music Room';
 export const DEFAULT_DESCRIPTION =
   '和好友一起听歌、多人同步播放的在线点歌房间。支持多音源搜索点歌，歌词同步滚动、实时聊天；创建房间即可与小伙伴多人一起听歌。';
 export const DEFAULT_KEYWORDS =
-  '一起听歌,多人听歌,一起听歌房间,多人一起听歌,同步听歌,好友一起听歌,在线一起听歌,多人点歌,在线点歌,点歌房,同步播放,歌词同步,OpenMusic';
+  '一起听歌,多人听歌,一起听歌房间,多人一起听歌,同步听歌,好友一起听歌,在线一起听歌,多人点歌,在线点歌,点歌房,同步播放,歌词同步,JukeboxRoom';
 
 export interface PageSeoOptions {
   title?: string;

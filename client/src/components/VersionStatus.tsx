@@ -31,7 +31,7 @@ export default function VersionStatus() {
 
   return (
     <p className="flex items-center justify-center gap-2.5 text-xs text-white/35">
-      <span>OpenMusic{version ? ` v${version}` : ''}</span>
+      <span>JukeboxRoom{version ? ` v${version}` : ''}</span>
       {info?.updateAvailable && info.latestVersion && (
         <a
           href={info.releaseUrl || info.releasePageUrl}

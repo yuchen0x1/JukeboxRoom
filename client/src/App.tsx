@@ -1,11 +1,10 @@
-import { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import UpdateNotice from './components/UpdateNotice';
 
 const Home = lazy(() => import('./pages/Home'));
 const Room = lazy(() => import('./pages/Room'));
 const TvDisplay = lazy(() => import('./pages/TvDisplay'));
-const Login = lazy(() => import('./pages/Login'));
 
 function RouteFallback() {
   return (
@@ -26,32 +25,16 @@ export function setTheme(theme: 'light' | 'dark' | 'auto') {
 
 /** Read current theme setting without triggering re-render. */
 export function getTheme(): 'light' | 'dark' | 'auto' {
-  return (localStorage.getItem('theme') as 'light' | 'dark' | 'auto') ?? 'auto';
+  return (localStorage.getItem('theme') as 'light' | 'dark' | 'auto') ?? 'dark';
 }
 
 export default function App() {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    const handleAuthExpired = () => {
-      if (location.pathname === '/login') return;
-      navigate('/login', {
-        replace: true,
-        state: { reason: 'session-expired' },
-      });
-    };
-    window.addEventListener('openmusic:auth-expired', handleAuthExpired);
-    return () => window.removeEventListener('openmusic:auth-expired', handleAuthExpired);
-  }, [location.pathname, navigate]);
-
   return (
     <div className="h-full">
       <UpdateNotice />
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
           <Route path="/room/:roomId" element={<Room />} />
           <Route path="/tv/:roomId" element={<TvDisplay />} />
         </Routes>

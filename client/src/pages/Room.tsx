@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback, useRef, useMemo, lazy } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 
-import { Search, Loader2, Copy, Check, LogOut, X, Heart, Plus, Download, ListMusic, Upload, History, ListPlus, Pencil, Lock, LockOpen, ChevronLeft, ChevronRight, SlidersHorizontal, Shield, Maximize2 } from 'lucide-react';
+import { Search, Loader2, Copy, Check, LogOut, X, Heart, Plus, Download, ListMusic, Upload, History, ListPlus, Pencil, Lock, LockOpen, ChevronLeft, ChevronRight, SlidersHorizontal, Shield, Maximize2, KeyRound } from 'lucide-react';
 
 import { searchAllSongs, getAvailableSources, type SearchFilterMode } from '../api/music';
 import { importPlaylist, searchPlaylists, type PlaylistSearchItem, type PlaylistPlatform, type PlaylistChannelFilter as PlaylistChannelFilterMode } from '../api/music/playlist';
 import { normalizeFmMode } from '../api/music/fmMode';
+import { setCurrentRoomId } from '../lib/roomContext';
 import { addSongsToQueue, formatBulkAddToast } from '../lib/addSongsToQueue';
 import { rememberPlaylistImportHistory } from '../components/PlaylistImportModal';
 
@@ -72,6 +73,7 @@ import RoomFmModeBadge from '../components/RoomFmModeBadge';
 import RoomAnnouncementPopup from '../components/RoomAnnouncementPopup';
 const RoomMemberModal = lazy(() => import('../components/RoomMemberModal'));
 const RoomSettingsModal = lazy(() => import('../components/RoomSettingsModal'));
+const RoomSourceLoginModal = lazy(() => import('../components/RoomSourceLoginModal'));
 import type { SongRequestSettings } from '../components/RoomSettingsModal';
 const RoomQualityModal = lazy(() => import('../components/RoomQualityModal'));
 import RoomQualityBadge from '../components/RoomQualityBadge';
@@ -210,6 +212,12 @@ export default function Room() {
 
   const { roomId } = useParams<{ roomId: string }>();
 
+  // 音源解析路由需要知道当前房间，才能动用该房间的房主凭据
+  useEffect(() => {
+    setCurrentRoomId(roomId || '');
+    return () => setCurrentRoomId('');
+  }, [roomId]);
+
   const navigate = useNavigate();
 
   const location = useLocation();
@@ -254,7 +262,7 @@ export default function Room() {
     noindex: true,
   });
 
-  const { joinRoom, addSong, leaveRoom, listFavorites, setFavorite, importFavorites, renameRoomName, setRoomLock, setRoomFmMode, setRoomAnnouncement, setSongRequestEnabled, unbanRoomSong, setRoomMemberTier, removeRoomMemberTier, setRoomMemberSettings, loadSongHistory } = useSocket();
+  const { joinRoom, addSong, leaveRoom, listFavorites, setFavorite, importFavorites, renameRoomName, setRoomLock, setRoomFmMode, setRoomAnnouncement, setSongRequestEnabled, unbanRoomSong, setRoomMemberTier, removeRoomMemberTier, setRoomMemberSettings, setRoomSourceCredential, loadSongHistory } = useSocket();
   const { applyFavorites } = useFavorites();
 
 
@@ -327,6 +335,7 @@ export default function Room() {
   const [lockPassword, setLockPassword] = useState('');
   const [lockSaving, setLockSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sourceLoginOpen, setSourceLoginOpen] = useState(false);
   const [fmSaving, setFmSaving] = useState(false);
   const [announcementSaving, setAnnouncementSaving] = useState(false);
   const [announcementPopupOpen, setAnnouncementPopupOpen] = useState(false);
@@ -363,6 +372,19 @@ export default function Room() {
   const closeToast = useCallback(() => setToast(null), []);
 
   const isCreator = Boolean(room?.creatorId && mySocketId && room.creatorId === mySocketId);
+
+  const handleSaveSourceCredential = useCallback(async (
+    source: string,
+    credential: { cookie?: string; customUrl?: string } | null,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const res = await setRoomSourceCredential(source, credential);
+    if (res.success) {
+      showToast(source === 'custom' ? '自定义音源已更新' : '音源登录成功', 'success');
+      return { success: true };
+    }
+    showToast(res.error || '操作失败', 'error');
+    return { success: false, error: res.error };
+  }, [setRoomSourceCredential, showToast]);
   const songRequestBlockReason = getSongRequestBlockReason(
     room,
     isOwner,
@@ -510,6 +532,8 @@ export default function Room() {
       const result = await addSongsToQueue(pagedFavorites, {
         getRoom: () => useRoomStore.getState().room,
         addSong,
+        isPlayableSource,
+        onSourceBlocked: (source) => showToast(SOURCE_LOGIN_HINT[source] || '该平台暂不可播放', 'error'),
       });
       const toast = formatBulkAddToast(result);
       showToast(toast.message, toast.type);
@@ -799,7 +823,7 @@ export default function Room() {
     setOverlaySearchMode('song');
     setPlaylistSearchResults([]);
     setPlaylistSearchTotal(0);
-    setSearchedKeyword(`正在解析${platform === 'netease' ? '红点' : '绿点'}歌单…`);
+    setSearchedKeyword(`正在解析${platform === 'netease' ? '网易云' : 'QQ音乐'}歌单…`);
     setResults([]);
 
     try {
@@ -972,9 +996,26 @@ export default function Room() {
     setListPageSongs([]);
   }, [playlistSearchBackup, clearSearchResults, isLgUp]);
 
+  /** 平台是否可播：QQ音乐需要房主登录，其余平台免登录可用 */
+  const isPlayableSource = useCallback((source: MusicSource) => {
+    if (source === 'tencent') return Boolean(useRoomStore.getState().room?.sourceLogins?.tencent);
+    return true;
+  }, []);
+
+  const SOURCE_LOGIN_HINT: Record<MusicSource, string> = {
+    netease: '',
+    tencent: 'QQ音乐需房主在「音源登录」登录后才能点播',
+    kugou: '',
+    qishui: '',
+  };
+
   const handleAdd = useCallback(async (song: SearchResult) => {
     if (songRequestBlockReason) {
       showToast(songRequestBlockReason, 'error');
+      return;
+    }
+    if (!isPlayableSource(song.source)) {
+      showToast(SOURCE_LOGIN_HINT[song.source] || '该平台暂不可播放', 'error');
       return;
     }
     const key = songKey(song);
@@ -998,7 +1039,7 @@ export default function Room() {
     } else if (res.error) {
       showToast(res.error, 'error');
     }
-  }, [songRequestBlockReason, addSong, showToast]);
+  }, [songRequestBlockReason, addSong, showToast, isPlayableSource]);
 
   const handleListPageResultsChange = useCallback((songs: SearchResult[]) => {
     setListPageSongs(songs);
@@ -1022,6 +1063,8 @@ export default function Room() {
       const result = await addSongsToQueue(songs, {
         getRoom: () => useRoomStore.getState().room,
         addSong,
+        isPlayableSource,
+        onSourceBlocked: (source) => showToast(SOURCE_LOGIN_HINT[source] || '该平台暂不可播放', 'error'),
       });
       const toast = formatBulkAddToast(result);
       showToast(toast.message, toast.type);
@@ -1610,7 +1653,7 @@ export default function Room() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder={searchMode === 'playlist' ? '搜索红点/绿点歌单...' : '搜索歌曲、歌手...'}
+          placeholder={searchMode === 'playlist' ? '搜索网易云/QQ音乐歌单...' : '搜索歌曲、歌手...'}
           className="glass-input w-full rounded-xl pl-10 pr-4 py-3 text-sm text-white sm:rounded-2xl sm:py-3.5 sm:pl-12 sm:text-base"
         />
       </div>
@@ -1653,7 +1696,7 @@ export default function Room() {
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <p className="truncate text-sm font-medium">{playlist.name}</p>
                   <p className="truncate text-xs text-netease-muted">
-                    {playlist.creatorName || (playlist.platform === 'qq' ? '绿点歌单' : '红点歌单')} · {playlist.trackCount} 首
+                    {playlist.creatorName || (playlist.platform === 'qq' ? 'QQ音乐歌单' : '网易云歌单')} · {playlist.trackCount} 首
                   </p>
                 </div>
                 <SourceBadge source={playlist.platform === 'qq' ? 'tencent' : 'netease'} variant="muted" />
@@ -1733,7 +1776,7 @@ export default function Room() {
           value={overlayQuery}
           onChange={(e) => setOverlayQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleOverlaySearch()}
-          placeholder={overlaySearchMode === 'playlist' ? '搜索红点/绿点歌单...' : '搜索歌曲、歌手...'}
+          placeholder={overlaySearchMode === 'playlist' ? '搜索网易云/QQ音乐歌单...' : '搜索歌曲、歌手...'}
           className="glass-input w-full rounded-xl py-2 pl-9 pr-3 text-sm text-white"
         />
       </div>
@@ -1758,7 +1801,7 @@ export default function Room() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder={searchMode === 'playlist' ? '搜索红点/绿点歌单...' : '搜索歌曲、歌手...'}
+          placeholder={searchMode === 'playlist' ? '搜索网易云/QQ音乐歌单...' : '搜索歌曲、歌手...'}
           className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] tracking-wide text-white outline-none placeholder:text-white/22"
         />
         <button
@@ -2009,6 +2052,23 @@ export default function Room() {
         onSave={handleSaveUserQuality}
       />
 
+      {isCreator && (
+        <Suspense fallback={null}>
+          <RoomSourceLoginModal
+            open={sourceLoginOpen}
+            roomId={roomId || ''}
+            sourceLogins={{
+              netease: room?.sourceLogins?.netease,
+              tencent: room?.sourceLogins?.tencent,
+              kugou: room?.sourceLogins?.kugou,
+              qishui: room?.sourceLogins?.qishui,
+            }}
+            onClose={() => setSourceLoginOpen(false)}
+            onSaveCredential={handleSaveSourceCredential}
+          />
+        </Suspense>
+      )}
+
       <RoomAnnouncementPopup
         open={announcementPopupOpen}
         text={room?.announcementText || ''}
@@ -2078,10 +2138,25 @@ export default function Room() {
                     <button
                       type="button"
                       onClick={() => setSettingsOpen(true)}
-                      className="flex-shrink-0 rounded-lg p-1 text-netease-muted transition-colors hover:bg-white/10 hover:text-white"
+                      className="flex-shrink-0 flex items-center gap-1.5 text-xs rounded-lg px-2 sm:px-3 py-1.5 text-netease-muted transition-colors hover:bg-white/[0.08] hover:text-white"
                       aria-label="房间设置"
                     >
                       <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">设置</span>
+                    </button>
+                  </Tooltip>
+                )}
+
+                {isCreator && (
+                  <Tooltip side="bottom" content="登录音乐平台，给全房解锁 VIP 音源">
+                    <button
+                      type="button"
+                      onClick={() => setSourceLoginOpen(true)}
+                      className="flex-shrink-0 flex items-center gap-1.5 text-xs rounded-lg px-2 sm:px-3 py-1.5 text-netease-muted transition-colors hover:bg-white/[0.08] hover:text-white"
+                      aria-label="音源登录"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">音源登录</span>
                     </button>
                   </Tooltip>
                 )}

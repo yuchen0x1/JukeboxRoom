@@ -15,13 +15,13 @@ const HINTS: Record<PlaylistPlatform, string> = {
 };
 
 const PLATFORM_LABELS: Record<PlaylistPlatform, string> = {
-  netease: '红点',
-  qq: '绿点',
+  netease: '网易云',
+  qq: 'QQ音乐',
 };
 
 const TITLES: Record<PlaylistPlatform, string> = {
-  netease: '导入红点歌单',
-  qq: '导入绿点歌单',
+  netease: '导入网易云歌单',
+  qq: '导入QQ音乐歌单',
 };
 
 const HISTORY_KEY = 'openmusic:playlist-import-history';
@@ -186,7 +186,7 @@ export default function PlaylistImportModal({
             >
               {PLATFORM_LABELS.netease}
             </button>
-            <Tooltip content={qqImportEnabled ? undefined : '绿点歌单导入暂不可用'}>
+            <Tooltip content={qqImportEnabled ? undefined : 'QQ音乐歌单导入暂不可用'}>
               <button
                 type="button"
                 onClick={() => setPlatform('qq')}

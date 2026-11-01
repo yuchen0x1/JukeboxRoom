@@ -2,6 +2,7 @@ import { resolveValidatedHttpUrl, safeFetch, shouldAllowPrivateConfiguredUpstrea
 import { canRequestProvider, recordProviderFailure, recordProviderSuccess } from './mediaHealth.js';
 
 const METING_API_URL = (process.env.METING_API_URL || '').replace(/\/$/, '');
+const METING_SEARCH_API_URL = (process.env.METING_SEARCH_API_URL || '').replace(/\/$/, '');
 const ALLOW_PRIVATE_METING = shouldAllowPrivateConfiguredUpstream();
 
 let metingHost = '';
@@ -11,10 +12,18 @@ try {
   metingHost = '';
 }
 
+let metingSearchHost = '';
+try {
+  metingSearchHost = METING_SEARCH_API_URL ? new URL(METING_SEARCH_API_URL).hostname : '';
+} catch {
+  metingSearchHost = '';
+}
+
 function isMetingUrl(url) {
-  if (!metingHost) return false;
+  if (!metingHost && !metingSearchHost) return false;
   try {
-    return new URL(url).hostname === metingHost;
+    const hostname = new URL(url).hostname;
+    return (metingHost && hostname === metingHost) || (metingSearchHost && hostname === metingSearchHost);
   } catch {
     return false;
   }
@@ -60,6 +69,22 @@ function createFetchMeting({ requestFactory, allowPrivateForTest = false } = {})
     let response;
     try {
       response = await requestOnce(url, options, timeoutMs, allowPrivate);
+      // 跟随源站自身的规范化重定向（如 /meting → /meting/，最大 3 跳）；
+      // 跨域地址（CDN 播放链接）保留给调用方处理。
+      let currentUrl = url;
+      for (let hop = 0; hop < 3 && response.status >= 300 && response.status < 400; hop += 1) {
+        const location = response.headers.get('location');
+        if (!location) break;
+        let next;
+        try {
+          next = new URL(location, currentUrl);
+        } catch {
+          break;
+        }
+        if (next.hostname !== new URL(currentUrl).hostname) break;
+        currentUrl = next.toString();
+        response = await requestOnce(currentUrl, options, timeoutMs, allowPrivate);
+      }
       if (provider) {
         if (response.status >= 400) recordProviderFailure(provider, response.status);
         else recordProviderSuccess(provider, response.status);
@@ -136,6 +161,20 @@ function cachedResponse(entry) {
 }
 
 export const fetchMeting = createFetchMeting();
+
+/**
+ * Meting 端点拼接：配置值携带完整端点路径（如 https://host/meting/api、https://host/meting），
+ * 按原样使用；仅主机名形式（自托管根部署）自动补 /api，保持旧行为兼容。
+ */
+export function joinMetingEndpoint(base) {
+  if (!base) return base;
+  try {
+    if (new URL(base).pathname === '/') return `${base}/api`;
+  } catch {
+    return base;
+  }
+  return base;
+}
 
 export function createFetchMetingForTest(options = {}) {
   return createFetchMeting(options);

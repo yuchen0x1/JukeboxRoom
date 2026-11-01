@@ -1,4 +1,4 @@
-import type { RoomState, SearchResult, Song } from '../types';
+import type { MusicSource, RoomState, SearchResult, Song } from '../types';
 import { isSongInRoomQueue } from './roomSongStatus';
 
 function toSongPayload(song: SearchResult): Song {
@@ -26,13 +26,23 @@ export async function addSongsToQueue(
   options: {
     getRoom: () => RoomState | null;
     addSong: (song: Song) => Promise<{ success: boolean; error?: string }>;
+    /** 可播放平台；不可播放平台的歌直接拒绝，不进队列（避免整排"歌曲源异常"） */
+    isPlayableSource?: (source: MusicSource) => boolean;
+    onSourceBlocked?: (source: MusicSource) => void;
   },
 ): Promise<BulkAddResult> {
   let added = 0;
   let skipped = 0;
   let failed = 0;
+  const blockedSources = new Set<MusicSource>();
 
   for (const song of songs) {
+    if (options.isPlayableSource && !options.isPlayableSource(song.source)) {
+      failed += 1;
+      blockedSources.add(song.source);
+      continue;
+    }
+
     const room = options.getRoom();
     if (room && isSongInRoomQueue(room, song)) {
       skipped += 1;
@@ -47,6 +57,10 @@ export async function addSongsToQueue(
     } else {
       failed += 1;
     }
+  }
+
+  for (const source of blockedSources) {
+    options.onSourceBlocked?.(source);
   }
 
   return { added, skipped, failed };

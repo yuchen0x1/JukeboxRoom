@@ -954,6 +954,20 @@ if (s.connected) {
     });
   }, []);
 
+  /** 房主设置/清除音源凭据（credential 为 null 表示清除登录） */
+  const setRoomSourceCredential = useCallback((source: string, credential: { cookie?: string; customUrl?: string } | null): Promise<{ success: boolean; error?: string; room?: RoomState }> => {
+    return emitWithAck<{ success: boolean; error?: string; room?: RoomState }>(
+      'set_room_source_credential',
+      { source, credential },
+      { success: false, error: '连接超时，请重试' },
+    ).then((res) => {
+      if (res.success && res.room) {
+        applyRoomSnapshot(res.room);
+      }
+      return res;
+    });
+  }, []);
+
   const setRoomAnnouncement = useCallback((options: { enabled?: boolean; text?: string }): Promise<{ success: boolean; error?: string; room?: RoomState }> => {
     return emitWithAck<{ success: boolean; error?: string; room?: RoomState }>(
       'set_room_announcement',
@@ -1191,6 +1205,7 @@ if (s.connected) {
     setRoomLock,
 
     setRoomFmMode,
+    setRoomSourceCredential,
 
     setRoomAnnouncement,
 

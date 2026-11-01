@@ -78,6 +78,9 @@ export default function UpdateNotice() {
             <DownloadLink label="iOS" asset={update.assets.ios} />
             {update.releaseUrl && <a href={update.releaseUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-1 py-1.5 text-xs text-white/45 transition-colors hover:text-white/80">发布页<ExternalLink className="h-3.5 w-3.5" /></a>}
           </div>
+          <p className="mt-2.5 text-[10px] leading-4 text-white/30">
+            本项目基于开源项目 <a href="https://github.com/qq01-hub/openmusic" target="_blank" rel="noopener noreferrer" className="underline decoration-white/20 underline-offset-2 hover:text-white/60">OpenMusic</a>（github.com/qq01-hub/openmusic）二次开发
+          </p>
         </div>
       </div>
     </aside>

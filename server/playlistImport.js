@@ -1,4 +1,4 @@
-import { fetchMeting } from './metingFetch.js';
+import { fetchMeting, joinMetingEndpoint } from './metingFetch.js';
 
 const METING_API_URL = (process.env.METING_API_URL || '').replace(/\/$/, '');
 const METING_API_AUTH = process.env.METING_API_AUTH || '';
@@ -13,7 +13,7 @@ function buildMetingUrl(query) {
   if (METING_API_AUTH && !params.has('auth')) {
     params.set('auth', METING_API_AUTH);
   }
-  return `${METING_API_URL}/api?${params.toString()}`;
+  return `${joinMetingEndpoint(METING_API_URL)}?${params.toString()}`;
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {

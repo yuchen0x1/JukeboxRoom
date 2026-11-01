@@ -132,6 +132,7 @@ function cancelRoomDestroy(room) {
 }
 
 function scheduleRoomDestroy(roomId) {
+  if (roomId === SEED_ROOM_ID) return; // 固定测试房常驻，不自动销毁
   const room = rooms.get(roomId);
   if (!room) return;
 
@@ -198,6 +199,7 @@ function snapshotRoomForStorage(room) {
     bannedSongs: serializeBannedSongs(room.bannedSongs),
     memberTiers: serializeMemberTiersMap(room.memberTiers),
     memberSettings: serializeMemberSettings(room.memberSettings),
+    sourceCredentials: serializeSourceCredentials(room.sourceCredentials),
     createdAt: room.createdAt,
   };
 }
@@ -250,6 +252,7 @@ function restoreRoomFromStorage(data) {
   room.bannedSongs = restoreBannedSongs(data.bannedSongs);
   room.memberTiers = restoreMemberTiersFromStorage(data.memberTiers);
   room.memberSettings = normalizeMemberSettings(data.memberSettings);
+  room.sourceCredentials = restoreSourceCredentialsFromStorage(data.sourceCredentials);
   room.createdAt = data.createdAt ?? Date.now();
 
   if (room.isPlaying && room.current) {
@@ -294,6 +297,7 @@ function invalidateRoomsListCache() {
 }
 
 function isRoomVisibleInLobby(room) {
+  if (room.id === SEED_ROOM_ID) return true; // 固定测试房常驻大厅
   if (room.users.size > 0) return true;
   if (room.current || room.isPlaying) return true;
   if (room.queue.length > 0) return true;
@@ -349,6 +353,55 @@ export { isRedisEnabled };
 function normalizeRoomName(name, roomId) {
   const trimmed = String(name || '').trim();
   return trimmed.slice(0, 30) || `房间 ${roomId}`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  房主音源凭据（QQ 音乐 / 酷狗 Cookie、自定义音源地址）                 */
+/*  仅保存在服务端房间快照中，广播只暴露「是否已登录」布尔值              */
+/* ------------------------------------------------------------------ */
+
+const SOURCE_CREDENTIAL_KEYS = new Set(['netease', 'tencent', 'kugou', 'qishui']);
+
+function normalizeSourceCredential(source, raw) {
+  const key = String(source || '').trim().toLowerCase();
+  if (!SOURCE_CREDENTIAL_KEYS.has(key) || !raw || typeof raw !== 'object') return null;
+
+  if (key === 'qishui') {
+    // qishui-music-api 的登录会话（ticket 等），整体 JSON 序列化存房间快照
+    const session = raw.session;
+    if (!session || typeof session !== 'object' || !session.ticket) return null;
+    return { session };
+  }
+
+  const cookie = String(raw.cookie || '').trim().slice(0, 4000);
+  if (!cookie) return null;
+  return { cookie };
+}
+
+function serializeSourceCredentials(map) {
+  const entries = Array.from(map || []);
+  if (entries.length === 0) return undefined;
+  return Object.fromEntries(entries);
+}
+
+function restoreSourceCredentialsFromStorage(data) {
+  const map = new Map();
+  if (!data || typeof data !== 'object') return map;
+  for (const [key, value] of Object.entries(data)) {
+    const normalized = normalizeSourceCredential(key, value);
+    if (normalized) map.set(key, normalized);
+  }
+  return map;
+}
+
+function sourceLoginsFor(room) {
+  const map = room?.sourceCredentials;
+  return {
+    netease: Boolean(map?.get('netease')),
+    tencent: Boolean(map?.get('tencent')),
+    kugou: Boolean(map?.get('kugou')),
+    qishui: Boolean(map?.get('qishui')),
+  };
 }
 
 function bumpPlaybackState(room) {
@@ -437,6 +490,7 @@ function createEmptyRoom(roomId, name, passwordHash = null) {
     lastSongRequestAt: new Map(),
     memberTiers: new Map(),
     memberSettings: { ...DEFAULT_MEMBER_SETTINGS },
+    sourceCredentials: new Map(),
     createdAt: Date.now(),
     destroyTimer: null,
   };
@@ -732,7 +786,8 @@ function sanitizeCreatorId(value) {
 
 /** 记录房间创建者（首个可操控的非只读用户，或由创建房间 API 指定，持久保留） */
 function ensureCreatorId(room, userId) {
-  if (room.creatorId) return;
+  // 固定测试房的 system 占位不算房主：首个加入的真人接管房主位，方便联调
+  if (room.creatorId && room.creatorId !== 'system-seed') return;
   const user = room.users.get(userId);
   if (isEligibleOwner(user)) {
     room.creatorId = userId;
@@ -810,6 +865,17 @@ function getSongDurationSeconds(song) {
   const durationMs = Number(song?.duration || 0);
   if (Number.isFinite(durationMs) && durationMs > 0) return durationMs / 1000;
   return 0;
+}
+
+const SEED_ROOM_ID = 'TEST01';
+
+/** 服务器启动时创建固定测试房（方便联调，不自动销毁；重启自动重建） */
+export function ensureSeedRoom() {
+  if (rooms.has(SEED_ROOM_ID)) return;
+  const room = createEmptyRoom(SEED_ROOM_ID, '🎵测试房', null);
+  room.creatorId = 'system-seed';
+  rooms.set(SEED_ROOM_ID, room);
+  invalidateRoomsListCache();
 }
 
 export function createRoom({ name, password, creatorId } = {}) {
@@ -1135,6 +1201,38 @@ export function setRoomAudioQuality(roomId, actorId, quality = {}, connectionId 
   });
   persistRoom(room);
   return { room: serializeRoom(room) };
+}
+
+/**
+ * 房主设置音源凭据（QQ 音乐 / 酷狗 Cookie、自定义音源地址）。
+ * credential 为 null 时清除该源登录。
+ */
+export function setRoomSourceCredential(roomId, actorId, source, credential = null, connectionId = null) {
+  const room = rooms.get(roomId);
+  if (!room) return { error: '房间不存在' };
+  if (!isOwnerConnection(room, actorId, connectionId)) return { error: '仅房主可管理音源登录' };
+
+  const key = String(source || '').trim().toLowerCase();
+  if (!SOURCE_CREDENTIAL_KEYS.has(key)) return { error: '不支持的音源' };
+
+  if (credential === null || credential === undefined) {
+    room.sourceCredentials.delete(key);
+  } else {
+    const normalized = normalizeSourceCredential(key, credential);
+    if (!normalized) return { error: key === 'qishui' ? '汽水登录会话无效' : 'Cookie 无效（不能为空）' };
+    room.sourceCredentials.set(key, normalized);
+  }
+
+  persistRoom(room);
+  invalidateRoomsListCache();
+  return { room: serializeRoom(room) };
+}
+
+/** 供音源解析路由读取房间凭据（仅服务端使用，永不出服务端） */
+export function getRoomSourceCredential(roomId, source) {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+  return room.sourceCredentials.get(String(source || '').trim().toLowerCase()) || null;
 }
 
 export function setRoomMemberTier(roomId, actorId, targetUserId, payload = {}, connectionId = null) {
@@ -2891,6 +2989,7 @@ function serializeRoom(room, options = {}) {
     randomLoading: Boolean(room.randomLoading),
     audioQuality: normalizeRoomAudioQuality(room.audioQuality),
     neteaseFmMode: normalizeFmMode(room.neteaseFmMode),
+    sourceLogins: sourceLoginsFor(room),
     announcementEnabled: Boolean(room.announcementEnabled),
     announcementText: String(room.announcementText || '').slice(0, MAX_ANNOUNCEMENT_LENGTH),
     songRequestEnabled: room.songRequestEnabled !== false,
@@ -2939,6 +3038,7 @@ export function prepareRoomBroadcast(roomId) {
     randomLoading: Boolean(room.randomLoading),
     audioQuality: normalizeRoomAudioQuality(room.audioQuality),
     neteaseFmMode: normalizeFmMode(room.neteaseFmMode),
+    sourceLogins: sourceLoginsFor(room),
     announcementEnabled: Boolean(room.announcementEnabled),
     announcementText: String(room.announcementText || '').slice(0, MAX_ANNOUNCEMENT_LENGTH),
     songRequestEnabled: room.songRequestEnabled !== false,

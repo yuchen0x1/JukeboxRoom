@@ -1,4 +1,4 @@
-import { fetchMeting, formatMetingFetchError } from './metingFetch.js';
+import { fetchMeting, formatMetingFetchError, joinMetingEndpoint } from './metingFetch.js';
 
 const METING_API_URL = (process.env.METING_API_URL || '').replace(/\/$/, '');
 const METING_API_AUTH = process.env.METING_API_AUTH || '';
@@ -34,7 +34,7 @@ function buildFmUrl(mode) {
     params.set('id', normalized);
   }
   if (METING_API_AUTH) params.set('auth', METING_API_AUTH);
-  return `${METING_API_URL}/api?${params.toString()}`;
+  return `${joinMetingEndpoint(METING_API_URL)}?${params.toString()}`;
 }
 
 function extractIdFromUrl(url) {

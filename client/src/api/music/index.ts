@@ -10,6 +10,7 @@ import { shouldProxySongPlaybackUrl } from '../../lib/roomVisualPreset';
 import { getUserPlaybackQuality } from './quality';
 import { resizeCoverUrl, type CoverSize } from '../../lib/coverUrl';
 import { requireSessionBootstrap } from '../../lib/sessionBootstrap';
+import { useRoomStore } from '../../stores/roomStore';
 
 function getProvider(source: MusicSource) {
   return providers[source];
@@ -59,7 +60,24 @@ export async function searchAllSongs(
     }
   }
 
-  return interleaveSearchResults(groups, { dedupeCrossSource: true });
+  return interleaveSearchResults(groups, {
+    dedupeCrossSource: true,
+    playableSources: getPlayableSources(),
+  });
+}
+
+/**
+ * 当前真正能出播放地址的平台：
+ * - 网易云/酷狗音乐/汽水音乐 免登录即可播（免费链路）；
+ * - QQ音乐 必须房主已登录（Cookie）。
+ * 未登录的平台搜索结果整组排到列表最后。
+ */
+export function getPlayableSources(): MusicSource[] {
+  const sourceLogins = useRoomStore.getState().room?.sourceLogins;
+  const playable: MusicSource[] = ['netease'];
+  if (sourceLogins?.tencent) playable.push('tencent');
+  playable.push('kugou', 'qishui');
+  return playable;
 }
 
 export { interleaveSearchResults, mergeSearchResults, songKey, artistGroupKey, trackTitleKey } from './merge';

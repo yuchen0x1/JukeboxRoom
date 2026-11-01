@@ -161,14 +161,21 @@ export async function assertSafeHttpUrl(rawUrl, options) {
 }
 
 function makePinnedLookup(validated) {
-  return (hostname, _options, callback) => {
+  return (hostname, options, callback) => {
     const expected = validated.parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
     const actual = String(hostname || '').replace(/^\[|\]$/g, '').toLowerCase();
     if (actual !== expected) {
       callback(new Error('请求主机与已校验主机不一致'));
       return;
     }
-    callback(null, validated.address, validated.family || net.isIP(validated.address));
+    const entry = { address: validated.address, family: validated.family || net.isIP(validated.address) };
+    // Node 20+ 默认启用 autoSelectFamily，以 { all: true } 调用自定义 lookup，
+    // 此时回调必须返回地址数组，否则连接层读到 undefined 报 Invalid IP address。
+    if (options && options.all) {
+      callback(null, [entry]);
+    } else {
+      callback(null, entry.address, entry.family);
+    }
   };
 }
 

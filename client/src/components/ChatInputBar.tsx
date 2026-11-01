@@ -593,7 +593,7 @@ const ChatInputBar = forwardRef<ChatInputBarHandle, Props>(function ChatInputBar
       />
       <div
         ref={emojiPickerPortalRef}
-        className={`glass-surface glass-surface--modal absolute inset-x-0 bottom-0 flex flex-col rounded-t-2xl p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] ${emojiPickerTab === 'search' ? '' : emojiPickerTab === 'wechat' ? 'h-[min(68vh,480px)]' : 'max-h-[min(68vh,480px)]'}`}
+        className={`glass-surface glass-surface--modal !absolute inset-x-0 bottom-0 flex flex-col rounded-t-2xl p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] ${emojiPickerTab === 'search' ? '' : emojiPickerTab === 'wechat' ? 'h-[min(68vh,480px)]' : 'max-h-[min(68vh,480px)]'}`}
         style={emojiPickerTab === 'search' ? { height: STICKER_SEARCH_PICKER_HEIGHT } : undefined}
       >
         {renderEmojiPickerContent('grid min-h-0 flex-1 grid-cols-8 gap-0.5 overflow-y-auto overscroll-contain px-0.5 py-0.5')}
@@ -669,7 +669,7 @@ const ChatInputBar = forwardRef<ChatInputBarHandle, Props>(function ChatInputBar
           />
           {showEmoji && !isMobileLayout && (
             <div
-              className={`glass-surface glass-surface--modal absolute bottom-full left-0 z-20 mb-2 box-border flex w-full max-w-full flex-col rounded-2xl p-2 ${emojiPickerTab === 'search' ? '' : emojiPickerTab === 'wechat' ? 'h-80' : 'max-h-80'}`}
+              className={`glass-surface glass-surface--modal !absolute bottom-full left-0 z-20 mb-2 box-border flex w-full max-w-full flex-col rounded-2xl p-2 ${emojiPickerTab === 'search' ? '' : emojiPickerTab === 'wechat' ? 'h-80' : 'max-h-80'}`}
               style={emojiPickerTab === 'search' ? { height: STICKER_SEARCH_PICKER_HEIGHT } : undefined}
             >
               {renderEmojiPickerContent('grid max-h-64 grid-cols-8 gap-0.5 overflow-y-auto overscroll-contain px-0.5 py-0.5')}
@@ -701,7 +701,7 @@ const ChatInputBar = forwardRef<ChatInputBarHandle, Props>(function ChatInputBar
           )}
           <div className="relative min-w-0 flex-1">
             {showMentionPicker && (
-              <div className="glass-surface glass-surface--modal absolute bottom-full left-0 z-20 mb-2 w-56 overflow-hidden rounded-2xl p-1.5">
+              <div className="glass-surface glass-surface--modal !absolute bottom-full left-0 z-20 mb-2 w-56 overflow-hidden rounded-2xl p-1.5">
                 {mentionOptions.map((option, index) => (
                   option.type === 'all' ? (
                     <button

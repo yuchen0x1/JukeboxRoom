@@ -4,6 +4,7 @@ const SOURCE_PRIORITY: Record<MusicSource, number> = {
   netease: 0,
   tencent: 1,
   kugou: 2,
+  qishui: 3,
 };
 
 function normalize(text: string): string {
@@ -28,7 +29,7 @@ function dedupExact(songs: SearchResult[]): SearchResult[] {
 
 /**
  * 跨平台去重：歌名 + 歌手一致视为同一首
- * 保留优先级：红点 > 绿点 > 蓝点（先丢蓝点，再丢绿点）
+ * 保留优先级：网易云 > QQ音乐 > 酷狗音乐（先丢酷狗音乐，再丢QQ音乐）
  */
 function dedupeCrossSource(songs: SearchResult[]): SearchResult[] {
   const best = new Map<string, SearchResult>();
@@ -57,14 +58,19 @@ function dedupeCrossSource(songs: SearchResult[]): SearchResult[] {
 }
 
 export interface InterleaveOptions {
-  /** 跨平台按歌名+歌手去重，优先级：红点 > 绿点 > 蓝点 */
+  /** 跨平台按歌名+歌手去重，优先级：网易云 > QQ音乐 > 酷狗音乐 */
   dedupeCrossSource?: boolean;
   /** 仅保留指定平台结果 */
   sourceOnly?: MusicSource;
+  /**
+   * 当前可播放的平台（房主已登录或免登录可用）。
+   * 可播放平台的结果交替排列在前，不可播放的整组排到最后。
+   */
+  playableSources?: MusicSource[];
 }
 
 /**
- * 红点、绿点、蓝点结果交替排列；可选跨平台去重
+ * 网易云、QQ音乐、酷狗音乐结果交替排列；可选跨平台去重
  */
 export function interleaveSearchResults(
   groups: Partial<Record<MusicSource, SearchResult[]>>,
@@ -74,19 +80,36 @@ export function interleaveSearchResults(
     return dedupExact(groups[options.sourceOnly] ?? []);
   }
 
-  const netease = dedupExact(groups.netease ?? []);
-  const tencent = dedupExact(groups.tencent ?? []);
-  const kugou = dedupExact(groups.kugou ?? []);
+  const ordered: Array<[MusicSource, SearchResult[]]> = [
+    ['netease', dedupExact(groups.netease ?? [])],
+    ['tencent', dedupExact(groups.tencent ?? [])],
+    ['kugou', dedupExact(groups.kugou ?? [])],
+    ['qishui', dedupExact(groups.qishui ?? [])],
+  ];
+  const playable = options.playableSources;
+  const primary = playable ? ordered.filter(([src]) => playable.includes(src)) : ordered;
+  const fallback = playable ? ordered.filter(([src]) => !playable.includes(src)) : [];
+
   const merged: SearchResult[] = [];
-  const max = Math.max(netease.length, tencent.length, kugou.length);
+  const interleave = (list: Array<[MusicSource, SearchResult[]]>) => {
+    const max = list.length ? Math.max(...list.map(([, arr]) => arr.length)) : 0;
+    for (let i = 0; i < max; i++) {
+      for (const [, arr] of list) {
+        if (i < arr.length) merged.push(arr[i]);
+      }
+    }
+  };
+  interleave(primary);
+  interleave(fallback);
 
-  for (let i = 0; i < max; i++) {
-    if (i < netease.length) merged.push(netease[i]);
-    if (i < tencent.length) merged.push(tencent[i]);
-    if (i < kugou.length) merged.push(kugou[i]);
-  }
+  const deduped = options.dedupeCrossSource ? dedupeCrossSource(merged) : merged;
+  if (!playable) return deduped;
 
-  return options.dedupeCrossSource ? dedupeCrossSource(merged) : merged;
+  // 去重后再次分区：可播放平台的条目保持在前，不可播放的（含跨平台去重幸存的独家版本）排到最后
+  const playableSet = new Set(playable);
+  const head = deduped.filter((song) => playableSet.has(song.source));
+  const tail = deduped.filter((song) => !playableSet.has(song.source));
+  return [...head, ...tail];
 }
 
 /** @deprecated 使用 interleaveSearchResults */

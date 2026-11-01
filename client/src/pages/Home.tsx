@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Music, Users, Radio, ArrowRight, Lock, ListMusic,
-  Loader2, RefreshCw, Plus, Hash, X, Disc3, Sparkles, History, Download, LogIn,
+  Loader2, RefreshCw, Plus, Hash, X, Disc3, Sparkles, History, Download,
 } from 'lucide-react';
 import { createRoom, checkRoom, listRooms } from '../api/meting';
 import { useRoomStore } from '../stores/roomStore';
@@ -23,14 +23,6 @@ function GiteeIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 1024 1024" fill="currentColor" className={className} aria-hidden>
       <path d="M512 1024q-104 0-199-40-92-39-163-110T40 711Q0 616 0 512t40-199Q79 221 150 150T313 40q95-40 199-40t199 40q92 39 163 110t110 163q40 95 40 199t-40 199q-39 92-110 163T711 984q-95 40-199 40z m259-569H480q-10 0-17.5 7.5T455 480v64q0 10 7.5 17.5T480 569h177q11 0 18.5 7.5T683 594v13q0 31-22.5 53.5T607 683H367q-11 0-18.5-7.5T341 657V417q0-31 22.5-53.5T417 341h354q11 0 18-7t7-18v-63q0-11-7-18t-18-7H417q-38 0-72.5 14T283 283q-27 27-41 61.5T228 417v354q0 11 7 18t18 7h373q46 0 85.5-22.5t62-62Q796 672 796 626V480q0-10-7-17.5t-18-7.5z" />
-    </svg>
-  );
-}
-
-function GithubIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 1024 1024" fill="currentColor" className={className} aria-hidden>
-      <path d="M512 0C229.12 0 0 229.12 0 512c0 226.56 146.688 418.688 349.696 486.592 25.6 4.672 34.944-11.104 34.944-24.704 0-12.224-0.512-52.544-0.768-95.232-142.24 30.944-172.256-60.416-172.256-60.416-23.264-59.104-56.8-74.848-56.8-74.848-46.432-31.744 3.52-31.136 3.52-31.136 51.36 3.616 78.4 52.736 78.4 52.736 45.632 78.208 119.776 55.616 148.992 42.528 4.64-33.056 17.856-55.616 32.448-68.416-113.664-12.96-233.216-56.896-233.216-253.12 0-55.904 20-101.568 52.736-137.376-5.344-12.928-22.848-64.928 4.96-135.392 0 0 43.008-13.76 140.896 52.48 40.832-11.36 84.64-17.056 128.192-17.28 43.52 0.224 87.36 5.888 128.256 17.248 97.824-66.24 140.768-52.448 140.768-52.448 27.872 70.464 10.368 122.464 5.024 135.392 32.768 35.84 52.672 81.472 52.672 137.376 0 196.608-119.744 239.968-233.76 252.608 18.368 15.84 34.656 46.976 34.656 94.656 0 68.352-0.608 123.392-0.608 140.16 0 13.632 9.216 29.568 35.168 24.576C877.376 930.624 1024 738.56 1024 512 1024 229.12 794.88 0 512 0z" />
     </svg>
   );
 }
@@ -342,14 +334,6 @@ export default function Home() {
       <header className="glass-surface glass-surface--elevated relative z-20 flex-shrink-0 border-x-0 border-t-0 safe-top">
         <div className="relative h-14 sm:h-16">
           <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-30 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate('/login')}
-              className="glass-button-secondary hidden items-center gap-1.5 rounded-xl px-3 py-2 text-xs sm:flex"
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              登录
-            </button>
             {!isMobileDevice() && (
               <>
                 <Tooltip content="下载 Android 客户端">
@@ -383,22 +367,13 @@ export default function Home() {
             >
               <GiteeIcon className="w-4 h-4" />
             </a>
-            <a
-              href="https://github.com/yuchen0x1/zaixian-diange-fang"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`hidden sm:flex ${repoLinkCls}`}
-              aria-label="GitHub 仓库"
-            >
-              <GithubIcon className="w-4 h-4" />
-            </a>
           </div>
           <div className="max-w-6xl mx-auto px-4 sm:px-6 pr-14 sm:pr-72 h-full flex items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2.5 flex-shrink-0">
             <div className="w-9 h-9 rounded-xl bg-netease-red/15 flex items-center justify-center">
               <Music className="w-5 h-5 text-netease-red" />
             </div>
-            <span className="hidden sm:block text-lg font-bold text-gradient">OpenMusic</span>
+            <span className="hidden sm:block text-lg font-bold text-gradient">JukeboxRoom</span>
           </div>
 
           <div className="flex-1 min-w-0 max-w-xs">
@@ -450,7 +425,7 @@ export default function Home() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">
-                <span className="sr-only">OpenMusic 在线点歌 - </span>
+                <span className="sr-only">JukeboxRoom 在线点歌 - </span>
                 房间大厅
               </h1>
               <p className="text-sm text-white/40">选择一个房间加入，或创建你自己的</p>

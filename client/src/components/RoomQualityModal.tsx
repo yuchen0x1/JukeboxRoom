@@ -75,7 +75,7 @@ export default function RoomQualityModal({ open, value, saving = false, onClose,
           <section>
             <div className="mb-2 flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-netease-red" aria-hidden />
-              <span className="text-sm text-netease-muted">红点</span>
+              <span className="text-sm text-netease-muted">网易云</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {NETEASE_QUALITY_OPTIONS.map((opt) => (
@@ -99,7 +99,7 @@ export default function RoomQualityModal({ open, value, saving = false, onClose,
           <section>
             <div className="mb-2 flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-primary-hover)]" aria-hidden />
-              <span className="text-sm text-netease-muted">绿点</span>
+              <span className="text-sm text-netease-muted">QQ音乐</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {TENCENT_QUALITY_OPTIONS.map((opt) => (

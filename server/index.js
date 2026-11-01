@@ -1,7 +1,25 @@
 import './loadEnv.js';
 import { resizeCoverForThumb } from './coverUrl.js';
 import { serveUpstreamMedia } from './mediaProxy.js';
-import { fetchMeting, formatMetingFetchError } from './metingFetch.js';
+import { fetchMeting, formatMetingFetchError, joinMetingEndpoint } from './metingFetch.js';
+import {
+  searchTencent,
+  searchKugou,
+  searchQishui,
+  resolveTencentPlayUrl,
+  resolveKugouPlayUrl,
+  resolveQishuiPlayUrl,
+  startTencentQrLogin,
+  pollTencentQrLogin,
+  startKugouQrLogin,
+  pollKugouQrLogin,
+  startQishuiLogin,
+  pollQishuiLogin,
+  startNeteaseLogin,
+  pollNeteaseLogin,
+  resolveNeteasePlayUrl,
+} from './sourceResolvers.js';
+import { neteaseSearchSongs, neteaseSearchPlaylists } from './neteaseSearch.js';
 import { mountWechatFileHelperProxy } from './wechatFileHelperProxy.js';
 import { buildRobotsTxt, buildSitemapXml, resolveSiteOrigin } from './seoFiles.js';
 import express from 'express';
@@ -48,6 +66,9 @@ import {
   renameRoom,
   setRoomLock,
   setRoomAudioQuality,
+  setRoomSourceCredential,
+  getRoomSourceCredential,
+  ensureSeedRoom,
   setRoomMemberTier,
   removeRoomMemberTier,
   setRoomMemberSettings,
@@ -125,6 +146,7 @@ import { getProviderHealth } from './mediaHealth.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4000;
 const METING_API_URL = (process.env.METING_API_URL || '').replace(/\/$/, '');
+const METING_SEARCH_API_URL = (process.env.METING_SEARCH_API_URL || '').replace(/\/$/, '');
 const METING_API_AUTH = process.env.METING_API_AUTH || '';
 const VMY_LRC_URL = (process.env.VMY_LRC_URL || 'https://api.52vmy.cn/api/music/lrc').replace(/\/$/, '');
 const DISCONNECT_GRACE_MS = 30_000;
@@ -325,7 +347,7 @@ function attachUserLocation(roomId, userId, ip) {
   }).catch(() => {});
 }
 
-const VALID_SOURCES = new Set(['netease', 'tencent', 'kugou']);
+const VALID_SOURCES = new Set(['netease', 'tencent', 'kugou', 'qishui']);
 
 function limitText(value, maxLength) {
   return String(value || '').trim().slice(0, maxLength);
@@ -389,12 +411,12 @@ function sanitizeClientSong(song) {
   return { song: sanitized };
 }
 
-function buildMetingUrl(query) {
+function buildMetingUrl(query, base = METING_API_URL) {
   const params = new URLSearchParams(query);
   if (METING_API_AUTH && !params.has('auth')) {
     params.set('auth', METING_API_AUTH);
   }
-  return `${METING_API_URL}/api?${params.toString()}`;
+  return `${joinMetingEndpoint(base)}?${params.toString()}`;
 }
 
 function parseMetingPicQuery(url) {
@@ -441,7 +463,88 @@ async function resolveMediaProxyFetchUrl(fetchUrl, thumbPx = 0) {
   return fetchUrl;
 }
 
+/** 从 Meting 地址的 query 中提取歌曲 id（清洗搜索结果时兜底） */
+function extractIdFromMetingUrl(url) {
+  try {
+    return decodeURIComponent(new URL(url).searchParams.get('id') || '');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 搜索结果清洗：剥离上游 url/lrc/pic，避免把搜索备源已失效的解析地址透传给客户端，
+ * 播放/歌词/封面统一由客户端经 /api/meting 走主源解析。
+ */
+function sanitizeMetingSearchItem(item) {
+  const id = item.id != null ? String(item.id) : extractIdFromMetingUrl(item.url);
+  return {
+    id,
+    name: item.name ?? item.title,
+    artist: item.artist ?? item.author,
+    album: item.album || undefined,
+    duration: item.duration || undefined,
+  };
+}
+
+/**
+ * type=search 路由：搜索优先走搜索备源（未登录的网易直连排序较差），
+ * 备源不可用时网易回退官方直连、其余平台回退主源。
+ * 命中搜索路径返回 true（响应已写出）。
+ */
+async function handleMetingSearch(query, res) {
+  const server = String(query.server || 'netease');
+  const keyword = String(query.id || '').trim();
+  if (!keyword) return false;
+
+  if (METING_SEARCH_API_URL) {
+    try {
+      const response = await fetchMeting(buildMetingUrl(query, METING_SEARCH_API_URL), { redirect: 'manual' });
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      if (response.status < 400 && Array.isArray(parsed)) {
+        res.json(parsed.map(sanitizeMetingSearchItem).filter((item) => item.id));
+        return true;
+      }
+      console.warn('Meting search upstream returned invalid payload, fallback');
+    } catch (err) {
+      console.warn('Meting search upstream failed:', formatMetingFetchError(err));
+    }
+  }
+
+  if (server === 'netease') {
+    try {
+      const songs = await neteaseSearchSongs(keyword);
+      res.json(songs);
+      return true;
+    } catch (err) {
+      console.warn('NetEase native search failed, fallback to primary:', err.message);
+    }
+  }
+  return false;
+}
+
+/**
+ * type=search_playlist 路由：公共 Meting 实例不支持该类型，
+ * 网易歌单搜索走官方直连；其余平台无免费源，回退主源保持旧行为。
+ */
+async function handleMetingSearchPlaylist(query, res) {
+  const server = String(query.server || 'netease');
+  const keyword = String(query.id || '').trim();
+  if (!keyword || server !== 'netease') return false;
+
+  try {
+    const playlists = await neteaseSearchPlaylists(keyword);
+    res.json(playlists);
+    return true;
+  } catch (err) {
+    console.warn('NetEase native playlist search failed, fallback to primary:', err.message);
+    return false;
+  }
+}
+
 async function proxyMetingResponse(targetUrl, res, thumbPx = 0, metingType = '') {
+  // fetchMeting 已跟随同域规范化重定向，跨域 CDN 地址保留给客户端处理
   const response = await fetchMeting(targetUrl, { redirect: 'manual' });
 
   if (response.status >= 300 && response.status < 400) {
@@ -566,7 +669,7 @@ app.get('/api/music/netease/playlists/search', async (req, res) => {
   try {
     const targetUrl = buildMetingUrl({ server: 'netease', type: 'search_playlist', id: keyword });
     const response = await fetchMeting(targetUrl, {}, 10000);
-    if (!response.ok) return res.status(response.status).json({ error: '红点歌单搜索失败' });
+    if (!response.ok) return res.status(response.status).json({ error: '网易云歌单搜索失败' });
     const data = await response.json();
     const playlists = Array.isArray(data) ? data : [];
     const normalized = playlists.map((item) => ({
@@ -586,7 +689,7 @@ app.get('/api/music/netease/playlists/search', async (req, res) => {
     });
   } catch (err) {
     console.error('Netease playlist search error:', err.message);
-    res.status(502).json({ error: '红点歌单搜索失败' });
+    res.status(502).json({ error: '网易云歌单搜索失败' });
   }
 });
 
@@ -594,28 +697,38 @@ app.get('/api/music/sources', (_req, res) => {
   const sources = [
     {
       id: 'netease',
-      name: '红点',
-      shortName: '红点',
+      name: '网易云',
+      shortName: '网易云',
       color: '#ec4141',
       supportsSearch: true,
       supportsIdLookup: true,
+      description: '网易云（房主登录后 VIP 歌曲完整播放）',
     },
     {
       id: 'tencent',
-      name: '绿点',
-      shortName: '绿点',
+      name: 'QQ音乐',
+      shortName: 'QQ音乐',
       color: '#31c27c',
       supportsSearch: true,
       supportsIdLookup: false,
     },
     {
       id: 'kugou',
-      name: '蓝点',
-      shortName: '蓝点',
+      name: '酷狗音乐',
+      shortName: '酷狗音乐',
       color: '#2688ee',
-      supportsSearch: isCyapiConfigured(),
+      supportsSearch: true,
       supportsIdLookup: false,
-      description: isCyapiConfigured() ? '通过迟言 API 搜索' : '请配置 CYAPI_KEY（蓝点）',
+      description: '酷狗音乐（房主登录后可用 VIP 音源）',
+    },
+    {
+      id: 'qishui',
+      name: '汽水音乐',
+      shortName: '汽水音乐',
+      color: '#f5a623',
+      supportsSearch: true,
+      supportsIdLookup: false,
+      description: '汽水音乐（房主配置自定义音源后可用）',
     },
   ];
   res.json(sources);
@@ -635,7 +748,13 @@ app.get('/api/meting', async (req, res) => {
     const thumbPx = parseInt(String(req.query.size || ''), 10) || 0;
     const query = { ...req.query };
     delete query.size;
-    await proxyMetingResponse(buildMetingUrl(query), res, thumbPx, String(query.type || ''));
+    const metingType = String(query.type || '');
+    if (metingType === 'search') {
+      if (await handleMetingSearch(query, res)) return;
+    } else if (metingType === 'search_playlist') {
+      if (await handleMetingSearchPlaylist(query, res)) return;
+    }
+    await proxyMetingResponse(buildMetingUrl(query), res, thumbPx, metingType);
   } catch (err) {
     console.error('Meting proxy error:', formatMetingFetchError(err));
     res.status(502).json({ error: '无法连接 Meting API，请检查 METING_API_URL 配置' });
@@ -690,7 +809,7 @@ app.get('/api/media-proxy', async (req, res) => {
   }
 });
 
-/** cyapi 蓝点音乐搜索 */
+/** cyapi 酷狗音乐搜索 */
 app.get('/api/music/cyapi/kugou/search', async (req, res) => {
   if (!limitProxyRequest(`kugou:${getRequestIp(req)}`)) {
     return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
@@ -709,7 +828,7 @@ app.get('/api/music/cyapi/kugou/search', async (req, res) => {
     res.json(await searchKugouMusic(keyword, num));
   } catch (err) {
     console.error('Cyapi Kugou search error:', err.message);
-    res.status(502).json({ error: '蓝点音乐搜索失败' });
+    res.status(502).json({ error: '酷狗音乐搜索失败' });
   }
 });
 
@@ -737,7 +856,7 @@ app.post('/api/music/playlist/import', async (req, res) => {
   }
 });
 
-/** cyapi 蓝点音乐详情（播放链接、歌词） */
+/** cyapi 酷狗音乐详情（播放链接、歌词） */
 app.get('/api/music/cyapi/kugou/song', async (req, res) => {
   if (!limitProxyRequest(`kugou-song:${getRequestIp(req)}`)) {
     return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
@@ -756,7 +875,153 @@ app.get('/api/music/cyapi/kugou/song', async (req, res) => {
     res.json(detail);
   } catch (err) {
     console.error('Cyapi Kugou song error:', err.message);
-    res.status(502).json({ error: '蓝点音乐获取失败' });
+    res.status(502).json({ error: '酷狗音乐获取失败' });
+  }
+});
+
+/** 房主音源：扫码登录 / 搜索 / 播放地址解析（凭据仅存服务端房间快照） */
+const SOURCE_QR_PROVIDERS = new Set(['netease', 'tencent', 'kugou', 'qishui']);
+
+function resolveRoomSourceAccess(req, roomId) {
+  const identity = resolveIdentityFromRequest(req);
+  if (!identity) return { error: '未登录', status: 401 };
+  const room = getRoomInternal(roomId?.toUpperCase());
+  if (!room) return { error: '房间不存在', status: 404 };
+  return { identity, room, isCreator: room.creatorId === identity.userId, isMember: room.users.has(identity.userId) };
+}
+
+/** 房主发起扫码登录：返回二维码 */
+app.post('/api/music/source/qr/start', async (req, res) => {
+  if (!limitProxyRequest(`sourceqr:${getRequestIp(req)}`)) {
+    return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
+  }
+  const roomId = String(req.body?.roomId || '').trim();
+  const source = String(req.body?.source || '').trim().toLowerCase();
+  if (!SOURCE_QR_PROVIDERS.has(source)) return res.status(400).json({ error: '该平台不支持扫码登录' });
+
+  const access = resolveRoomSourceAccess(req, roomId);
+  if (access.error) return res.status(access.status).json({ error: access.error });
+  if (!access.isCreator) return res.status(403).json({ error: '仅房主可登录音源' });
+
+  try {
+    const result = source === 'netease'
+      ? await startNeteaseLogin()
+      : source === 'tencent'
+        ? await startTencentQrLogin()
+        : source === 'kugou'
+          ? await startKugouQrLogin()
+          : await startQishuiLogin(roomId.toUpperCase());
+    res.json({ success: true, sessionKey: result.sessionKey, qrImage: result.qrImage });
+  } catch (err) {
+    console.error('Source QR start error:', err.message);
+    res.status(502).json({ error: err.message || '获取登录二维码失败' });
+  }
+});
+
+/** 房主轮询扫码状态：确认后凭据直接写入房间（仅广播已登录布尔） */
+app.get('/api/music/source/qr/poll', async (req, res) => {
+  const roomId = String(req.query.roomId || '').trim();
+  const source = String(req.query.source || '').trim().toLowerCase();
+  const sessionKey = String(req.query.session || '').trim();
+  if (!SOURCE_QR_PROVIDERS.has(source)) return res.status(400).json({ error: '该平台不支持扫码登录' });
+
+  const access = resolveRoomSourceAccess(req, roomId);
+  if (access.error) return res.status(access.status).json({ error: access.error });
+  if (!access.isCreator) return res.status(403).json({ error: '仅房主可登录音源' });
+
+  try {
+    const result = source === 'netease'
+      ? await pollNeteaseLogin(sessionKey)
+      : source === 'tencent'
+        ? await pollTencentQrLogin(sessionKey)
+        : source === 'kugou'
+          ? await pollKugouQrLogin(sessionKey)
+          : await pollQishuiLogin(roomId.toUpperCase(), sessionKey);
+
+    if (result.status === 'confirmed' && result.cookie) {
+      const saved = setRoomSourceCredential(roomId.toUpperCase(), access.identity.userId, source, { cookie: result.cookie });
+      if (saved.error) return res.status(400).json({ success: false, status: 'expired', error: saved.error });
+      broadcastRoomUpdate(roomId.toUpperCase());
+    }
+    if (result.status === 'confirmed') {
+      // 汽水等会话在包内部已落库；广播刷新 sourceLogins
+      broadcastRoomUpdate(roomId.toUpperCase());
+    }
+    res.json({ success: true, status: result.status, message: result.message });
+  } catch (err) {
+    console.error('Source QR poll error:', err.message);
+    res.status(502).json({ error: err.message || '登录状态查询失败' });
+  }
+});
+
+/** 音源搜索（QQ / 酷狗 / 自定义源） */
+app.get('/api/music/source/search', async (req, res) => {
+  if (!limitProxyRequest(`sourcesearch:${getRequestIp(req)}`)) {
+    return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
+  }
+  const source = String(req.query.source || '').trim().toLowerCase();
+  const keyword = String(req.query.q || '').trim();
+  if (!keyword) return res.status(400).json({ error: '缺少关键词' });
+
+  try {
+    let songs;
+    if (source === 'tencent') songs = await searchTencent(keyword);
+    else if (source === 'kugou') songs = await searchKugou(keyword);
+    else if (source === 'qishui') songs = await searchQishui(String(req.query.roomId || ''), keyword);
+    else return res.status(400).json({ error: '不支持的音源' });
+
+    res.json({ songs: songs || [] });
+  } catch (err) {
+    console.error('Source search error:', err.message);
+    res.status(502).json({ error: formatMetingFetchError(err) || '音源搜索失败' });
+  }
+});
+
+/** 音源播放地址解析：房间成员请求，动用该房间的房主凭据 */
+app.get('/api/music/source/url', async (req, res) => {
+  if (!limitProxyRequest(`sourceurl:${getRequestIp(req)}`)) {
+    return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
+  }
+  const roomId = String(req.query.roomId || '').trim();
+  const source = String(req.query.source || '').trim().toLowerCase();
+  const songId = String(req.query.id || '').trim();
+  const quality = String(req.query.quality || '').trim().toLowerCase();
+  if (!songId) return res.status(400).json({ error: '缺少歌曲 id' });
+
+  const access = resolveRoomSourceAccess(req, roomId);
+  if (access.error) return res.status(access.status).json({ error: access.error });
+  // 仅房间成员（含房主）可动用该房间的凭据解析
+  if (!access.isCreator && !access.isMember) {
+    return res.status(403).json({ error: '请先加入房间' });
+  }
+
+  const credential = getRoomSourceCredential(roomId.toUpperCase(), source);
+
+  try {
+    let url = null;
+    if (source === 'netease') {
+      if (credential?.cookie) {
+        url = await resolveNeteasePlayUrl(songId, quality, credential.cookie);
+      } else {
+        // 免登录：走 Meting 免费链路（与 /api/meting 同语义，取解析后的直链）
+        const response = await fetchMeting(buildMetingUrl({ server: 'netease', type: 'url', id: songId }), { redirect: 'manual' });
+        let location = response.headers.get('location');
+        if (!location && response.status < 300) {
+          const bodyText = await response.text();
+          location = bodyText.startsWith('http') ? bodyText : null;
+        }
+        url = location || null;
+      }
+    } else if (source === 'tencent') url = await resolveTencentPlayUrl(songId, quality, credential?.cookie || '');
+    else if (source === 'kugou') url = await resolveKugouPlayUrl(songId, quality, credential?.cookie || '');
+    else if (source === 'qishui') url = await resolveQishuiPlayUrl(roomId.toUpperCase(), songId, quality);
+    else return res.status(400).json({ error: '不支持的音源' });
+
+    if (!url) return res.status(404).json({ error: '该歌曲暂无可播放的音源，可尝试其他音质或平台' });
+    res.json({ url });
+  } catch (err) {
+    console.error('Source url error:', err.message);
+    res.status(502).json({ error: formatMetingFetchError(err) || '音源解析失败' });
   }
 });
 
@@ -1574,6 +1839,26 @@ io.on('connection', (socket) => {
     }
 
     const result = setRoomFmMode(roomId, getSocketUserId(socket), mode, socket.id);
+    if (result.error) {
+      callback?.({ success: false, error: result.error });
+      return;
+    }
+
+    broadcastRoomUpdate(roomId);
+    callback?.({ success: true, room: getViewerRoomPayload(socket, roomId) });
+  });
+
+  socket.on('set_room_source_credential', ({ source, credential }, callback) => {
+    if (rejectReadOnly(socket, callback)) return;
+    if (rejectRateLimited(socket, limitSocketAction, 'set_room_source_credential', callback)) return;
+
+    const roomId = socketToRoom.get(socket.id);
+    if (!roomId) {
+      callback?.({ success: false, error: '未加入房间' });
+      return;
+    }
+
+    const result = setRoomSourceCredential(roomId, getSocketUserId(socket), source, credential ?? null, socket.id);
     if (result.error) {
       callback?.({ success: false, error: result.error });
       return;
@@ -2451,6 +2736,7 @@ autoAdvanceTimer.unref?.();
 
 await initRooms();
 runtime.setReady(true);
+ensureSeedRoom(); // 固定测试房（每次启动确保存在）
 
 if (process.env.LIBRARY_WATCH_ENABLED === '1') {
   const libraryPaths = (process.env.MUSIC_LIBRARY_PATHS || '').split(';').map((item) => item.trim()).filter(Boolean);
@@ -2508,7 +2794,8 @@ await initRedisAdapter(io);
 httpServer.listen(PORT, () => {
   startTaskScheduler();
   console.log(`🎵 OpenMusic 服务运行在 http://localhost:${PORT}`);
-  console.log(`📡 Meting API: ${METING_API_URL}`);
-  console.log(`🎤 Cyapi (绿点/蓝点): ${isCyapiConfigured() ? '已配置' : '未配置'}`);
+  console.log(`📡 Meting API: ${METING_API_URL || '(未配置)'}`);
+  console.log(`🔍 Meting 搜索备源: ${METING_SEARCH_API_URL || '(未配置，仅网易官方直连搜索)'}`);
+  console.log(`🎤 Cyapi (QQ音乐/酷狗音乐): ${isCyapiConfigured() ? '已配置' : '未配置'}`);
   console.log(`💾 房间存储: ${isRedisEnabled() ? 'Redis' : '内存'}`);
 });

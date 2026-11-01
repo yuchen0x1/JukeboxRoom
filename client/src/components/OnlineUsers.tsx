@@ -220,7 +220,7 @@ export default function OnlineUsers({ users, creatorId, memberTiers = {}, onNoti
       </Tooltip>
 
       {open && (
-        <div className="glass-surface glass-surface--modal absolute right-0 top-full z-30 mt-2 w-72 rounded-2xl p-3">
+        <div className="glass-surface glass-surface--modal !absolute right-0 top-full z-30 mt-2 w-72 rounded-2xl p-3">
           <div className="mb-2 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-white">房间用户</h3>

@@ -109,19 +109,11 @@ function createMetingProvider(
 }
 
 export const neteaseProvider = createMetingProvider('netease', {
-  name: '红点',
-  shortName: '红点',
+  name: '网易云',
+  shortName: '网易云',
   color: 'var(--color-danger)',
   supportsSearch: true,
   supportsIdLookup: true,
-});
-
-export const tencentProvider = createMetingProvider('tencent', {
-  name: '绿点',
-  shortName: '绿点',
-  color: 'var(--color-primary-hover)',
-  supportsSearch: true,
-  supportsIdLookup: false,
 });
 
 export async function metingSearchPlaylists(

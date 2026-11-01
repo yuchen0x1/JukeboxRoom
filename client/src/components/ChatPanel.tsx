@@ -162,7 +162,7 @@ export default function ChatPanel({ className = '' }: { className?: string }) {
         onClick={() => setShowMutePicker(false)}
         aria-label="关闭禁言管理"
       />
-      <div className="absolute inset-x-0 bottom-0 flex max-h-[min(75vh,480px)] flex-col rounded-t-2xl glass-surface glass-surface--modal p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] animate-fade-in">
+      <div className="!absolute inset-x-0 bottom-0 flex max-h-[min(75vh,480px)] flex-col rounded-t-2xl glass-surface glass-surface--modal p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] animate-fade-in">
         <ChatMutePicker
           slice={chatRoomSlice}
           myUserId={myUserId}
