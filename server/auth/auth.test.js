@@ -3,57 +3,132 @@ import http from 'node:http';
 import test from 'node:test';
 import express from 'express';
 import { remove, findOne } from '../db/store.js';
-import { authRouter, loginUser } from './index.js';
+import {
+  authRouter,
+  loginUser,
+  signToken,
+  verifyToken,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
+} from './index.js';
 
-function request(server, body) {
-  const data = JSON.stringify(body);
+function request(server, { path = '/api/auth/register', method = 'POST', body, headers = {} } = {}) {
+  const data = body === undefined ? '' : JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const address = server.address();
     const req = http.request({
       host: '127.0.0.1',
       port: address.port,
-      path: '/api/auth/register',
-      method: 'POST',
+      path,
+      method,
       headers: {
-        'content-type': 'application/json',
-        'content-length': Buffer.byteLength(data),
+        ...headers,
+        ...(body === undefined ? {} : {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(data),
+        }),
       },
     }, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => resolve({
-        status: res.statusCode,
-        body: JSON.parse(Buffer.concat(chunks).toString('utf8')),
-      }));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        resolve({ status: res.statusCode, body: raw ? JSON.parse(raw) : {} });
+      });
     });
     req.on('error', reject);
     req.end(data);
   });
 }
 
-test('public registration ignores a requested admin role', async () => {
-  const username = `auth-test-${Date.now()}`;
-  const fixtureSecret = ['test', 'credential'].join('-');
+function startApp() {
   const app = express();
   app.use(express.json());
   app.use('/api/auth', authRouter);
-  const server = await new Promise((resolve) => {
-    const instance = app.listen(0, () => resolve(instance));
+  return new Promise((resolve) => {
+    const server = app.listen(0, () => resolve(server));
   });
+}
+
+test('registration enforces password length bounds', async () => {
+  const server = await startApp();
+  try {
+    const tooShort = await request(server, {
+      body: { username: `short-${Date.now()}`, password: '1234567' },
+    });
+    assert.equal(tooShort.status, 400);
+    const tooLong = await request(server, {
+      body: { username: `long-${Date.now()}`, password: 'x'.repeat(PASSWORD_MAX_LENGTH + 1) },
+    });
+    assert.equal(tooLong.status, 400);
+    assert.ok(PASSWORD_MIN_LENGTH >= 8);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('JWT verification rejects malformed headers and expired millisecond tokens', () => {
+  assert.equal(verifyToken('not-a-jwt'), null);
+  const expired = signToken({ sub: 'user', exp: Date.now() - 1 });
+  assert.equal(verifyToken(expired), null);
+  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ sub: 'user', exp: Date.now() + 60_000 })).toString('base64url');
+  assert.equal(verifyToken(`${header}.${payload}.invalid`), null);
+});
+
+test('public registration ignores a requested admin role', async () => {
+  const username = `auth-test-${Date.now()}`;
+  const fixtureSecret = ['test', 'credential'].join('-');
+  const server = await startApp();
 
   try {
     const response = await request(server, {
-      username,
-      password: fixtureSecret,
-      role: 'super_admin',
+      body: {
+        username,
+        password: `${fixtureSecret}1`,
+        role: 'super_admin',
+      },
     });
 
     assert.equal(response.status, 200);
     assert.equal(response.body.user.role, 'user');
     assert.equal(findOne('users', (user) => user.username === username).role, 'user');
-    assert.equal((await loginUser(username, fixtureSecret)).user.role, 'user');
+    const login = await loginUser(username, `${fixtureSecret}1`);
+    assert.equal(login.user.role, 'user');
+    assert.ok(login.accessToken);
+    assert.ok(login.refreshToken);
+
+    const refreshed = await request(server, {
+      path: '/api/auth/refresh',
+      body: { refreshToken: login.refreshToken },
+    });
+    assert.equal(refreshed.status, 200);
+    assert.ok(refreshed.body.accessToken);
+    assert.ok(refreshed.body.refreshToken);
+    assert.notEqual(refreshed.body.refreshToken, login.refreshToken);
+
+    const replay = await request(server, {
+      path: '/api/auth/refresh',
+      body: { refreshToken: login.refreshToken },
+    });
+    assert.equal(replay.status, 401);
+
+    const logout = await request(server, {
+      path: '/api/auth/logout',
+      body: { refreshToken: refreshed.body.refreshToken },
+    });
+    assert.equal(logout.status, 200);
+    const afterLogout = await request(server, {
+      path: '/api/auth/refresh',
+      body: { refreshToken: refreshed.body.refreshToken },
+    });
+    assert.equal(afterLogout.status, 401);
   } finally {
     await new Promise((resolve) => server.close(resolve));
-    remove('users', (user) => user.username === username);
+    const user = findOne('users', (entry) => entry.username === username);
+    if (user) {
+      remove('auth_refresh_sessions', (session) => session.userId === user.id);
+      remove('users', (entry) => entry.id === user.id);
+    }
   }
 });

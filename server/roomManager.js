@@ -42,6 +42,19 @@ export const INITIAL_CHAT_LIMIT = 100;
 export const CHAT_PAGE_LIMIT = 50;
 const MAX_RANDOM_HISTORY = 200;
 const MAX_RANDOM_PREFETCH_ATTEMPTS = 20;
+export const ROOM_PASSWORD_MIN_LENGTH = 8;
+export const ROOM_PASSWORD_MAX_LENGTH = 128;
+
+function validateRoomPassword(password, { allowEmpty = true } = {}) {
+  const value = String(password ?? '').trim();
+  if (!value && allowEmpty) return { value: '' };
+  if (value.length < ROOM_PASSWORD_MIN_LENGTH || value.length > ROOM_PASSWORD_MAX_LENGTH) {
+    return {
+      error: `房间密码长度需在 ${ROOM_PASSWORD_MIN_LENGTH}-${ROOM_PASSWORD_MAX_LENGTH} 个字符之间`,
+    };
+  }
+  return { value };
+}
 
 /** @type {((roomId: string) => void) | null} */
 let onRoomPrefetchReady = null;
@@ -884,8 +897,9 @@ export function createRoom({ name, password, creatorId } = {}) {
     roomId = generateRoomId();
   } while (rooms.has(roomId));
 
-  const trimmed = String(password || '').trim();
-  const passwordHash = trimmed ? hashPassword(trimmed) : null;
+  const passwordResult = validateRoomPassword(password);
+  if (passwordResult.error) return { error: passwordResult.error };
+  const passwordHash = passwordResult.value ? hashPassword(passwordResult.value) : null;
   const room = createEmptyRoom(roomId, name, passwordHash);
   const reservedCreator = sanitizeCreatorId(creatorId);
   if (reservedCreator) {
@@ -1114,9 +1128,10 @@ export function setRoomLock(roomId, actorId, options = {}, connectionId = null) 
     room.isLocked = false;
     room.passwordHash = null;
   } else {
+    const passwordResult = validateRoomPassword(options.password, { allowEmpty: false });
+    if (passwordResult.error) return { error: passwordResult.error };
     room.isLocked = true;
-    const trimmed = String(options.password || '').trim();
-    room.passwordHash = trimmed ? hashPassword(trimmed) : null;
+    room.passwordHash = hashPassword(passwordResult.value);
   }
 
   persistRoom(room);

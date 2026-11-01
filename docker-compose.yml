@@ -3,7 +3,7 @@
 # 最小启动：   docker compose up -d --build
 # 带持久化：   下方 volumes 已把房间数据挂载到宿主机 ./data
 #
-# 生产必改：environment 里的 CLIENT_ID_SECRET（换成任意长随机串）
+# 生产必改：environment 里的两个安全密钥（分别换成不同的长随机串）
 
 services:
   jukeboxroom:
@@ -14,8 +14,10 @@ services:
       - '4000:4000'
     environment:
       NODE_ENV: production
-      # 生产必改：随机长字符串，用于签名浏览器会话
-      CLIENT_ID_SECRET: please-change-this-to-a-long-random-string
+      # 生产必改：至少 32 个字符的随机值；不要使用占位符
+      CLIENT_ID_SECRET: replace-with-a-random-secret-at-least-32-characters
+      # 生产必改：至少 32 个字符的随机值；不要与 CLIENT_ID_SECRET 相同
+      AUTH_JWT_SECRET: replace-with-another-random-secret-at-least-32-characters
       # 音乐源（免费默认源，可自行替换为自建 Meting）
       METING_API_URL: https://api.injahow.cn/meting
       METING_SEARCH_API_URL: https://api.i-meto.com/meting/api

@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-brightgreen.svg)
-![Version](https://img.shields.io/badge/version-0.0.3-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 
 一群人聚在一起听歌，最怕的就是"放什么"争不出结果。JukeboxRoom 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
@@ -80,7 +80,8 @@ JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web �
 3. 安装依赖：npm run install:all（会依次安装根目录、server、client 三处依赖）
 4. 创建 server/.env，内容包含：
    NODE_ENV=production
-   CLIENT_ID_SECRET=<随机生成一个 32 位以上长随机字符串>
+   CLIENT_ID_SECRET=<随机生成一段至少 32 个字符的密钥>
+   AUTH_JWT_SECRET=<再随机生成一段不同的至少 32 个字符的密钥>
    METING_API_URL=https://api.injahow.cn/meting
    METING_SEARCH_API_URL=https://api.i-meto.com/meting/api
    （如绑定域名对外服务，再补 CLIENT_URL=https://你的域名 和 TRUST_PROXY=1）
@@ -92,7 +93,7 @@ JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web �
 遇到报错请自行排查修复后再继续，不要中途停下来问我。
 ```
 
-> AI 部署完成后记得：修改 `CLIENT_ID_SECRET` 为你自己的随机串、在「音源登录」面板登录各平台音源。
+> AI 部署完成后记得：为 `CLIENT_ID_SECRET` 和 `AUTH_JWT_SECRET` 分别设置不同的、至少 32 个字符的随机值；在「音源登录」面板登录各平台音源。
 
 ### 方式二：Docker 一条命令
 
@@ -100,7 +101,7 @@ JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web �
 docker compose up -d --build
 ```
 
-访问 `http://服务器IP:4000`。房间数据持久化在 `./data`，生产请修改 compose 里的 `CLIENT_ID_SECRET`。详细说明见 [docs/DEPLOY.md](docs/DEPLOY.md)。
+访问 `http://服务器IP:4000`。房间数据持久化在 `./data`，生产请修改 compose 里的 `CLIENT_ID_SECRET` 和 `AUTH_JWT_SECRET`。详细说明见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
 ### 方式三：Windows 桌面版（开箱即用）
 
@@ -167,8 +168,9 @@ Copy-Item server/.env.example server/.env
 ```env
 PORT=4000
 CLIENT_URL=http://localhost:5173
-CLIENT_ID_SECRET=change-this-development-secret
-AUTH_JWT_SECRET=change-this-development-jwt-secret
+# 非生产环境可留空：服务端会在 server/data/.secrets.json 持久化随机回退值
+CLIENT_ID_SECRET=
+AUTH_JWT_SECRET=
 METING_API_URL=http://127.0.0.1:3300
 ALLOW_PRIVATE_UPSTREAMS=1
 METING_API_AUTH=
@@ -232,9 +234,11 @@ pm2 start deploy/ecosystem.config.cjs
 | `PORT` | `4000` | 服务端口（HTTP 与 WebSocket 同端口） |
 | `NODE_ENV` | — | 生产环境设为 `production` |
 | `CLIENT_URL` | — | 生产必填。允许的前端 Origin，多个用英文逗号分隔，不带末尾斜杠 |
-| `CLIENT_ID_SECRET` | — | 生产必填。浏览器会话 ID 签名密钥，重启后不要变化 |
-| `AUTH_JWT_SECRET` | — | 生产必填。平台账号 JWT 签名密钥，留空会阻止生产启动 |
+| `CLIENT_ID_SECRET` | 非生产自动生成 | 生产必填；至少 32 个字符、不能是占位符，浏览器会话 ID 签名密钥，重启后不要变化 |
+| `AUTH_JWT_SECRET` | 非生产自动生成 | 生产必填；至少 32 个字符、不能是占位符，平台账号 JWT 签名密钥，重启后不要变化；非生产回退值保存在被忽略的 `server/data/.secrets.json` |
 | `AUTH_ACCESS_TTL` | `86400000` | 访问令牌有效期（毫秒） |
+| `AUTH_REFRESH_TTL` | `2592000000` | 刷新令牌有效期（毫秒，默认 30 天）；刷新令牌轮换且只能使用一次 |
+| `MAX_CONCURRENT_SOCKETS_PER_IP` | `50` | 单 IP 同时在线 Socket 数上限（进程内） |
 | `TRUST_PROXY` | 关闭 | Nginx 正确覆盖转发头时设为 `1`，用于获取真实客户端 IP |
 | `OPENMUSIC_DATA_DIR` | `server/data` | JSON 持久化目录，可指向独立数据盘 |
 
@@ -244,7 +248,7 @@ pm2 start deploy/ecosystem.config.cjs
 |---|---|---|
 | `METING_API_URL` | — | 推荐配置。Meting-API 地址，公网优先 HTTPS；仓库 Compose 示例为 `http://127.0.0.1:3300` |
 | `METING_API_AUTH` | — | 推荐配置。Meting-API 鉴权令牌 |
-| `ALLOW_PRIVATE_UPSTREAMS` | 关闭 | 设为 `1` 允许访问私有地址的 Meting 上游（仅限本机/内网自托管，不要用于用户可控 URL） |
+| `ALLOW_PRIVATE_UPSTREAMS` | 关闭 | 设为 `1` 仅允许配置的 Meting 主机访问私有地址（仅限本机/内网自托管，不会放宽媒体代理或用户可控 URL） |
 | `CYAPI_BASE` | `https://cyapi.top/API` | 迟言 API 根地址 |
 | `CYAPI_KEY` | — | 可选：迟言 API（酷狗第三方源）；酷狗搜索现已默认走官方网页接口，无需此项 |
 | `VMY_LRC_URL` | `https://api.52vmy.cn/api/music/lrc` | 按歌名的歌词备用接口 |

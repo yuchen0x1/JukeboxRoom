@@ -17,6 +17,7 @@ import { Router } from 'express';
 import { all, findOne, update, find } from '../db/store.js';
 import { queryAudit } from '../audit/index.js';
 import { getRoomPublic, listRoomIds } from '../roomManager.js';
+import { revokeRefreshSessionsForUser } from '../auth/index.js';
 
 const router = Router();
 
@@ -54,6 +55,7 @@ router.post('/users/:id/ban', (req, res) => {
     status: newStatus,
     bannedAt: newStatus === 'banned' ? new Date().toISOString() : null,
   });
+  if (newStatus === 'banned') revokeRefreshSessionsForUser(id);
   res.json({ id, status: newStatus });
 });
 

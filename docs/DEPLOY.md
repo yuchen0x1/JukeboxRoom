@@ -12,7 +12,8 @@
 3. 安装依赖：npm run install:all（会依次安装根目录、server、client 三处依赖）
 4. 创建 server/.env，内容包含：
    NODE_ENV=production
-   CLIENT_ID_SECRET=<随机生成一个 32 位以上长随机字符串>
+   CLIENT_ID_SECRET=<随机生成一段至少 32 个字符的密钥>
+   AUTH_JWT_SECRET=<再随机生成一段不同的至少 32 个字符的密钥>
    METING_API_URL=https://api.injahow.cn/meting
    METING_SEARCH_API_URL=https://api.i-meto.com/meting/api
    （如绑定域名对外服务，再补 CLIENT_URL=https://你的域名 和 TRUST_PROXY=1）
@@ -33,7 +34,7 @@
 ```bash
 git clone https://gitee.com/yuchen0x1/JukeboxRoom.git
 cd JukeboxRoom
-# 编辑 docker-compose.yml：把 CLIENT_ID_SECRET 换成长随机串
+# 编辑 docker-compose.yml：把 CLIENT_ID_SECRET 和 AUTH_JWT_SECRET 换成不同的长随机串
 docker compose up -d --build
 ```
 
@@ -77,8 +78,11 @@ docker run -d --name meting -p 3000:3000 w3126197382/meting-api:latest
 | `PORT` | | 服务端口，默认 `4000` |
 | `NODE_ENV` | 生产推荐 | 设为 `production` |
 | `CLIENT_URL` | 生产必填 | 允许的前端 Origin，多个用英文逗号分隔 |
-| `CLIENT_ID_SECRET` | 生产必填 | 浏览器会话签名密钥，**重启后不要变化** |
-| `AUTH_JWT_SECRET` | 生产必填 | 平台账号 JWT 签名密钥，**重启后不要变化** |
+| `CLIENT_ID_SECRET` | 生产必填 | 至少 32 个字符且不能是占位符；浏览器会话签名密钥，**重启后不要变化** |
+| `AUTH_JWT_SECRET` | 生产必填 | 至少 32 个字符且不能是占位符；平台账号 JWT 签名密钥，**重启后不要变化** |
+| `AUTH_ACCESS_TTL` | 可选 | 访问令牌有效期（毫秒，默认 24 小时） |
+| `AUTH_REFRESH_TTL` | 可选 | 刷新令牌有效期（毫秒，默认 30 天；刷新令牌轮换且只能使用一次） |
+| `MAX_CONCURRENT_SOCKETS_PER_IP` | 可选 | 单 IP 同时在线 Socket 数上限（进程内，默认 50） |
 | `TRUST_PROXY` | 视部署而定 | 设为 `1` 时才信任 Nginx 的 `X-Forwarded-For` / `X-Real-IP` |
 | `UPDATE_CHANNEL` | 固定 | `gitee`；当前在线更新只使用 Gitee 国内源 |
 | `UPDATE_GITEE_TOKEN` | 可选 | Gitee 私人令牌；更新检查走认证请求，避免匿名 API 限流；不要提交到仓库 |
@@ -95,14 +99,16 @@ docker run -d --name meting -p 3000:3000 w3126197382/meting-api:latest
 | `REDIS_URL` | 可选 | Redis 连接串 |
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` 等 | 可选 | 与 `REDIS_URL` 二选一 |
 
+> 非生产环境如果未配置这两个变量，服务端会生成随机回退值并持久化到被忽略的 `server/data/.secrets.json`。生产环境不会读取或生成回退值，缺失、过短或明显占位符都会阻止启动。
+
 ### 生产最小配置（仅网易云）
 
 ```env
 PORT=4000
 NODE_ENV=production
 CLIENT_URL=https://music.example.com
-CLIENT_ID_SECRET=换成一段长随机字符串
-AUTH_JWT_SECRET=换成另一段长随机字符串
+CLIENT_ID_SECRET=换成一段至少32字符的随机字符串
+AUTH_JWT_SECRET=换成另一段不同的至少32字符随机字符串
 METING_API_URL=http://127.0.0.1:3000
 METING_API_AUTH=你的meting_token
 ```
@@ -113,8 +119,8 @@ METING_API_AUTH=你的meting_token
 PORT=4000
 NODE_ENV=production
 CLIENT_URL=https://your-domain.com
-CLIENT_ID_SECRET=换成一段长随机字符串
-AUTH_JWT_SECRET=换成另一段长随机字符串
+CLIENT_ID_SECRET=换成一段至少32字符的随机字符串
+AUTH_JWT_SECRET=换成另一段不同的至少32字符随机字符串
 METING_API_URL=http://127.0.0.1:3000
 METING_API_AUTH=你的meting_token
 CYAPI_KEY=你的迟言apikey

@@ -10,6 +10,10 @@ import {
   createRoom,
   getRoomInternal,
   kickUser,
+  setRoomLock,
+  verifyRoomPassword,
+  ROOM_PASSWORD_MIN_LENGTH,
+  ROOM_PASSWORD_MAX_LENGTH,
   setChatMute,
   setRoomAdmin,
   transferOwner,
@@ -56,7 +60,7 @@ function request(server, { method = 'POST', path = '/', body, headers = {} } = {
 test('banned accounts lose JWT access immediately', async () => {
   const username = `security-jwt-${Date.now()}`;
   const fixtureSecret = ['test', 'credential'].join('-');
-  const user = await registerUser(username, fixtureSecret);
+  const user = await registerUser(username, `${fixtureSecret}1`);
   const token = signToken({ sub: user.id, username, role: user.role, exp: Date.now() + 60_000 });
 
   const app = express();
@@ -150,6 +154,23 @@ test('super admin can ban an admin', async () => {
     await close(server);
     remove('users', (entry) => entry.id === actor.id || entry.id === target.id);
   }
+});
+
+test('room passwords enforce bounds at creation and lock changes', () => {
+  const tooShort = createRoom({ name: 'short-password', password: '1234567', creatorId: 'room-owner-1' });
+  assert.equal(tooShort.error, `房间密码长度需在 ${ROOM_PASSWORD_MIN_LENGTH}-${ROOM_PASSWORD_MAX_LENGTH} 个字符之间`);
+
+  const room = createRoom({ name: 'password-room', password: 'correct-horse', creatorId: 'room-owner-1' });
+  assert.ok(room.id);
+  assert.equal(verifyRoomPassword(room.id, 'correct-horse').ok, true);
+  assert.equal(verifyRoomPassword(room.id, 'wrong-pass').ok, false);
+
+  addUser(room.id, 'room-owner-1', 'Owner');
+  const lockedShort = setRoomLock(room.id, 'room-owner-1', { locked: true, password: 'short' });
+  assert.equal(lockedShort.error, `房间密码长度需在 ${ROOM_PASSWORD_MIN_LENGTH}-${ROOM_PASSWORD_MAX_LENGTH} 个字符之间`);
+
+  const unlocked = setRoomLock(room.id, 'room-owner-1', { locked: false });
+  assert.equal(unlocked.error, undefined);
 });
 
 test('transferOwner moves creator and rejects invalid targets', () => {

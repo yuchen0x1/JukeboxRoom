@@ -31,9 +31,15 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { resolveSecrets } from './security/secrets.js';
 import { createRuntimeObservability } from './runtimeObservability.js';
 import { isPrivateHostname, isPrivateIp as isOutboundPrivateIp, isSafeHttpUrl, resolveValidatedHttpUrl, safeFetchFollow } from './outboundUrl.js';
-import { rateLimiter, createSocketRateLimiter } from './rateLimiter.js';
+import {
+  rateLimiter,
+  createSocketRateLimiter,
+  createConcurrencyLimiter,
+  slidingCount,
+} from './rateLimiter.js';
 import { initRedisAdapter, closeRedis } from './redisAdapter.js';
 import { registerUser, loginUser, authMiddleware, requireRole, authRouter } from './auth/index.js';
 import { taskRouter, startTaskScheduler, stopTaskScheduler } from './tasks/index.js';
@@ -163,8 +169,8 @@ const CLIENT_URL = (process.env.CLIENT_URL || '').replace(/\/$/, '');
 const ALLOWED_ORIGINS = CLIENT_URL
   ? new Set(CLIENT_URL.split(',').map((origin) => origin.trim().replace(/\/$/, '')).filter(Boolean))
   : null;
-const CLIENT_ID_SECRET = process.env.CLIENT_ID_SECRET || randomBytes(32).toString('hex');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const { CLIENT_ID_SECRET } = resolveSecrets({ logger: console });
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const METRICS_ENABLED = process.env.METRICS_ENABLED === '1';
 const METRICS_TOKEN = String(process.env.METRICS_TOKEN || '').trim();
@@ -382,6 +388,14 @@ const limitProxyRequest = createRateLimiter({ windowMs: 60_000, max: 120 });
 const limitUpdateApply = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 3 });
 const limitSocketAction = createSocketRateLimiter({ windowMs: 60_000, max: 90, keyFn: (socket) => getClientIp(socket) || socket.id });
 const limitSocketChat = createSocketRateLimiter({ windowMs: 60_000, max: 30, keyFn: (socket) => getClientIp(socket) || socket.id });
+const MAX_CONCURRENT_SOCKETS_PER_IP = Number.parseInt(process.env.MAX_CONCURRENT_SOCKETS_PER_IP || '50', 10);
+const concurrentSockets = createConcurrencyLimiter({
+  max: Number.isInteger(MAX_CONCURRENT_SOCKETS_PER_IP) && MAX_CONCURRENT_SOCKETS_PER_IP > 0
+    ? MAX_CONCURRENT_SOCKETS_PER_IP
+    : 50,
+  keyFn: (key) => key,
+  maxKeys: MAX_RATE_LIMIT_BUCKETS,
+});
 
 function sanitizeClientSong(song) {
   if (!song || typeof song !== 'object') {
@@ -1208,6 +1222,7 @@ app.post('/api/rooms', (req, res) => {
     return res.status(401).json({ error: '会话未就绪，请刷新页面后重试' });
   }
   const room = createRoom({ name, password, creatorId: identity.userId });
+  if (room?.error) return res.status(400).json(room);
   res.json(room);
 });
 
@@ -1637,23 +1652,14 @@ async function advanceEndedRoomNow(roomId, expectedQueueId = '') {
 }
 
 io.use((socket, next) => {
-  // Socket connection rate limit (per IP)
-  const windowMs = 60_000;
-  const max = 30; // max 30 connection attempts per minute per IP
+  // Socket connection rate limit (per IP) and concurrent connection cap.
   const ip = getClientIp(socket) || socket.id;
-  // Simple in-memory count via a closure Map
-  if (!io.__connLimit) io.__connLimit = new Map();
-  const now = Date.now();
-  const entry = io.__connLimit.get(ip) || [];
-  while (entry.length > 0 && entry[0] < now - windowMs) entry.shift();
-  if (entry.length >= max) return next(new Error('connection_rate_limited'));
-  entry.push(now);
-  io.__connLimit.set(ip, entry);
-  // Trim after every 100 connections
-  if (io.__connLimit.size > 10000) {
-    const keys = [...io.__connLimit.keys()].slice(0, 2000);
-    keys.forEach(k => io.__connLimit.delete(k));
-  }
+  const result = slidingCount(`socket-handshake:${ip}`, 60_000, 30, {
+    maxBuckets: MAX_RATE_LIMIT_BUCKETS,
+  });
+  if (!result.allowed) return next(new Error('connection_rate_limited'));
+  if (!concurrentSockets(ip)) return next(new Error('connection_limit_reached'));
+  socket.__concurrencyKey = ip;
   next();
 });
 
@@ -2701,6 +2707,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    if (socket.__concurrencyKey) {
+      concurrentSockets.release(socket.__concurrencyKey);
+      socket.__concurrencyKey = null;
+    }
     const roomId = socketToRoom.get(socket.id);
     if (!roomId) return;
 
