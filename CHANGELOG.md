@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.2 - 2026-11-02
+
+### 部署体验
+
+- 新增 Dockerfile 与 docker-compose.yml：单容器跑通前后端，房间数据挂载持久化，支持可选 Redis
+- 部署文档全面重写（docs/DEPLOY.md）：新增「AI 一键部署提示词」——复制给 AI 编程助手即可自动完成整台服务器部署
+- README 新增「🚀 快速部署」章节：AI 提示词 / Docker 一条命令 / Windows 桌面版 三种方式
+- 补充新环境变量文档：METING_SEARCH_API_URL、CLIENT_ID_SECRET、UPDATE_GITEE_TOKEN
+
+### 其他
+
+- 首页移除 Android/iOS 下载入口（安装包改从 Release 发布页获取）
+- 修复更新检查在 Gitee 匿名接口限流时的失败问题（支持 UPDATE_GITEE_TOKEN 认证请求）
+
 ## 0.0.1 - 2026-11-02（首个版本）
 
 ### 音源登录（房主专属）

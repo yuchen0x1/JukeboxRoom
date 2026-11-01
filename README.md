@@ -66,6 +66,57 @@ JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web �
 | 音乐服务 | Meting-API（必需）；迟言 API（可选） |
 | 对象存储 | 七牛云 OSS（可选，用于聊天图片） |
 
+## 🚀 快速部署
+
+### 方式一：AI 一键部署（推荐，复制下面的提示词发给任意 AI 编程助手）
+
+把服务器 SSH 信息交给 AI 工具（如 ZCode / Claude Code / Cursor），粘贴这段提示词即可自动完成部署：
+
+```text
+请帮我在这台服务器上部署 JukeboxRoom 多人在线点歌系统（Node.js ≥ 20）：
+
+1. 安装 Node.js 20（没有的话用 nvm 或系统包管理器安装）
+2. 克隆仓库：git clone https://gitee.com/yuchen0x1/JukeboxRoom.git 并进入目录
+3. 安装依赖：npm run install:all（会依次安装根目录、server、client 三处依赖）
+4. 创建 server/.env，内容包含：
+   NODE_ENV=production
+   CLIENT_ID_SECRET=<随机生成一个 32 位以上长随机字符串>
+   METING_API_URL=https://api.injahow.cn/meting
+   METING_SEARCH_API_URL=https://api.i-meto.com/meting/api
+   （如绑定域名对外服务，再补 CLIENT_URL=https://你的域名 和 TRUST_PROXY=1）
+5. 构建前端：进入 client 目录执行 npm run build
+6. 启动服务：进入 server 目录用 pm2（npm i -g pm2 && pm2 start index.js --name jukeboxroom）或 systemd 常驻运行 node index.js，默认端口 4000
+7. 自检：curl http://127.0.0.1:4000/api/health 应返回 ok
+8. 最后告诉我访问地址（http://服务器IP:4000）、如何修改端口、如何更新版本（git pull 后重新 build + pm2 restart）
+
+遇到报错请自行排查修复后再继续，不要中途停下来问我。
+```
+
+> AI 部署完成后记得：修改 `CLIENT_ID_SECRET` 为你自己的随机串、在「音源登录」面板登录各平台音源。
+
+### 方式二：Docker 一条命令
+
+```bash
+docker compose up -d --build
+```
+
+访问 `http://服务器IP:4000`。房间数据持久化在 `./data`，生产请修改 compose 里的 `CLIENT_ID_SECRET`。详细说明见 [docs/DEPLOY.md](docs/DEPLOY.md)。
+
+### 方式三：Windows 桌面版（开箱即用）
+
+从 Gitee [发布页](https://gitee.com/yuchen0x1/JukeboxRoom/releases) 下载桌面版 ZIP，解压运行即可，适合不想碰命令行的场景。
+
+### 本地开发
+
+```bash
+git clone https://gitee.com/yuchen0x1/JukeboxRoom.git
+cd JukeboxRoom
+npm run install:all   # 依次安装根目录、server 和 client 的依赖
+npm run dev           # 同时启动服务端(4000)和前端(5173)
+```
+
+更详细的手动部署、Nginx 反代、Redis 持久化和故障排查见 **[docs/DEPLOY.md](docs/DEPLOY.md)**。
+
 ## 系统要求
 
 - Node.js 20 或更高版本（服务端 `engines` 要求 `>=20`），npm；
