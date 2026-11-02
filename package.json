@@ -29,6 +29,6 @@
     "desktop:build": "npm run build && npm run dist --prefix desktop"
   },
   "devDependencies": {
-    "concurrently": "^9.2.4"
+    "concurrently": "^9.2.5"
   }
 }
