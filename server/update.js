@@ -8,8 +8,16 @@ const DEFAULT_REPOSITORY = 'yuchen0x1/JukeboxRoom';
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_STALE_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 8000;
-export const CHANNEL_GITEE = 'gitee';
-const GITEE_ALLOWED_HOSTS = new Set(['gitee.com']);
+export const CHANNEL_GITHUB = 'github';
+
+/** 允许的 GitHub 官方域名：API、网页、Release 资产直链及其重定向 CDN。 */
+const GITHUB_ALLOWED_HOSTS = new Set([
+  'github.com',
+  'api.github.com',
+  'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+  'github-releases.githubusercontent.com',
+]);
 
 function readCurrentVersion() {
   for (const packagePath of [path.join(__dirname, '../package.json'), path.join(__dirname, 'package.json')]) {
@@ -50,36 +58,42 @@ function getRepository() {
   return /^[\w.-]+\/[\w.-]+$/.test(configured) ? configured : DEFAULT_REPOSITORY;
 }
 
-function getGiteeApiUrl() {
+function getGithubApiUrl() {
   const configured = String(process.env.UPDATE_RELEASE_API_URL || '').trim();
   if (configured) {
     try {
       const url = new URL(configured);
-      if (url.protocol === 'https:' && url.hostname === 'gitee.com') return url.toString();
+      if (url.protocol === 'https:' && GITHUB_ALLOWED_HOSTS.has(url.hostname.toLowerCase())) return url.toString();
     } catch {
-      // Fall through to the fixed official Gitee endpoint.
+      // Fall through to the fixed official GitHub endpoint.
     }
   }
-  return `https://gitee.com/api/v5/repos/${getRepository()}/releases/latest`;
+  return `https://api.github.com/repos/${getRepository()}/releases/latest`;
 }
 
-function getGiteeReleasePageUrl() {
-  return `https://gitee.com/${getRepository()}/releases`;
+function getGithubReleasePageUrl() {
+  return `https://github.com/${getRepository()}/releases`;
 }
 
-function parseGiteeUrl(rawUrl) {
+/** 匿名调用 GitHub API 会受速率限制（HTTP 403），此时回退到无需鉴权的 releases.atom 订阅源。 */
+function getGithubReleaseAtomUrl() {
+  return `https://github.com/${getRepository()}/releases.atom`;
+}
+
+function parseGithubUrl(rawUrl) {
   try {
     const parsed = new URL(String(rawUrl || ''));
     const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
-    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || host !== 'gitee.com' || isPrivateHostname(host)) return null;
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || isPrivateHostname(host)) return null;
+    if (!GITHUB_ALLOWED_HOSTS.has(host)) return null;
     return parsed;
   } catch {
     return null;
   }
 }
 
-async function guardGiteeUrl(rawUrl, { resolveDns = true } = {}) {
-  const parsed = parseGiteeUrl(rawUrl);
+async function guardGithubUrl(rawUrl, { resolveDns = true } = {}) {
+  const parsed = parseGithubUrl(rawUrl);
   if (!parsed) return null;
   if (!resolveDns) return parsed.toString();
   const validated = await resolveValidatedHttpUrl(parsed.toString());
@@ -87,12 +101,12 @@ async function guardGiteeUrl(rawUrl, { resolveDns = true } = {}) {
 }
 
 export function isAllowedReleaseRedirectUrl(rawUrl) {
-  const parsed = parseGiteeUrl(rawUrl);
-  return Boolean(parsed && GITEE_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase()));
+  const parsed = parseGithubUrl(rawUrl);
+  return Boolean(parsed && GITHUB_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase()));
 }
 
 function buildReleasePageUrl() {
-  return getGiteeReleasePageUrl();
+  return getGithubReleasePageUrl();
 }
 
 function pickAsset(assets, pattern) {
@@ -123,70 +137,62 @@ export function normalizeRelease(release) {
   };
 }
 
-function adaptGiteeRelease(release) {
+function decodeEntities(value) {
+  return String(value || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function stripTags(value) {
+  return decodeEntities(String(value || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+function adaptGithubRelease(release) {
   if (!release || typeof release !== 'object') return release;
   const tag = String(release.tag_name || '').trim();
   if (!release.html_url && /^[\w.-]+$/.test(tag)) {
-    return { ...release, html_url: `https://gitee.com/${getRepository()}/releases/tag/${tag}` };
+    return { ...release, html_url: `https://github.com/${getRepository()}/releases/tag/${tag}` };
   }
   return release;
 }
 
-function parseGiteeReleasePage(body) {
+/** 解析 GitHub releases.atom 订阅源，取最新一条 Release。 */
+function parseGithubReleaseAtom(body) {
   const source = String(body || '');
-  if (source.trim().startsWith('{')) {
-    try {
-      const payload = JSON.parse(source);
-      const item = Array.isArray(payload.releases) ? payload.releases[0] : null;
-      const release = item?.release;
-      const tag = item?.tag?.name;
-      if (release && tag) {
-        const assets = Array.isArray(release.attach_files) ? release.attach_files.map((asset) => ({
-          name: asset.name || asset.file_name,
-          browser_download_url: asset.browser_download_url || asset.download_url || asset.url,
-          size: asset.size,
-        })) : [];
-        return {
-          tag_name: tag,
-          name: release.title || `OpenMusic ${tag}`,
-          html_url: `https://gitee.com${release.path || `/${getRepository()}/releases/tag/${tag}`}`,
-          published_at: release.created_at,
-          body: release.description || '',
-          assets,
-        };
-      }
-    } catch {
-      // Fall through to the HTML parser for older Gitee responses.
-    }
-  }
-  const tag = source.match(/class=['"]releases-sidebar-item['"][^>]*data-tag=['"](v?[\w.-]+)['"]/i)?.[1]
-    || source.match(/class=['"]release-tag-item['"][^>]*data-tag=['"](v?[\w.-]+)['"]/i)?.[1];
+  const entry = source.match(/<entry>([\s\S]*?)<\/entry>/i)?.[1];
+  if (!entry) return null;
+  const link = entry.match(/<link[^>]*href=['"]([^'"]+)['"]/i)?.[1] || '';
+  const tag = link.match(/\/releases\/tag\/([^/?#"']+)/i)?.[1]
+    || entry.match(/<id[^>]*>([^<]+)<\/id>/i)?.[1]?.match(/\/releases\/tag\/([^/?#"']+)/i)?.[1];
   if (!tag) return null;
-  const title = source.match(/class=['"]title['"][^>]*href=['"][^"']*\/releases\/tag\/[\w.-]+['"][^>]*>([\s\S]*?)<\/a>/i)?.[1]
-    ?.replace(/<[^>]+>/g, '').trim();
-  const note = source.match(/<textarea[^>]*class=['"]content['"][^>]*>([\s\S]*?)<\/textarea>/i)?.[1]
-    ?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+  const title = stripTags(entry.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]) || `JukeboxRoom ${tag}`;
+  const publishedAt = entry.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i)?.[1]?.trim() || null;
+  const content = entry.match(/<content[^>]*>([\s\S]*?)<\/content>/i)?.[1];
   return {
     tag_name: tag,
-    name: title || `OpenMusic ${tag}`,
-    html_url: `https://gitee.com/${getRepository()}/releases/tag/${tag.replace(/^v/i, 'v')}`,
-    body: note || '',
+    name: title,
+    html_url: `https://github.com/${getRepository()}/releases/tag/${tag}`,
+    published_at: publishedAt,
+    body: content ? stripTags(content) : '',
     assets: [],
   };
 }
 
-// 兼容旧调用方，但更新通道固定为国内 Gitee。
+// 兼容旧调用方，但更新通道固定为 GitHub。
 export function resetChannelCache() {}
 
 export async function resolveChannel() {
-  return CHANNEL_GITEE;
+  return CHANNEL_GITHUB;
 }
 
 export function createUpdateService({
   currentVersion = CURRENT_VERSION,
   fetchImpl = globalThis.fetch,
-  giteeApiUrl = getGiteeApiUrl(),
-  giteeToken = String(process.env.UPDATE_GITEE_TOKEN || '').trim(),
+  githubApiUrl = getGithubApiUrl(),
+  githubToken = String(process.env.UPDATE_GITHUB_TOKEN || '').trim(),
   cacheTtlMs = DEFAULT_CACHE_TTL_MS,
   staleCacheTtlMs = DEFAULT_STALE_CACHE_TTL_MS,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -204,26 +210,33 @@ export function createUpdateService({
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const safeUrl = await guardGiteeUrl(giteeApiUrl, { resolveDns });
-        if (!safeUrl) throw new Error('Gitee 更新源地址未通过安全校验');
-        const headers = { Accept: 'application/json', 'User-Agent': 'OpenMusic-update-checker' };
-        if (giteeToken) headers.Authorization = `token ${giteeToken}`;
+        const safeUrl = await guardGithubUrl(githubApiUrl, { resolveDns });
+        if (!safeUrl) throw new Error('GitHub 更新源地址未通过安全校验');
+        const headers = {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'JukeboxRoom-update-checker',
+          'X-GitHub-Api-Version': '2022-11-28',
+        };
+        if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
         const response = await fetchImpl(safeUrl, { headers, signal: controller.signal });
         let release;
         if (response.ok) {
-          release = adaptGiteeRelease(await response.json());
+          release = adaptGithubRelease(await response.json());
         } else {
-          const pageUrl = await guardGiteeUrl(getGiteeReleasePageUrl(), { resolveDns });
-          if (!pageUrl) throw new Error(`Gitee 更新源返回 HTTP ${response.status}`);
-          const pageResponse = await fetchImpl(pageUrl, { headers, signal: controller.signal });
-          if (!pageResponse.ok) throw new Error(`Gitee 更新源返回 HTTP ${response.status}`);
-          release = parseGiteeReleasePage(await pageResponse.text());
-          if (!release) throw new Error('Gitee Release 页面未找到最新版本');
+          const atomUrl = await guardGithubUrl(getGithubReleaseAtomUrl(), { resolveDns });
+          if (!atomUrl) throw new Error(`GitHub 更新源返回 HTTP ${response.status}`);
+          const atomResponse = await fetchImpl(atomUrl, {
+            headers: { ...headers, Accept: 'application/atom+xml' },
+            signal: controller.signal,
+          });
+          if (!atomResponse.ok) throw new Error(`GitHub 更新源返回 HTTP ${response.status}`);
+          release = parseGithubReleaseAtom(await atomResponse.text());
+          if (!release) throw new Error('GitHub Release 订阅源未找到最新版本');
         }
         const normalized = normalizeRelease(release);
         const value = {
           ok: true,
-          channel: CHANNEL_GITEE,
+          channel: CHANNEL_GITHUB,
           releasePageUrl: buildReleasePageUrl(),
           currentVersion: normalizeVersion(currentVersion),
           ...normalized,

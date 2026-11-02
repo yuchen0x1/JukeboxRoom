@@ -1522,7 +1522,7 @@ function resolveIosIpaPath() {
   return null;
 }
 
-/** 302 兜底前校验 Release 资产直链：仅放行 Gitee 官方域名且非内网/保留地址。 */
+/** 302 兜底前校验 Release 资产直链：仅放行 GitHub 官方域名且非内网/保留地址。 */
 async function resolveReleaseAssetRedirect(update, assetKind) {
   const url = update?.assets?.[assetKind]?.url;
   if (!url || !isAllowedReleaseRedirectUrl(url)) return null;
@@ -1538,7 +1538,7 @@ async function sendAndroidApk(_req, res) {
       const target = await resolveReleaseAssetRedirect(update, 'android');
       if (target) return res.redirect(302, target);
     } catch { /* Keep the local deployment error below when the update source is unavailable. */ }
-    return res.status(404).type('text/plain; charset=utf-8').send('APK 尚未部署，请前往 Gitee Release 下载 Android 安装包');
+    return res.status(404).type('text/plain; charset=utf-8').send('APK 尚未部署，请前往 GitHub Release 下载 Android 安装包');
   }
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
   res.download(apkPath, 'openmusic.apk');
@@ -1552,7 +1552,7 @@ async function sendIosIpa(_req, res) {
       const target = await resolveReleaseAssetRedirect(update, 'ios');
       if (target) return res.redirect(302, target);
     } catch { /* Keep the local deployment error below when the update source is unavailable. */ }
-    return res.status(404).type('text/plain; charset=utf-8').send('IPA 尚未部署，请前往 Gitee Release 下载 iOS 安装包，并用 Sideloadly / AltStore 安装');
+    return res.status(404).type('text/plain; charset=utf-8').send('IPA 尚未部署，请前往 GitHub Release 下载 iOS 安装包，并用 Sideloadly / AltStore 安装');
   }
   res.setHeader('Content-Type', 'application/octet-stream');
   res.download(ipaPath, 'openmusic.ipa');
@@ -1564,7 +1564,7 @@ async function sendDesktopPackage(_req, res) {
     const target = await resolveReleaseAssetRedirect(update, 'desktop');
     if (target) return res.redirect(302, target);
   } catch { /* The release page remains the fallback when the update source is unavailable. */ }
-  return res.status(404).type('text/plain; charset=utf-8').send('电脑版部署包尚未发布，请前往 Gitee Release 页面查看最新版本');
+  return res.status(404).type('text/plain; charset=utf-8').send('电脑版部署包尚未发布，请前往 GitHub Release 页面查看最新版本');
 }
 
 app.get('/downloads/openmusic.apk', sendAndroidApk);

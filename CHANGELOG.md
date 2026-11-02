@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.6 - 2026-11-02
+
+### 仓库迁移至 GitHub
+
+- 源码、Issue 与 Release 统一迁移至 [github.com/yuchen0x1/JukeboxRoom](https://github.com/yuchen0x1/JukeboxRoom)，不再使用 Gitee 作为代码托管与分发渠道。
+- 在线更新检查改读 GitHub Releases API（`GET https://api.github.com/repos/yuchen0x1/JukeboxRoom/releases/latest`），匿名请求触发限流时自动回退到 `releases.atom` 订阅源，更新检测不再因限流失败。
+- Release 资产直链白名单改为 GitHub 官方域名与资产 CDN（`github.com`、`objects.githubusercontent.com`、`release-assets.githubusercontent.com`），302 下载兜底与前端资产解析同步生效。
+- 新增 `UPDATE_GITHUB_TOKEN`（只读令牌，`Bearer` 鉴权）替代 `UPDATE_GITEE_TOKEN`；更新通道固定为 `github`，旧的 Gitee 通道配置不再读取。
+- 首页仓库入口、桌面版「软件更新」中的发布页链接与下载兜底文案全部指向 GitHub Release，首页图标同步替换为 GitHub 图标。
+- 版本号统一升至 `0.0.6`；`README`、`docs/DEPLOY.md`、`server/.env.example` 等文档的更新源说明同步改为 GitHub。
+
 ## 0.0.5 - 2026-11-02
 
 ### Windows 桌面版

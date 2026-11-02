@@ -84,9 +84,10 @@ docker run -d --name meting -p 3000:3000 w3126197382/meting-api:latest
 | `AUTH_REFRESH_TTL` | 可选 | 刷新令牌有效期（毫秒，默认 30 天；刷新令牌轮换且只能使用一次） |
 | `MAX_CONCURRENT_SOCKETS_PER_IP` | 可选 | 单 IP 同时在线 Socket 数上限（进程内，默认 50） |
 | `TRUST_PROXY` | 视部署而定 | 设为 `1` 时才信任 Nginx 的 `X-Forwarded-For` / `X-Real-IP` |
-| `UPDATE_CHANNEL` | 固定 | `gitee`；当前在线更新只使用 Gitee 国内源 |
-| `UPDATE_GITEE_TOKEN` | 可选 | Gitee 私人令牌；更新检查走认证请求，避免匿名 API 限流；不要提交到仓库 |
-| `GITEE_ACCESS_TOKEN` | 已废弃 | 请使用 `UPDATE_GITEE_TOKEN` |
+| `UPDATE_CHANNEL` | 固定 | `github`；当前在线更新只使用 GitHub 官方源 |
+| `UPDATE_REPOSITORY` | `yuchen0x1/JukeboxRoom` | 在线更新检查读取的 GitHub 仓库（`owner/repo`） |
+| `UPDATE_GITHUB_TOKEN` | 可选 | GitHub 只读令牌；更新检查走认证请求，避免匿名 API 限流；不要提交到仓库 |
+| `GITEE_ACCESS_TOKEN` | 已废弃 | 旧版 Gitee 令牌配置，已不再读取 |
 | `OPENMUSIC_DATA_DIR` | 可选 | JSON 存储目录；默认 `server/data`，生产建议放到独立数据盘并纳入备份 |
 | `LIBRARY_WATCH_ENABLED` | 可选 | 设为 `1` 后监听 `MUSIC_LIBRARY_PATHS` 的新增、修改和删除；默认关闭 |
 | `MUSIC_LIBRARY_PATHS` | 使用本地曲库时 | 多个目录用英文分号分隔；监听和扫描最多递归 5 层 |

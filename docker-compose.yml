@@ -21,8 +21,8 @@ services:
       # 音乐源（免费默认源，可自行替换为自建 Meting）
       METING_API_URL: https://api.injahow.cn/meting
       METING_SEARCH_API_URL: https://api.i-meto.com/meting/api
-      # 可选：Gitee 私人令牌，让更新检查走认证通道（避免匿名限流）
-      # UPDATE_GITEE_TOKEN: gitee-personal-token
+      # 可选：GitHub 令牌，让更新检查走认证通道（避免匿名 API 限流）
+      # UPDATE_GITHUB_TOKEN: github_pat_xxx
       # 可选：Redis 持久化（房间/收藏重启不丢）
       # REDIS_URL: redis://redis:6379
     volumes:

@@ -52,7 +52,7 @@ if (!androidHome) {
   3. 设置环境变量 ANDROID_HOME 指向 SDK 目录
   4. sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-也可在 Gitee 仓库查看是否配置了 CI 构建流程；当前请先安装本地 Android SDK 后重试。
+也可在 GitHub 仓库查看是否配置了 CI 构建流程；当前请先安装本地 Android SDK 后重试。
 `);
   process.exit(1);
 }

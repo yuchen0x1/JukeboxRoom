@@ -7,7 +7,7 @@ export interface UpdateAsset {
 export interface UpdateInfo {
   ok: boolean;
   stale?: boolean;
-  channel?: 'gitee';
+  channel?: 'github';
   releasePageUrl?: string;
   currentVersion: string | null;
   latestVersion: string | null;

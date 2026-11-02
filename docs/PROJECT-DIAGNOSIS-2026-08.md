@@ -4,10 +4,10 @@
 
 ## 当前状态
 
-- 主分支为 `main`，当前代码和在线更新优先维护 Gitee 国内仓库；国外仓库不作为更新源。
+- 主分支为 `main`，代码、Release 与在线更新统一使用 GitHub 仓库 `yuchen0x1/JukeboxRoom`。
 - 当前版本为 `2.0.1`，网站由 Express 托管，前端为 React/Vite，移动端为 Capacitor 远程 URL 壳。
 - 已具备多人房间、实时播放同步、聊天室、三类音乐源、收藏/歌单、认证与 RBAC、管理接口、任务中心、AutoDJ、本地曲库、PWA 和 TV 页面。
-- Gitee Release 已具备国内发行版本信息；iOS 构建需要 macOS/Xcode。
+- GitHub Release 已具备发行版本信息；iOS 构建需要 macOS/Xcode。
 - Redis 是可选的生产持久化方案；未配置 Redis 时使用 JSON 文件存储，生产建议通过 `OPENMUSIC_DATA_DIR` 放在独立数据盘。
 - 本轮已完成本地曲库元数据增强和可选目录监听，使用 `music-metadata` 与 `chokidar`，不改变默认关闭监听的部署行为。
 - 本轮已完成音乐源健康状态和短时熔断，失败源会冷却后自动恢复探测，不改变现有音乐接口协议。
@@ -25,7 +25,7 @@
 
 ### P0：可验证性与更新可靠性
 
-- 在线版本检测固定使用 Gitee 国内源，国外更新源禁止访问。
+- 在线版本检测固定使用 GitHub 官方源，其他镜像源不再作为更新通道。
 - 对 Release 资产做官方域名校验，短暂上游故障时返回最近一次成功结果。
 - 统一 `npm test`、`npm run check`、`npm run check:health` 检查入口。
 - 为更新 API、通道回退、资产校验和客户端请求补充测试。

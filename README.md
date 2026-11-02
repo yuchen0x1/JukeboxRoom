@@ -50,7 +50,7 @@ JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web �
 - 平台账号登录（`/login`）、个人收藏与共享歌单；
 - 本地曲库：读取音频内嵌标签（失败时回退文件名），可选跨平台目录监听，文件增删改自动刷新索引；
 - AutoDJ：活动时间段内队列低水位自动补歌，按歌曲/歌手去重；
-- 在线更新检测：仅读取 Gitee 最新稳定 Release，Web/PWA/Capacitor 客户端展示更新提示；
+- 在线更新检测：仅读取 GitHub 最新稳定 Release，Web/PWA/Capacitor 客户端展示更新提示；
 - PWA、SEO 文件（robots.txt / sitemap.xml）、可选 Prometheus 指标（`/metrics`）、音乐源失败熔断与接口限流。
 
 > 说明：服务端已内置认证、管理员、曲库、AutoDJ、任务中心和审计日志 API（按角色鉴权），但当前 Web 客户端仅提供首页、登录页、房间页和 TV 页，没有对应的管理后台界面。
@@ -299,8 +299,8 @@ pm2 start deploy/ecosystem.config.cjs
 | `APIHZ_IMG_ID` / `APIHZ_IMG_KEY` | — | 接口盒子表情包搜索凭据（不配置则隐藏搜索入口） |
 | `METRICS_ENABLED` | 关闭 | 设为 `1` 开启 `/metrics` |
 | `METRICS_TOKEN` | — | `/metrics` 访问令牌，生产环境不要开放无保护指标 |
-| `UPDATE_REPOSITORY` | `yuchen0x1/JukeboxRoom` | 在线更新检查的 Gitee 仓库 |
-| `UPDATE_GITEE_TOKEN` | — | Gitee API 受限时填写 |
+| `UPDATE_REPOSITORY` | `yuchen0x1/JukeboxRoom` | 在线更新检查的 GitHub 仓库 |
+| `UPDATE_GITHUB_TOKEN` | — | GitHub API 限流时填写只读令牌 |
 | `TASK_AUDIT_RETENTION_DAYS` | `90` | 任务审计保留天数 |
 | `TASK_RUNS_KEEP` | `500` | 任务运行记录数量上限 |
 
@@ -322,7 +322,7 @@ pm2 start deploy/ecosystem.config.cjs
 - 首次启动会在 `%APPDATA%\JukeboxRoom\jukeboxroom.env`（或升级时沿用既有 `%APPDATA%\openmusic-desktop` / `%APPDATA%\OpenMusic`）自动生成配置模板和随机安全密钥；搜歌/播放依赖 Meting-API，按模板注释填写 `METING_API_URL` 后重启生效；
 - 房间、收藏等本地数据保存在上述用户数据目录下的 `data`；卸载安装程序不会删除配置和数据；
 - 构建：`npm run desktop:build`（先构建前端，再只生成 `release/desktop/jukeboxroom-desktop-setup-<版本>-x64.exe` 正式安装程序）；
-- 当前 Windows 构建未使用商业代码签名证书，首次运行可能显示 SmartScreen 提示；发布前请确认文件来自项目 Gitee Release。
+- 当前 Windows 构建未使用商业代码签名证书，首次运行可能显示 SmartScreen 提示；发布前请确认文件来自项目 GitHub Release。
 
 ### 手机 App（Android）
 
@@ -348,7 +348,7 @@ Release 构建前需在 `client/android/keystore.properties` 配置本机 keysto
 | 模块 | 接口 |
 |---|---|
 | 健康检查 | `GET /api/health`、`GET /api/health/live`、`GET /api/health/ready` |
-| 版本更新 | `GET /api/update`（读取 Gitee 最新稳定版，含桌面/Android/iOS 资产） |
+| 版本更新 | `GET /api/update`（读取 GitHub 最新稳定版，含桌面/Android/iOS 资产） |
 | 房间 | `GET / POST /api/rooms`、`GET /api/rooms/:id` |
 | 音乐 | `GET /api/music/sources`、`GET /api/music/health`、`GET /api/music/hot`、`GET /api/music/toplist/netease`、`GET /api/music/netease/playlists/search`、`POST /api/music/playlist/import` |
 | 媒体 | `GET /api/media-proxy?url=...`（同源媒体代理） |
@@ -455,7 +455,7 @@ NSIS 安装程序输出到 `release/desktop/`。Android 与 iOS 安装包需分�
 
 ## 版本
 
-当前版本 `0.0.5`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 Gitee 最新稳定 Release 提供更新检测（`GET /api/update`）。
+当前版本 `0.0.6`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 GitHub 最新稳定 Release 提供更新检测（`GET /api/update`），源码、Release 与 Issue 统一托管在 [github.com/yuchen0x1/JukeboxRoom](https://github.com/yuchen0x1/JukeboxRoom)。
 
 ## 参与贡献
 

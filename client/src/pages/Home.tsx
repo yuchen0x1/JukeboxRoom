@@ -17,10 +17,10 @@ import VersionStatus from '../components/VersionStatus';
 import BaseModal from '../components/Modal';
 import ChangelogViewer from '../components/ChangelogViewer';
 
-function GiteeIcon({ className }: { className?: string }) {
+function GithubIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 1024 1024" fill="currentColor" className={className} aria-hidden>
-      <path d="M512 1024q-104 0-199-40-92-39-163-110T40 711Q0 616 0 512t40-199Q79 221 150 150T313 40q95-40 199-40t199 40q92 39 163 110t110 163q40 95 40 199t-40 199q-39 92-110 163T711 984q-95 40-199 40z m259-569H480q-10 0-17.5 7.5T455 480v64q0 10 7.5 17.5T480 569h177q11 0 18.5 7.5T683 594v13q0 31-22.5 53.5T607 683H367q-11 0-18.5-7.5T341 657V417q0-31 22.5-53.5T417 341h354q11 0 18-7t7-18v-63q0-11-7-18t-18-7H417q-38 0-72.5 14T283 283q-27 27-41 61.5T228 417v354q0 11 7 18t18 7h373q46 0 85.5-22.5t62-62Q796 672 796 626V480q0-10-7-17.5t-18-7.5z" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
     </svg>
   );
 }
@@ -396,14 +396,14 @@ export default function Home() {
               <span className="hidden text-sm sm:inline">更新日志</span>
             </button>
             <a
-              href="https://gitee.com/yuchen0x1/JukeboxRoom"
+              href="https://github.com/yuchen0x1/JukeboxRoom"
               target="_blank"
               rel="noopener noreferrer"
               className={`${repoLinkCls} hidden sm:flex`}
-              aria-label="Gitee 仓库"
-              title="Gitee 仓库"
+              aria-label="GitHub 仓库"
+              title="GitHub 仓库"
             >
-              <GiteeIcon className="w-4 h-4" />
+              <GithubIcon className="w-4 h-4" />
             </a>
           </div>
         </div>

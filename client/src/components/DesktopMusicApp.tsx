@@ -846,7 +846,7 @@ export default function DesktopMusicApp() {
                       <div className="desktop-update-heading">
                         <div>
                           <h2>软件更新</h2>
-                          <p>自动检查 Gitee 上的 Windows 版本，也可以随时手动检查。</p>
+                          <p>自动检查 GitHub 上的 Windows 版本，也可以随时手动检查。</p>
                         </div>
                         <span className="desktop-version-label">当前 v{updateInfo?.currentVersion || __APP_VERSION__}</span>
                       </div>
@@ -861,9 +861,9 @@ export default function DesktopMusicApp() {
                         <button
                           type="button"
                           className="desktop-text-button"
-                          onClick={() => window.open(updateInfo?.releasePageUrl || 'https://gitee.com/yuchen0x1/JukeboxRoom/releases', '_blank', 'noopener,noreferrer')}
+                          onClick={() => window.open(updateInfo?.releasePageUrl || 'https://github.com/yuchen0x1/JukeboxRoom/releases', '_blank', 'noopener,noreferrer')}
                         >
-                          <ExternalLink aria-hidden="true" />Gitee 发布页
+                          <ExternalLink aria-hidden="true" />GitHub 发布页
                         </button>
                       </div>
                       <p className="desktop-update-feedback" aria-live="polite">
@@ -896,7 +896,7 @@ export default function DesktopMusicApp() {
                             }}
                           >
                             {updateInfo.assets.desktop ? <Download aria-hidden="true" /> : <ExternalLink aria-hidden="true" />}
-                            {updateInfo.assets.desktop ? '下载 Windows 安装包' : '打开 Gitee 发布页'}
+                            {updateInfo.assets.desktop ? '下载 Windows 安装包' : '打开 GitHub 发布页'}
                           </button>
                         </div>
                       )}

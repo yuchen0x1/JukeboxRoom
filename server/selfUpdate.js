@@ -1,7 +1,7 @@
 /**
  * 服务端自更新（面向 git clone + pm2/systemd/Docker 部署方式）。
  *
- * 流程：检测到 Gitee 有更新版本 → git fetch/reset 到最新 main →
+ * 流程：检测到 GitHub 有更新版本 → git fetch/reset 到最新 main →
  * 重装依赖 → 重建前端 → 在进程管理器（pm2/Docker）下自动重启进程。
  *
  * 安全边界：
