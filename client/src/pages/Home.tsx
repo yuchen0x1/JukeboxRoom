@@ -189,6 +189,7 @@ export default function Home() {
     try {
       const data = await listRooms();
       setRooms((prev) => (areRoomListsEqual(prev, data) ? prev : data));
+      setError((prev) => (prev === '加载房间列表失败' ? '' : prev));
     } catch {
       if (!silent) setError('加载房间列表失败');
     } finally {

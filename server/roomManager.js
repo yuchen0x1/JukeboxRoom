@@ -21,6 +21,12 @@ import {
 import { deleteRoomChatImages, validateChatImageForRoom, validateExternalChatImage } from './qiniuOss.js';
 import { isLocalStickerImageKey, validateLocalStickerImage } from './localSticker.js';
 import { collectDeviceIdsForUser, isAccessBanned } from './deviceIdentity.js';
+import {
+  getSourceAccountCredential,
+  getSourceAccountLogins,
+  removeSourceAccount,
+  saveSourceAccountCredential,
+} from './sourceAccounts.js';
 
 const generateRoomId = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 6);
 const generateId = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 12);
@@ -79,6 +85,10 @@ function notifyRoomStructureChanged(roomId) {
   if (onRoomStructureChanged) onRoomStructureChanged(roomId);
 }
 const AUTO_ADVANCE_GRACE_SEC = 0.15;
+// finish_song 允许的提前量：即便带 queueId 强制推进，也必须接近自然结束，
+// 否则任意房间成员都能伪造"播放结束"把当前曲切掉（见 advancePlaybackIfEnded）。
+const FORCE_ADVANCE_TOLERANCE_SEC = 10;
+const FORCE_ADVANCE_MIN_PLAY_SEC = 30;
 const NETEASE_CANONICAL = new Set(['standard', 'higher', 'exhigh', 'lossless', 'hires']);
 const TENCENT_CANONICAL = new Set(['standard', 'exhigh', 'lossless']);
 const QUALITY_ALIASES = {
@@ -388,6 +398,11 @@ function normalizeSourceCredential(source, raw) {
 
   const cookie = String(raw.cookie || '').trim().slice(0, 4000);
   if (!cookie) return null;
+  // 内容校验与 sourceAccounts.validateCookie 对齐：必须含平台会话字段，
+  // 否则房间凭据是垃圾 Cookie、本机账号却保存失败，两处状态发散
+  const required = key === 'netease' ? 'MUSIC_U' : key === 'tencent' ? 'uin' : 'token';
+  const hasRequired = cookie.split(';').some((part) => part.trim().startsWith(`${required}=`));
+  if (!hasRequired) return null;
   return { cookie };
 }
 
@@ -407,13 +422,23 @@ function restoreSourceCredentialsFromStorage(data) {
   return map;
 }
 
+/**
+ * 房间可见的登录状态 = 房间凭据 ∪ 本机长期账号。
+ * 本机账号不随房间销毁 / 服务重启失效，因此新建房间、刷新页面后依然显示已登录。
+ */
 function sourceLoginsFor(room) {
   const map = room?.sourceCredentials;
+  let local = {};
+  try {
+    local = getSourceAccountLogins();
+  } catch {
+    local = {};
+  }
   return {
-    netease: Boolean(map?.get('netease')),
-    tencent: Boolean(map?.get('tencent')),
-    kugou: Boolean(map?.get('kugou')),
-    qishui: Boolean(map?.get('qishui')),
+    netease: Boolean(map?.get('netease')) || Boolean(local.netease),
+    tencent: Boolean(map?.get('tencent')) || Boolean(local.tencent),
+    kugou: Boolean(map?.get('kugou')) || Boolean(local.kugou),
+    qishui: Boolean(map?.get('qishui')) || Boolean(local.qishui),
   };
 }
 
@@ -1220,8 +1245,10 @@ export function setRoomAudioQuality(roomId, actorId, quality = {}, connectionId 
 }
 
 /**
- * 房主设置音源凭据（QQ 音乐 / 酷狗 Cookie、自定义音源地址）。
- * credential 为 null 时清除该源登录。
+ * 房主设置音源凭据（QQ 音乐 / 酷狗 Cookie、汽水会话）。
+ * credential 为 null 时清除该源登录（房间 + 本机长期账号一并清除）。
+ * 凭据会同时写入本机长期账号库，刷新页面 / 服务重启 / 新建房间后仍然有效。
+ * 全局账号的删除仅允许其绑定者操作，避免其他房间的房主清掉共享账号。
  */
 export function setRoomSourceCredential(roomId, actorId, source, credential = null, connectionId = null) {
   const room = rooms.get(roomId);
@@ -1233,9 +1260,22 @@ export function setRoomSourceCredential(roomId, actorId, source, credential = nu
 
   if (credential === null || credential === undefined) {
     room.sourceCredentials.delete(key);
+    try {
+      if (!removeSourceAccount(key, actorId)) {
+        return { error: '账号由其他用户登录，请让登录者本人退出' };
+      }
+    } catch (err) {
+      console.warn(`[source-account] 清除本机账号失败（${key}）：${err.message}`);
+    }
   } else {
     const normalized = normalizeSourceCredential(key, credential);
-    if (!normalized) return { error: key === 'qishui' ? '汽水登录会话无效' : 'Cookie 无效（不能为空）' };
+    if (!normalized) return { error: key === 'qishui' ? '汽水登录会话无效' : 'Cookie 无效（不能为空或缺少平台会话字段）' };
+    try {
+      saveSourceAccountCredential(key, normalized, actorId);
+    } catch (err) {
+      // 本机账号落盘失败不阻断本次房间内使用，但会明确记录，避免静默丢失
+      console.warn(`[source-account] 本机账号保存失败（${key}）：${err.message}`);
+    }
     room.sourceCredentials.set(key, normalized);
   }
 
@@ -1244,11 +1284,21 @@ export function setRoomSourceCredential(roomId, actorId, source, credential = nu
   return { room: serializeRoom(room) };
 }
 
-/** 供音源解析路由读取房间凭据（仅服务端使用，永不出服务端） */
+/**
+ * 供音源解析路由读取凭据（仅服务端使用，永不出服务端）。
+ * 本机长期账号优先：它代表最近一次登录，避免房间快照里的过期 session
+ * 在服务重启后反而覆盖本机新会话（汽水令牌刷新场景）。
+ */
 export function getRoomSourceCredential(roomId, source) {
+  const key = String(source || '').trim().toLowerCase();
+  try {
+    const account = getSourceAccountCredential(key);
+    if (account) return account;
+  } catch {
+    // 本机账号不可用时回退房间凭据
+  }
   const room = rooms.get(roomId);
-  if (!room) return null;
-  return room.sourceCredentials.get(String(source || '').trim().toLowerCase()) || null;
+  return room?.sourceCredentials.get(key) || null;
 }
 
 export function setRoomMemberTier(roomId, actorId, targetUserId, payload = {}, connectionId = null) {
@@ -2333,6 +2383,15 @@ export async function advancePlaybackIfEnded(roomId, options = {}) {
   const durationSec = getSongDurationSeconds(room.current);
   if (durationSec <= 0 && !force) return null;
   if (!force && getPlaybackTime(room) < durationSec + AUTO_ADVANCE_GRACE_SEC) return null;
+  // 强制推进同样必须接近自然结束：finish_song 事件任何成员都可发，
+  // 不校验的话等于给所有人"立即切歌"的能力（绕过 skipSong 的房主/管理员判定）
+  if (force) {
+    const playedSec = getPlaybackTime(room);
+    const minAdvanceSec = durationSec > 0
+      ? Math.max(0, durationSec - FORCE_ADVANCE_TOLERANCE_SEC)
+      : FORCE_ADVANCE_MIN_PLAY_SEC;
+    if (playedSec < minAdvanceSec) return null;
+  }
 
   if (room.autoAdvancePromise) return null;
 
@@ -2341,8 +2400,15 @@ export async function advancePlaybackIfEnded(roomId, options = {}) {
     if (expectedQueueId && room.current.queueId !== expectedQueueId) return null;
 
     const lockedDurationSec = getSongDurationSeconds(room.current);
-    if (!force && (lockedDurationSec <= 0 || getPlaybackTime(room) < lockedDurationSec + AUTO_ADVANCE_GRACE_SEC)) {
+    const lockedPlayedSec = getPlaybackTime(room);
+    if (!force && (lockedDurationSec <= 0 || lockedPlayedSec < lockedDurationSec + AUTO_ADVANCE_GRACE_SEC)) {
       return null;
+    }
+    if (force) {
+      const lockedMinAdvanceSec = lockedDurationSec > 0
+        ? Math.max(0, lockedDurationSec - FORCE_ADVANCE_TOLERANCE_SEC)
+        : FORCE_ADVANCE_MIN_PLAY_SEC;
+      if (lockedPlayedSec < lockedMinAdvanceSec) return null;
     }
     await playNextUnlocked(room, { allowFetchRandom: false });
     persistRoom(room);

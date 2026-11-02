@@ -38,6 +38,7 @@ import {
   resolveSongUrl,
   isTrackSourceError,
   fetchServiceFallbackUrl,
+  invalidateTrackUrlCache,
   invalidateUnloadedSongUrlCache,
 } from '../lib/songPreloadCache';
 import {
@@ -69,6 +70,12 @@ let audioListenersTarget: HTMLAudioElement | null = null;
 const CALIBRATION_INTERVAL_MS = 6000;
 /** 音源脱节时重试 load 的最小间隔 */
 const LOAD_WATCHDOG_INTERVAL_MS = 4000;
+/** 播放失败后等待多久自动跳过：留出展示错误与手动重试的时间 */
+const AUTO_SKIP_DELAY_MS = 5000;
+/** 已被确认取不到源（预加载就失败过）的曲目：缩短等待，避免连续坏歌时长时间卡顿 */
+const AUTO_SKIP_KNOWN_BAD_DELAY_MS = 2000;
+/** 连续自动跳过的上限：整条队列都取不到源时停下来，避免无限滚动切歌 */
+const MAX_CONSECUTIVE_AUTO_SKIPS = 5;
 
 type LoadLock = {
   queueId: string | null;
@@ -180,6 +187,11 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
   const successRecordedTrackKey = useRef<string | null>(null);
   const stallRetryTimer = useRef<number | null>(null);
   const lastSkipAt = useRef(0);
+  const autoSkipTimer = useRef<number | null>(null);
+  const autoSkipTarget = useRef<{ queueId: string; at: number } | null>(null);
+  const consecutiveAutoSkips = useRef(0);
+  /** 已对哪个曲目做过「预加载失败后的一次真解析」 */
+  const sourceErrorRetriedKey = useRef<string | null>(null);
   const wasLeaderRef = useRef(isPlaybackLeader);
 
   useEffect(() => {
@@ -328,10 +340,24 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
     });
   }, [controller, tvMode, shouldSkipForEndedTrackKey, handleSyncResult]);
 
+  /** 取消自动跳过排期（成功出声、换歌、用户手动操作时调用） */
+  const clearAutoSkip = useCallback(() => {
+    if (autoSkipTimer.current) {
+      window.clearTimeout(autoSkipTimer.current);
+      autoSkipTimer.current = null;
+    }
+    autoSkipTarget.current = null;
+    if (useAudioStore.getState().autoSkipAt !== null) {
+      useAudioStore.getState().setAutoSkipAt(null);
+    }
+  }, []);
+
   const requestSkip = useCallback((options: { bypassThrottle?: boolean } = {}) => {
     if (skippingRef.current) return;
     const { isPlaybackLeader, room: live } = useRoomStore.getState();
     if (!isPlaybackLeader) return;
+
+    clearAutoSkip();
 
     const now = Date.now();
     if (!options.bypassThrottle && now - lastSkipAt.current < 2000) return;
@@ -354,7 +380,39 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
     skipSong().finally(() => {
       skippingRef.current = false;
     });
-  }, [controller, skipSong]);
+  }, [controller, skipSong, clearAutoSkip]);
+
+  /**
+   * 统一处理「当前曲目播不出来」。
+   * 1. 一定展示错误，让用户知道发生了什么；
+   * 2. 由主控端排一次自动跳过——否则整条队列会永久卡死在一首坏歌上；
+   * 3. 连续失败达到上限后停手（整库无源时切歌毫无意义），把决定权交回用户。
+   */
+  const failCurrentTrack = useCallback((song: QueueItem, message: string, options: { delayMs?: number } = {}) => {
+    useAudioStore.getState().setPlaybackError({ queueId: song.queueId, message });
+
+    const { isPlaybackLeader } = useRoomStore.getState();
+    if (!isPlaybackLeader) return; // 跟随端只展示，推进由主控端负责
+    if (autoSkipTarget.current?.queueId === song.queueId) return;
+    if (consecutiveAutoSkips.current >= MAX_CONSECUTIVE_AUTO_SKIPS) return;
+
+    const delayMs = options.delayMs ?? AUTO_SKIP_DELAY_MS;
+    const at = Date.now() + delayMs;
+    autoSkipTarget.current = { queueId: song.queueId, at };
+    useAudioStore.getState().setAutoSkipAt(at);
+    if (autoSkipTimer.current) window.clearTimeout(autoSkipTimer.current);
+    autoSkipTimer.current = window.setTimeout(() => {
+      autoSkipTimer.current = null;
+      autoSkipTarget.current = null;
+      useAudioStore.getState().setAutoSkipAt(null);
+
+      const live = useRoomStore.getState();
+      if (!live.isPlaybackLeader) return;
+      if (live.room?.current?.queueId !== song.queueId) return; // 期间已经换歌
+      consecutiveAutoSkips.current += 1;
+      requestSkip({ bypassThrottle: true });
+    }, delayMs);
+  }, [requestSkip]);
 
   const initAudio = useCallback(() => {
     const audio = controller.audio;
@@ -423,18 +481,12 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
               });
               return;
             }
-            useAudioStore.getState().setPlaybackError({
-              queueId: song.queueId,
-              message: '音源连接超时，请重试或切换歌曲',
-            });
+            failCurrentTrack(song, '音源连接超时，即将自动跳过');
             return;
           }
 
           if (runtime.lowestFallbackAttempted.current) {
-            useAudioStore.getState().setPlaybackError({
-              queueId: song.queueId,
-              message: '当前音源不可用，请重试或切换歌曲',
-            });
+            failCurrentTrack(song, '当前音源不可用，即将自动跳过');
             return;
           }
 
@@ -453,10 +505,10 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
               });
               return;
             }
-            useAudioStore.getState().setPlaybackError({
-              queueId: song.queueId,
-              message: '音源地址已失效，请重试或切换歌曲',
-            });
+            failCurrentTrack(song, '音源地址已失效，即将自动跳过');
+          }).catch(() => {
+            // 降级链本身失败也要收敛到自动跳过，否则歌曲会卡死且不再触发 error
+            failCurrentTrack(song, '音源地址已失效，即将自动跳过');
           });
         });
       });
@@ -492,6 +544,9 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
         if (liveRoom?.current?.queueId) {
           useAudioStore.getState().setPlaybackError(null);
         }
+        // 真正出声才算成功：结束自动跳过排期并重置连续失败计数
+        consecutiveAutoSkips.current = 0;
+        clearAutoSkip();
         if (runtime) {
           runtime.tempRetries.current = 0;
           if (runtime.stallRetryTimer.current) {
@@ -548,7 +603,7 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
     }
 
     return audio;
-  }, [controller, requestSkip, finishSong, playAudio, applyPlaybackResult]);
+  }, [controller, requestSkip, finishSong, playAudio, applyPlaybackResult, failCurrentTrack, clearAutoSkip]);
 
   const retryPlayback = useCallback(async (fromUserGesture = false) => {
     const liveRoom = useRoomStore.getState().room;
@@ -615,6 +670,10 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
       lastTrackReloadNonceRef.current = trackReloadNonce;
       clearAudioQueueBinding(controller.audio);
       loadLockRef.current = EMPTY_LOAD_LOCK;
+      // 用户点了「重试」：清掉自动跳过排期，并给它一次干净的重试机会
+      clearAutoSkip();
+      consecutiveAutoSkips.current = 0;
+      sourceErrorRetriedKey.current = null;
     }
 
     if (prevQueueIdRef.current && prevQueueIdRef.current !== current.queueId) {
@@ -622,6 +681,7 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
       loadLockRef.current = EMPTY_LOAD_LOCK;
       justSkippedRef.current = true;
       endedTrackKey.current = null;
+      clearAutoSkip();
       enqueuePause();
       snapSmoothPlaybackTime(0);
     }
@@ -639,12 +699,17 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
     }
 
     if (isTrackSourceError(current)) {
-      setTrackLoading(false);
-      useAudioStore.getState().setPlaybackError({
-        queueId: current.queueId,
-        message: '无法获取可用的音乐源，请重试或切换歌曲',
-      });
-      return;
+      // 预加载失败可能只是瞬时风控或代理抖动：先清缓存真实重试一次，仍失败才自动跳过
+      const retriedKey = trackKeyOf(current);
+      if (sourceErrorRetriedKey.current === retriedKey) {
+        setTrackLoading(false);
+        failCurrentTrack(current, '无法获取可用的音乐源，即将自动跳过', {
+          delayMs: AUTO_SKIP_KNOWN_BAD_DELAY_MS,
+        });
+        return;
+      }
+      sourceErrorRetriedKey.current = retriedKey;
+      invalidateTrackUrlCache(current);
     }
 
     const gen = ++loadGeneration.current;
@@ -674,10 +739,7 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
           console.error('Failed to load song:', err);
           if (gen !== loadGeneration.current) return;
           clearAudioQueueBinding(controller.audio);
-          useAudioStore.getState().setPlaybackError({
-            queueId: current.queueId,
-            message: '无法获取可用的音乐源，请重试或切换歌曲',
-          });
+          failCurrentTrack(current, '无法获取可用的音乐源，即将自动跳过');
           return;
         }
 
@@ -722,7 +784,7 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
         await waitForAudioMinimumReady(controller.audio);
         if (gen !== loadGeneration.current) return;
 
-        rememberSongUrl(trackKey, url);
+        rememberSongUrl(current, url);
         syncMediaDuration(controller.audio, current, trackKey);
         tryFlushPendingSnapshot();
 
@@ -753,10 +815,7 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
         console.error('Failed to load song:', err);
         if (gen !== loadGeneration.current) return;
         clearAudioQueueBinding(controller.audio);
-        useAudioStore.getState().setPlaybackError({
-          queueId: current.queueId,
-          message: '歌曲加载失败，请重试或切换歌曲',
-        });
+        failCurrentTrack(current, '歌曲加载失败，即将自动跳过');
       } finally {
         releaseLoadLock(loadLockRef, queueId, gen);
         if (gen === loadGeneration.current) {
@@ -797,6 +856,8 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
     setNeedsAudioUnlock,
     playAudio,
     applyPlaybackResult,
+    failCurrentTrack,
+    clearAutoSkip,
   ]);
 
   // room.current 与 audio.src 脱节时重试 load（受 loadLock 约束，避免重复 reload 风暴）
@@ -1027,6 +1088,16 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
     return () => {
       loadGeneration.current += 1;
       loadLockRef.current = EMPTY_LOAD_LOCK;
+      // 必须取消待决定时器：否则用户离开房间后，残留的自动跳过/卡顿重试仍会
+      // 向服务端发切歌或对共享 audio 执行 play
+      if (autoSkipTimer.current) {
+        window.clearTimeout(autoSkipTimer.current);
+        autoSkipTimer.current = null;
+      }
+      if (stallRetryTimer.current) {
+        window.clearTimeout(stallRetryTimer.current);
+        stallRetryTimer.current = null;
+      }
       if (activeAudioRuntime?.audioRef === audioRef) {
         activeAudioRuntime = null;
       }

@@ -72,8 +72,17 @@ function decryptPayload(credential) {
 export function getDesktopSourceLogins() {
   const logins = { netease: false, tencent: false, kugou: false, qishui: false };
   for (const source of SOURCES) {
-    logins[source] = Boolean(findOne(COLLECTION, (record) => record.source === source
-      && (record.credential?.version === 1 || record.credential?.version === 2)));
+    const record = findOne(COLLECTION, (entry) => entry.source === source);
+    if (record?.credential?.version !== 1 && record?.credential?.version !== 2) continue;
+    // 与解密语义对齐：密钥变更/密文损坏时视为未登录，避免"显示已登录但解析必失败"
+    try {
+      const value = decryptPayload(record.credential);
+      logins[source] = source === 'qishui'
+        ? Boolean(value && typeof value === 'object' && value.ticket)
+        : Boolean(typeof value === 'string' && value.trim());
+    } catch {
+      logins[source] = false;
+    }
   }
   return logins;
 }
@@ -124,7 +133,9 @@ export function isTrustedDesktopRequest(req, port) {
   if (remoteAddress !== '127.0.0.1' && remoteAddress !== '::1') return false;
   const expectedOrigin = `http://${expectedHost}`;
   if (req.headers?.origin && req.headers.origin !== expectedOrigin) return false;
+  // 现代浏览器跨站请求必带 sec-fetch-site；缺失本身就是异常（旧浏览器 <Chrome 76
+  // 或 <img>/<form> 级简单请求）。缺失即拒绝，避免跨站 GET 触发桌面账号接口
   const fetchSite = req.headers?.['sec-fetch-site'];
-  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') return false;
-  return true;
+  if (!fetchSite) return false;
+  return fetchSite === 'same-origin' || fetchSite === 'none';
 }

@@ -20,10 +20,21 @@ function isKugouHost(host) {
 }
 
 /**
+ * 字节/汽水系媒体 CDN：对 Referer 做白名单校验。
+ * 实测 Referer=本站地址 → 403，Referer=空或 qishui/douyin → 200，因此必须由代理改成平台 Referer。
+ */
+function isQishuiCdnHost(host) {
+  if (!host) return false;
+  return ['365yg.com', 'douyinvod.com', 'douyinpic.com', 'byteicdn.com', 'snssdk.com']
+    .some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+}
+
+/**
  * 按 CDN 域名选 Referer（酷狗 CDN 对 Referer 不敏感，但其它源可能需要）。
  */
 export function refererForMediaUrl(rawUrl) {
   const host = hostnameOf(rawUrl);
+  if (isQishuiCdnHost(host)) return 'https://qishui.douyin.com/';
   if (isKugouHost(host)) return 'https://www.kugou.com/';
   if (
     host.includes('gtimg')

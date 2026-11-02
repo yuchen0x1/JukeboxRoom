@@ -140,19 +140,25 @@ async function runTask(name, { trigger = 'manual', actor = 'system' } = {}) {
     return { status: cancelled ? 'cancelled' : 'success', runId: record.id, result };
   } catch (err) {
     const message = String(err?.message || err);
-    update(RUNS_COLLECTION, r => r.id === record.id, {
-      status: 'failed',
-      error: message,
-      message: `失败: ${message}`,
-      finishedAt: new Date().toISOString(),
-    });
-    recordAudit({
-      actor,
-      action: 'task.run',
-      resource: `task:${name}`,
-      result: 'failure',
-      after: { runId: record.id, error: message },
-    });
+    // 记录失败本身也可能撞上数据文件锁；此处必须吞掉，否则会让进程因
+    // 未捕获的 Promise 拒绝而直接退出（整个服务端掉线、内存房间全部丢失）。
+    try {
+      update(RUNS_COLLECTION, r => r.id === record.id, {
+        status: 'failed',
+        error: message,
+        message: `失败: ${message}`,
+        finishedAt: new Date().toISOString(),
+      });
+      recordAudit({
+        actor,
+        action: 'task.run',
+        resource: `task:${name}`,
+        result: 'failure',
+        after: { runId: record.id, error: message },
+      });
+    } catch (recordError) {
+      console.warn(`[tasks] 记录任务失败状态时出错（${name}）：${recordError?.message || recordError}`);
+    }
     return { status: 'failed', runId: record.id, error: message };
   } finally {
     running.delete(name);
@@ -296,7 +302,9 @@ function startTaskScheduler() {
   for (const def of registry.values()) {
     if (def.defaultIntervalMs > 0 && !timers.has(def.name)) {
       const timer = setInterval(() => {
-        void runTask(def.name, { trigger: 'schedule', actor: 'system' });
+        void runTask(def.name, { trigger: 'schedule', actor: 'system' }).catch((err) => {
+          console.warn(`[tasks] 定时任务异常（${def.name}）：${err?.message || err}`);
+        });
       }, def.defaultIntervalMs);
       timer.unref?.();
       timers.set(def.name, timer);

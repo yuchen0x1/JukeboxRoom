@@ -1,4 +1,14 @@
 import './loadEnv.js';
+
+// 兜底：定时任务/后台异步里的未捕获拒绝绝不能带走整个进程。
+// 一旦进程退出，内存模式下的所有房间会瞬间消失，前端表现为「加载房间列表失败」。
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason instanceof Error ? reason.message : reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('[uncaughtException]', error?.stack || error?.message || error);
+});
+
 import { resizeCoverForThumb } from './coverUrl.js';
 import { serveUpstreamMedia } from './mediaProxy.js';
 import { fetchMeting, formatMetingFetchError, joinMetingEndpoint } from './metingFetch.js';
@@ -777,8 +787,21 @@ app.get('/api/music/sources', (_req, res) => {
   res.json(sources);
 });
 
-/** 一键更新：拉取最新 Release 对应的代码并自动重建（限流 + 全局单飞） */
-app.post('/api/update/apply', (req, res) => {
+/**
+ * 一键更新会执行 git fetch/reset + 重装依赖 + 重建 + 重启，属破坏性运维操作。
+ * 桌面模式同样需要本机桌面应用可信校验（跨站一次 POST 即可 git reset --hard 清掉未提交代码）；
+ * 其余部署必须管理员身份，否则任意访客可重启服务、甚至让内存模式下所有房间数据随重启丢失。
+ */
+const selfUpdateGuards = DESKTOP_MODE
+  ? [(req, res, next) => {
+    if (!isTrustedDesktopRequest(req, PORT)) {
+      return res.status(403).json({ ok: false, error: '仅允许本机桌面应用访问' });
+    }
+    next();
+  }]
+  : [authMiddleware, requireRole('super_admin', 'admin')];
+
+app.post('/api/update/apply', ...selfUpdateGuards, (req, res) => {
   const info = getSelfUpdateState();
   if (!info.supported) return res.status(501).json({ ok: false, error: info.error || '当前部署方式不支持自动更新' });
   if (!limitUpdateApply(`update-apply:${getRequestIp(req)}`)) {
@@ -789,7 +812,7 @@ app.post('/api/update/apply', (req, res) => {
   res.json({ ok: true, ...result, hint: '更新中：约 1-3 分钟后服务自动重启，页面会自动恢复' });
 });
 
-app.get('/api/update/apply/status', (_req, res) => {
+app.get('/api/update/apply/status', ...selfUpdateGuards, (_req, res) => {
   res.json({ ok: true, ...getSelfUpdateState() });
 });
 
@@ -1161,7 +1184,11 @@ app.get('/api/music/source/qr/poll', async (req, res) => {
 
     if (result.status === 'confirmed' && result.cookie) {
       const saved = setRoomSourceCredential(roomId.toUpperCase(), access.identity.userId, source, { cookie: result.cookie });
-      if (saved.error) return res.status(400).json({ success: false, status: 'expired', error: saved.error });
+      if (saved.error) {
+        // 凭据落库失败不应伪装成“二维码过期”，返回真实原因便于前端提示
+        console.warn(`[netease-qr] 凭据写入房间失败：${saved.error}`);
+        return res.status(400).json({ success: false, status: 'failed', error: saved.error });
+      }
       broadcastRoomUpdate(roomId.toUpperCase());
     }
     if (result.status === 'confirmed') {
@@ -1188,8 +1215,16 @@ app.get('/api/music/source/search', async (req, res) => {
     let songs;
     if (source === 'tencent') songs = await searchTencent(keyword);
     else if (source === 'kugou') songs = await searchKugou(keyword);
-    else if (source === 'qishui') songs = await searchQishui(String(req.query.roomId || ''), keyword);
-    else return res.status(400).json({ error: '不支持的音源' });
+    else if (source === 'qishui') {
+      // 汽水搜索会动用房间/本机登录会话（风控按账号计），必须限定房间成员
+      const roomId = String(req.query.roomId || '').trim().toUpperCase();
+      const access = resolveRoomSourceAccess(req, roomId);
+      if (access.error) return res.status(access.status).json({ error: access.error });
+      if (!access.isCreator && !access.isMember) {
+        return res.status(403).json({ error: '请先加入房间后再搜索汽水曲库' });
+      }
+      songs = await searchQishui(roomId, keyword);
+    } else return res.status(400).json({ error: '不支持的音源' });
 
     res.json({ songs: songs || [] });
   } catch (err) {

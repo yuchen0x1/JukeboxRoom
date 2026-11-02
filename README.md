@@ -455,7 +455,7 @@ NSIS 安装程序输出到 `release/desktop/`。Android 与 iOS 安装包需分�
 
 ## 版本
 
-当前版本 `0.0.6`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 GitHub 最新稳定 Release 提供更新检测（`GET /api/update`），源码、Release 与 Issue 统一托管在 [github.com/yuchen0x1/JukeboxRoom](https://github.com/yuchen0x1/JukeboxRoom)。
+当前版本 `0.0.7`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 GitHub 最新稳定 Release 提供更新检测（`GET /api/update`），源码、Release 与 Issue 统一托管在 [github.com/yuchen0x1/JukeboxRoom](https://github.com/yuchen0x1/JukeboxRoom)。
 
 ## 参与贡献
 

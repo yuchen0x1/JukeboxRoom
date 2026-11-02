@@ -1,14 +1,17 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 统一吞掉 IPC 失败（窗口已销毁瞬间点击、校验不通过等），避免渲染层 unhandledrejection
+const safeInvoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args).catch(() => undefined);
+
 contextBridge.exposeInMainWorld('jukeboxWindow', Object.freeze({
-  minimize: () => ipcRenderer.invoke('jukebox:window-minimize'),
-  toggleMaximize: () => ipcRenderer.invoke('jukebox:window-toggle-maximize'),
-  close: () => ipcRenderer.invoke('jukebox:window-close').catch(() => undefined),
-  isMaximized: () => ipcRenderer.invoke('jukebox:window-is-maximized'),
-  loadMusicState: () => ipcRenderer.invoke('jukebox:load-music-state'),
-  saveMusicState: (state) => ipcRenderer.invoke('jukebox:save-music-state', state),
-  openMusicConfig: () => ipcRenderer.invoke('jukebox:open-music-config'),
-  restartApp: () => ipcRenderer.invoke('jukebox:restart-app'),
+  minimize: () => safeInvoke('jukebox:window-minimize'),
+  toggleMaximize: () => safeInvoke('jukebox:window-toggle-maximize'),
+  close: () => safeInvoke('jukebox:window-close'),
+  isMaximized: () => safeInvoke('jukebox:window-is-maximized'),
+  loadMusicState: () => safeInvoke('jukebox:load-music-state'),
+  saveMusicState: (state) => safeInvoke('jukebox:save-music-state', state),
+  openMusicConfig: () => safeInvoke('jukebox:open-music-config'),
+  restartApp: () => safeInvoke('jukebox:restart-app'),
   onMaximizedChanged: (listener) => {
     const handler = (_event, maximized) => listener(Boolean(maximized));
     ipcRenderer.on('jukebox:window-maximized', handler);

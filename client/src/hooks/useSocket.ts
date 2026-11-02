@@ -299,6 +299,35 @@ function isPermanentRejoinError(error?: string): boolean {
   );
 }
 
+/**
+ * 彻底结束一次房间会话（被踢 / 房间已解散 / 密码变更 / 被封禁）：
+ * 清空会话状态、停掉共享音频、复位同步状态机，并把用户送回首页。
+ * 不清理的话用户会被困在"幽灵房间"里（房间页还在渲染，但 socket 会话已失效）。
+ */
+function teardownRoomSession(reason: string) {
+  joinGeneration += 1;
+  lastJoinSession = null;
+  lastTvJoinSession = null;
+  activeJoinMode = null;
+  clearReconnectSchedule();
+  reconnectAttempt = 0;
+  useChatStore.getState().clear();
+  useSongHistoryStore.getState().clear();
+  stopSharedAudio();
+  resetSyncStateMachine();
+  resetPhaseSync();
+  resetDriftController();
+  resetPlaybackScheduling();
+  resetDriftHistogram();
+  resetPlaybackStateCache();
+  useAudioStore.getState().setPlaybackVersion(0);
+  useAudioStore.getState().setTrackLoading(false);
+  useAudioStore.getState().setNeedsAudioUnlock(false);
+  useAudioStore.getState().setSmoothPlaybackTime(0);
+  useRoomStore.getState().resetSession();
+  useRoomStore.getState().setExitReason(reason);
+}
+
 function scheduleRoomRejoin(trigger: string) {
   if (!shouldMaintainRoomSession()) return;
   if (reconnectTimer != null) return;
@@ -370,8 +399,9 @@ async function attemptRoomRejoin(trigger: string) {
     }
 
     if (isPermanentRejoinError(res.error)) {
-      useRoomStore.getState().setReconnecting(false);
-      clearReconnectSchedule();
+      // 房间已解散 / 被踢 / 密码变更 / 被封禁：重试无意义。
+      // 必须清理会话并提示退出，否则用户会卡在渲染旧房间的"幽灵界面"里
+      teardownRoomSession(`房间已解散或你已无法进入：${res.error || '请返回首页重新加入'}`);
       return;
     }
 
@@ -508,29 +538,7 @@ let prefetchDebounceTimer = 0;
     };
 
     const onKicked = ({ message }: { message?: string }) => {
-      joinGeneration += 1;
-      lastJoinSession = null;
-      lastTvJoinSession = null;
-      activeJoinMode = null;
-      clearReconnectSchedule();
-      reconnectAttempt = 0;
-      useChatStore.getState().clear();
-      useSongHistoryStore.getState().clear();
-      stopSharedAudio();
-      resetSyncStateMachine();
-      resetPhaseSync();
-      resetDriftController();
-      resetPlaybackScheduling();
-      resetDriftHistogram();
-      resetPlaybackStateCache();
-      useAudioStore.getState().setPlaybackVersion(0);
-      useAudioStore.getState().setTrackLoading(false);
-      useAudioStore.getState().setNeedsAudioUnlock(false);
-      useAudioStore.getState().setSmoothPlaybackTime(0);
-      resetSession();
-      useRoomStore.getState().setExitReason(
-        message || '你已被房主移出房间，无法再次进入',
-      );
+      teardownRoomSession(message || '你已被房主移出房间，无法再次进入');
     };
 
 

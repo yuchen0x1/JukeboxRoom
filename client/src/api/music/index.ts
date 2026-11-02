@@ -311,9 +311,15 @@ export async function listRooms(): Promise<RoomSummary[]> {
 
 export async function checkRoom(id: string): Promise<RoomCheckResult> {
   const res = await fetchWithTimeout(`/api/rooms/${id}`);
-  if (!res.ok) return { exists: false, hasPassword: false };
+  if (!res.ok) return { exists: false, hasPassword: false, isLocked: false };
   const data = await res.json();
-  return { exists: true, hasPassword: Boolean(data.hasPassword), name: data.name };
+  return {
+    exists: true,
+    hasPassword: Boolean(data.hasPassword),
+    // isLocked 必须回传：无密码上锁房的前置拦截（Home 加入路径）依赖它
+    isLocked: Boolean(data.isLocked),
+    name: data.name,
+  };
 }
 
 const HOT_SONGS_CACHE_TTL_MS = 30_000;

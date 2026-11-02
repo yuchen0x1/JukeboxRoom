@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import test from 'node:test';
-import { all, insert, insertUnique, remove } from './store.js';
+import { all, insert, insertUnique, remove, DATA_DIR } from './store.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const storePath = new URL('./store.js', import.meta.url).href;
@@ -42,7 +42,8 @@ console.log(JSON.stringify({ inserted: result.inserted, id: result.record.id }))
 
 test('corrupt collection recovers from the previous backup', () => {
   const name = `store-recovery-${Date.now()}`;
-  const target = path.resolve(moduleDir, '..', 'data', `${name}.json`);
+  // 必须与 store.js 的 DATA_DIR 一致：测试可用 OPENMUSIC_DATA_DIR 重定向数据目录
+  const target = path.join(DATA_DIR, `${name}.json`);
   insert(name, { value: 'first' });
   insert(name, { value: 'second' });
   writeFileSync(target, '{not-json', 'utf8');

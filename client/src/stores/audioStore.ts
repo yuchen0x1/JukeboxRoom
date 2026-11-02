@@ -19,6 +19,9 @@ interface AudioStore {
   setTrackLoading: (loading: boolean) => void;
   playbackError: { queueId: string; message: string } | null;
   setPlaybackError: (error: { queueId: string; message: string } | null) => void;
+  /** 自动跳过倒计时截止时间戳；null 表示当前没有排期 */
+  autoSkipAt: number | null;
+  setAutoSkipAt: (at: number | null) => void;
   lrcDurationMs: number | null;
   lrcTrackKey: string | null;
   setLrcDuration: (trackKey: string | null, ms: number | null) => void;
@@ -48,6 +51,8 @@ export const useAudioStore = create<AudioStore>((set) => ({
   setTrackLoading: (trackLoading) => set({ trackLoading }),
   playbackError: null,
   setPlaybackError: (playbackError) => set({ playbackError }),
+  autoSkipAt: null,
+  setAutoSkipAt: (autoSkipAt) => set({ autoSkipAt }),
   lrcDurationMs: null,
   lrcTrackKey: null,
   setLrcDuration: (lrcTrackKey, lrcDurationMs) => set({ lrcTrackKey, lrcDurationMs }),

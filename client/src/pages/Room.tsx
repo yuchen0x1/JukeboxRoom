@@ -30,7 +30,7 @@ import {
 } from '../lib/roomPureMode';
 import { normalizeDislikeSkipMode } from '../lib/dislikeSkip';
 
-import { songKey, getCoverUrl } from '../api/music';
+import { songKey, getCoverUrl, getTrackKey } from '../api/music';
 import SongCover from '../components/SongCover';
 
 import QueuePanel from '../components/QueuePanel';
@@ -371,6 +371,8 @@ export default function Room() {
   const [memberSaving, setMemberSaving] = useState(false);
   const [songRequestSaving, setSongRequestSaving] = useState(false);
   const lastSongRequestAtRef = useRef(0);
+  /** 已发起过的加入尝试指纹（roomId|password），防止密码剥离 navigate 等导致 effect 重跑二次 join */
+  const joinAttemptRef = useRef('');
   const songHistoryItems = useSongHistoryStore((s) => s.songs);
   const songHistoryLoading = useSongHistoryStore((s) => s.loading);
 
@@ -533,7 +535,19 @@ export default function Room() {
   ): Promise<{ success: boolean; error?: string }> => {
     const res = await setRoomSourceCredential(source, credential);
     if (res.success) {
-      showToast(source === 'custom' ? '自定义音源已更新' : '音源登录成功', 'success');
+      if (credential === null && source !== 'custom') {
+        // 退出账号：本机长期账号同时被清除，立即反映到 UI
+        const current = useRoomStore.getState().room;
+        if (current) {
+          useRoomStore.getState().setRoom({
+            ...current,
+            sourceLogins: { ...current.sourceLogins, [source]: false },
+          });
+        }
+        showToast('已退出账号，本机保存的登录信息已删除', 'success');
+        return { success: true };
+      }
+      showToast(source === 'custom' ? '自定义音源已更新' : '音源登录成功，已保存在本机', 'success');
       return { success: true };
     }
     showToast(res.error || '操作失败', 'error');
@@ -772,6 +786,12 @@ export default function Room() {
 
   useEffect(() => {
     if (!roomId) return;
+    // 依赖数组含 location.search/state，密码剥离 navigate 会触发本 effect 重跑。
+    // 用加入参数指纹去重，保证同一进入流程只发起一次 join
+    const attemptKey = `${roomId}|${roomPassword || ''}`;
+    if (joinAttemptRef.current === attemptKey) return;
+    joinAttemptRef.current = attemptKey;
+
     let cancelled = false;
     let redirectTimer: number | undefined;
 
@@ -1308,7 +1328,9 @@ export default function Room() {
   const handleSaveUserQuality = useCallback((quality: RoomAudioQuality) => {
     useUserQualityStore.getState().setQuality(quality);
     const liveRoom = useRoomStore.getState().room;
-    const keepTrackKey = liveRoom?.current ? songKey(liveRoom.current) : null;
+    // keepTrackKey 必须是 trackKey（queueId-source）格式才能命中 urlCache 的保留分支，
+    // 用 songKey（source-id）会把当前曲缓存一起清掉
+    const keepTrackKey = liveRoom?.current ? getTrackKey(liveRoom.current) : null;
     invalidateUnloadedSongUrlCache(keepTrackKey);
     if (liveRoom) prefetchUpcomingFromRoom(liveRoom);
     showToast('音质已更新，当前歌曲继续播放', 'success');

@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Play, Pause, SkipForward, ChevronUp, ChevronLeft, Loader2, ListMusic, Music2, RefreshCw } from 'lucide-react';
 import { useRoomStore } from '../stores/roomStore';
@@ -52,6 +52,19 @@ export default memo(function MiniPlayer({
   const canControlPlayback = useRoomStore((s) => s.canControlPlayback);
   const trackLoading = useAudioStore((s) => s.trackLoading);
   const playbackError = useAudioStore((s) => s.playbackError);
+  const autoSkipAt = useAudioStore((s) => s.autoSkipAt);
+  const [autoSkipRemain, setAutoSkipRemain] = useState(0);
+
+  useEffect(() => {
+    if (!autoSkipAt) {
+      setAutoSkipRemain(0);
+      return;
+    }
+    const tick = () => setAutoSkipRemain(Math.max(0, Math.ceil((autoSkipAt - Date.now()) / 1000)));
+    tick();
+    const id = window.setInterval(tick, 500);
+    return () => window.clearInterval(id);
+  }, [autoSkipAt]);
   const setTrackLoading = useAudioStore((s) => s.setTrackLoading);
   const seekPlayback = useAudioStore((s) => s.seekPlayback);
   const localPlayback = useAudioStore((s) => s.localPlayback);
@@ -79,6 +92,7 @@ export default memo(function MiniPlayer({
     if (!current) return;
     invalidateTrackUrlCache(current);
     useAudioStore.getState().setPlaybackError(null);
+    useAudioStore.getState().setAutoSkipAt(null);
     setTrackLoading(true);
     useAudioStore.getState().requestTrackReload();
   };
@@ -149,6 +163,9 @@ export default memo(function MiniPlayer({
         {playbackError?.queueId === current.queueId && (
           <div className="mb-1 flex flex-wrap items-center justify-center gap-2 text-center text-xs text-rose-100/90" role="alert">
             <span>{playbackError.message}</span>
+            {autoSkipRemain > 0 && (
+              <span className="tabular-nums text-rose-200/60">{autoSkipRemain}s 后自动跳过</span>
+            )}
             <button type="button" onClick={handleRetryCurrent} className="inline-flex items-center gap-1 text-[var(--om-accent)]">
               <RefreshCw className="h-3.5 w-3.5" />重试
             </button>
@@ -307,6 +324,11 @@ export default memo(function MiniPlayer({
       {playbackError?.queueId === current.queueId && (
         <div className="mx-auto flex w-full max-w-[1840px] flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-[rgba(248,113,113,0.14)] bg-[rgba(248,113,113,0.055)] px-3 py-1.5 text-xs text-rose-100/90 sm:px-6" role="alert">
           <span className="min-w-0 truncate">{playbackError.message}</span>
+          {autoSkipRemain > 0 && (
+            <span className="flex-shrink-0 tabular-nums text-rose-200/60">
+              {autoSkipRemain}s 后自动跳过
+            </span>
+          )}
           <button type="button" onClick={handleRetryCurrent} className="inline-flex items-center gap-1 text-[var(--om-accent)] hover:underline">
             <RefreshCw className="h-3.5 w-3.5" />重试
           </button>
