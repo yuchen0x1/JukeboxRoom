@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 const REPO = 'yuchen0x1/JukeboxRoom';
 const LOCAL_HEAD = exec('git', ['rev-parse', 'HEAD']).trim();
-const PARENT = exec('git', ['rev-parse', 'HEAD^']).trim();
+const LOCAL_PARENT = exec('git', ['rev-parse', 'HEAD^']).trim();
 
 function exec(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opts });
@@ -22,6 +22,20 @@ function ghApi(method, path, body) {
   }
   const out = exec('gh', args);
   return JSON.parse(out);
+}
+
+// 父提交优先取远程 main（本地父提交可能因元数据序列化差异在远程以另一 SHA 存在）
+const remoteMain = ghApi('GET', `repos/${REPO}/git/refs/heads/main`).object.sha;
+const remoteCommit = ghApi('GET', `repos/${REPO}/git/commits/${remoteMain}`);
+const localParentTree = exec('git', ['rev-parse', `${LOCAL_PARENT}^{tree}`]).trim();
+let PARENT = LOCAL_PARENT;
+if (remoteMain !== LOCAL_PARENT) {
+  if (remoteCommit.tree.sha !== localParentTree) {
+    console.error(`远程 main 树 ${remoteCommit.tree.sha} 与本地 HEAD^ 树 ${localParentTree} 不一致，请先手动拉平。`);
+    process.exit(1);
+  }
+  PARENT = remoteMain;
+  console.log(`parent 使用远程 main ${PARENT}（树一致，本地父 ${LOCAL_PARENT}）`);
 }
 
 // 1. 变更文件
