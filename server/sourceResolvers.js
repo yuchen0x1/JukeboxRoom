@@ -12,6 +12,11 @@
 import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createQishuiApi, createQishuiDeviceId, isQishuiDeviceId } from 'qishui-music-api';
+import {
+  getDesktopSourceSession,
+  removeDesktopSourceAccount,
+  saveDesktopSourceSession,
+} from './desktopSourceAccounts.js';
 import { getRoomSourceCredential, getRoomInternal, setRoomSourceCredential } from './roomManager.js';
 import { canRequestProvider, recordProviderFailure, recordProviderSuccess } from './mediaHealth.js';
 import { isSafeHttpUrl } from './outboundUrl.js';
@@ -664,6 +669,7 @@ function getGlobalDeviceId() {
 }
 
 const qishuiRooms = new Map(); // roomId -> { api, pendingKey }
+let qishuiDesktopContext = null;
 
 function mapQishuiTrack(t) {
   const artists = t?.base_info?.song_maker_team?.composers?.map((o) => o?.name).filter(Boolean) || [];
@@ -707,6 +713,83 @@ function getQishuiContext(roomId) {
     qishuiRooms.set(roomId, ctx);
   }
   return ctx;
+}
+
+function getDesktopQishuiContext() {
+  if (!qishuiDesktopContext) {
+    let revision = 0;
+    const sessions = {
+      deviceId: getGlobalDeviceId(),
+      get revision() { return revision; },
+      get: () => getDesktopSourceSession(),
+      set(value) {
+        saveDesktopSourceSession(value);
+        revision += 1;
+      },
+      clear() {
+        removeDesktopSourceAccount('qishui');
+        revision += 1;
+      },
+    };
+    qishuiDesktopContext = {
+      sessions,
+      api: createQishuiApi({ deviceId: getGlobalDeviceId(), sessions, fetch: globalThis.fetch }),
+    };
+  }
+  return qishuiDesktopContext;
+}
+
+function unwrapQishuiResult(result, fallbackMessage) {
+  if (!result?.ok) throw new Error(result?.error?.message || fallbackMessage);
+  return result.data;
+}
+
+export async function startDesktopQishuiLogin() {
+  const { api } = getDesktopQishuiContext();
+  const keyResult = unwrapQishuiResult(await api.request('login_qr_key', {}), '获取汽水登录二维码失败');
+  const key = keyResult?.key;
+  if (!key) throw new Error('获取汽水登录二维码失败');
+  const imageResult = unwrapQishuiResult(await api.request('login_qr_create', { key }), '生成汽水登录二维码失败');
+  if (!imageResult?.imageUrl) throw new Error('生成汽水登录二维码失败');
+  return { sessionKey: key, qrImage: imageResult.imageUrl };
+}
+
+export async function pollDesktopQishuiLogin(sessionKey) {
+  const { api } = getDesktopQishuiContext();
+  const result = await api.request('login_qr_check', { key: sessionKey });
+  const state = result?.ok ? result.data?.state : 'error';
+  if (state === 'confirmed') return { status: 'confirmed' };
+  if (state === 'expired') return { status: 'expired' };
+  if (state === 'error') return { status: 'failed', message: result?.error?.message || '汽水音乐登录失败，请重新扫码' };
+  if (state === 'scanned') return { status: 'scanned' };
+  return { status: 'waiting' };
+}
+
+export async function searchDesktopQishui(keyword, limit = 30) {
+  const { api } = getDesktopQishuiContext();
+  const result = unwrapQishuiResult(
+    await api.request('search', { query: keyword, limit, offset: 0 }),
+    '汽水音乐搜索失败',
+  );
+  const items = Array.isArray(result?.items) ? result.items : [];
+  return items.map(mapQishuiTrack).filter((song) => song.id);
+}
+
+export async function resolveDesktopQishuiPlayUrl(songId, quality = 'standard') {
+  const { api } = getDesktopQishuiContext();
+  const result = unwrapQishuiResult(
+    await api.request('audio', { id: songId, quality: QISHUI_QUALITY_MAP[quality] || 'standard' }),
+    '汽水音乐播放地址获取失败',
+  );
+  return result?.url || null;
+}
+
+export const searchDesktopQishuiWithHealth = withHealth('qishui', searchDesktopQishui);
+export const resolveDesktopQishuiPlayUrlWithHealth = withHealth('qishui', resolveDesktopQishuiPlayUrl);
+
+export function clearDesktopQishuiLogin() {
+  if (qishuiDesktopContext) qishuiDesktopContext.sessions.clear();
+  else removeDesktopSourceAccount('qishui');
 }
 
 /** 以房主身份落库汽水会话（包内令牌刷新/扫码确认都会走到这里） */

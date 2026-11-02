@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Music, Users, Radio, ArrowRight, Lock, ListMusic,
-  Loader2, RefreshCw, Plus, Hash, X, Disc3, Sparkles, History,
+  Loader2, RefreshCw, Plus, Hash, X, Disc3, Sparkles, History, ScrollText,
 } from 'lucide-react';
 import { createRoom, checkRoom, listRooms } from '../api/meting';
 import { useRoomStore } from '../stores/roomStore';
@@ -13,8 +13,9 @@ import { usePageSeo } from '../lib/seo';
 import { partitionRoomsByRecent } from '../lib/recentRooms';
 import { areRoomListsEqual } from '../lib/roomListCompare';
 import Tooltip from '../components/Tooltip';
-import GlassSurface from '../components/GlassSurface';
 import VersionStatus from '../components/VersionStatus';
+import BaseModal from '../components/Modal';
+import ChangelogViewer from '../components/ChangelogViewer';
 
 function GiteeIcon({ className }: { className?: string }) {
   return (
@@ -24,7 +25,7 @@ function GiteeIcon({ className }: { className?: string }) {
   );
 }
 
-const repoLinkCls = 'p-2.5 rounded-xl text-white/50 border border-white/10 hover:text-white hover:bg-white/5 transition-colors';
+const repoLinkCls = 'flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.08] text-white/50 transition-colors hover:bg-white/[0.05] hover:text-white';
 
 function PlayingBars() {
   return (
@@ -32,7 +33,7 @@ function PlayingBars() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-[3px] rounded-full bg-netease-red animate-pulse"
+          className="w-[3px] rounded-full bg-[var(--om-accent)] animate-pulse"
           style={{
             height: `${8 + (i % 2) * 6}px`,
             animationDelay: `${i * 0.15}s`,
@@ -59,81 +60,64 @@ const RoomCard = memo(function RoomCard({
     <button
       type="button"
       onClick={() => onJoin(room)}
-      className={`glass-surface glass-surface--panel glass-interactive group relative w-full text-left rounded-2xl overflow-hidden
-        ${isActive
-          ? 'border-[rgba(var(--om-accent-rgb),0.34)] shadow-[0_0_30px_rgba(var(--om-accent-rgb),0.08)]'
-          : ''
-        }`}
+      className={`group relative w-full overflow-hidden rounded-2xl border bg-[var(--om-glass-panel)] p-4 text-left transition-[background,border-color,transform] duration-150 hover:-translate-y-px hover:bg-[var(--om-glass-elevated)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--om-accent-rgb),0.5)] sm:p-5 ${
+        isActive
+          ? 'border-[rgba(var(--om-accent-rgb),0.3)]'
+          : 'border-[var(--om-glass-border)] hover:border-[var(--om-glass-border-strong)]'
+      }`}
     >
-      {isActive && (
-        <div className="absolute inset-0 bg-gradient-to-r from-netease-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-      )}
-
-      <div className="relative p-5">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            {isRecent && (
-              <span className="flex-shrink-0 flex items-center gap-1 text-[10px] uppercase tracking-wide text-sky-400/90 bg-sky-500/10 px-1.5 py-0.5 rounded-md font-medium">
-                <History className="w-3 h-3" />
-                最近
-              </span>
-            )}
-            <h3 className="text-base font-semibold text-white truncate group-hover:text-netease-red transition-colors">
+      {isActive && <span className="absolute inset-y-4 left-0 w-0.5 rounded-r-full bg-[var(--om-accent)]" />}
+      <div className="flex items-start gap-3">
+        <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border ${isActive ? 'border-[rgba(var(--om-accent-rgb),0.2)] bg-[rgba(var(--om-accent-rgb),0.08)] text-[var(--om-accent)]' : 'border-white/[0.07] bg-white/[0.035] text-white/40'}`}>
+          <Disc3 className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            {isRecent && <History className="h-3.5 w-3.5 flex-shrink-0 text-sky-300" aria-label="最近访问" />}
+            <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white transition-colors group-hover:text-[var(--om-accent)]">
               {room.name}
             </h3>
-            {room.hasPassword && (
-              <span className="flex-shrink-0 p-1 rounded-md bg-amber-500/10 text-amber-400/90">
-                <Lock className="w-3.5 h-3.5" />
-              </span>
-            )}
-            {room.isLocked && !room.hasPassword && (
-              <Tooltip content="已上锁">
-                <span className="flex-shrink-0 p-1 rounded-md bg-red-500/10 text-red-400/90">
-                  <Lock className="w-3.5 h-3.5" />
+            {(room.hasPassword || room.isLocked) && (
+              <Tooltip content={room.hasPassword ? '需要密码' : '房间已上锁'}>
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-amber-400/[0.08] text-amber-300">
+                  <Lock className="h-3.5 w-3.5" />
                 </span>
               </Tooltip>
             )}
           </div>
-          <span className="flex-shrink-0 flex items-center gap-1.5 rounded-full border border-[var(--om-glass-border)] bg-white/[0.04] px-2.5 py-1 text-xs text-white/60">
-            <Users className="w-3.5 h-3.5" />
-            {room.userCount}
-          </span>
+          <div className="mt-1 flex items-center gap-2 text-[11px] text-white/40">
+            <span className="font-mono">#{room.id}</span>
+            <span className="h-1 w-1 rounded-full bg-white/25" />
+            <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{room.userCount} 人</span>
+          </div>
         </div>
+      </div>
 
-        <div className="min-h-[3.5rem] mb-4">
-          {room.currentSong ? (
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                {room.isPlaying && <PlayingBars />}
-                <span className="text-[10px] uppercase tracking-wider text-netease-red/80 font-medium">
-                  {room.isPlaying ? '正在播放' : '已暂停'}
-                </span>
-              </div>
-              <p className="text-sm font-medium text-white/90 truncate leading-snug">
-                {room.currentSong.name}
-              </p>
-              <p className="text-xs text-white/40 truncate mt-0.5">
-                {room.currentSong.artist}
-              </p>
+      <div className="mt-4 min-h-[3.25rem] border-t border-white/[0.06] pt-3">
+        {room.currentSong ? (
+          <div className="flex min-w-0 items-center gap-2.5">
+            {room.isPlaying ? <PlayingBars /> : <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-white/30" />}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium leading-5 text-white/90">{room.currentSong.name}</p>
+              <p className="mt-0.5 truncate text-xs text-white/45">{room.currentSong.artist}</p>
             </div>
-          ) : (
-            <div className="flex items-center gap-2 text-white/30">
-              <Disc3 className="w-4 h-4" />
-              <span className="text-sm">等待点播</span>
-            </div>
-          )}
-        </div>
+            <span className={`flex-shrink-0 text-[11px] ${room.isPlaying ? 'text-[var(--om-accent)]' : 'text-white/40'}`}>
+              {room.isPlaying ? '正在播放' : '已暂停'}
+            </span>
+          </div>
+        ) : (
+          <div className="flex h-11 items-center gap-2.5 text-sm text-white/40">
+            <Radio className="h-4 w-4" />
+            <span>等待点播</span>
+          </div>
+        )}
+      </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-white/5">
-          <span className="flex items-center gap-1.5 text-xs text-white/35">
-            <ListMusic className="w-3.5 h-3.5" />
-            队列 {room.queueLength} 首
-          </span>
-          <span className="flex items-center gap-1 text-xs text-netease-red/80 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-            进入
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </span>
-        </div>
+      <div className="mt-3 flex items-center justify-between text-xs">
+        <span className="flex items-center gap-1.5 text-white/45"><ListMusic className="h-3.5 w-3.5" />队列 {room.queueLength} 首</span>
+        <span className="flex items-center gap-1 font-medium text-[var(--om-accent)]">
+          进入房间<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
       </div>
     </button>
   );
@@ -149,27 +133,27 @@ function Modal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="关闭"
-      />
-      <GlassSurface variant="modal" className="relative w-full max-w-sm rounded-2xl p-6 animate-fade-in">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
+    <BaseModal
+      open
+      onClose={onClose}
+      ariaLabelledBy="home-dialog-title"
+      containerClassName="fixed inset-0 flex items-center justify-center p-4"
+      panelClassName="glass-surface glass-surface--modal relative w-full max-w-sm animate-fade-in rounded-2xl p-6"
+    >
+        <div className="mb-5 flex items-center justify-between">
+          <h2 id="home-dialog-title" className="text-lg font-semibold text-white">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="关闭"
+            title="关闭"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
         {children}
-      </GlassSurface>
-    </div>
+    </BaseModal>
   );
 }
 
@@ -192,6 +176,7 @@ export default function Home() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [createRoomName, setCreateRoomName] = useState('');
   const [createPassword, setCreatePassword] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -323,57 +308,70 @@ export default function Home() {
   const inputCls = 'glass-input w-full rounded-xl border px-4 py-2.5 text-sm';
 
   return (
-    <div className="ambient-stage h-full flex flex-col relative overflow-hidden">
-      <div className="pointer-events-none absolute left-[18%] top-[-16rem] h-[34rem] w-[34rem] rounded-full bg-[rgba(var(--om-accent-rgb),0.08)] blur-[130px]" />
-      <div className="pointer-events-none absolute bottom-[-12rem] right-[12%] h-[28rem] w-[28rem] rounded-full bg-[rgba(156,183,255,0.1)] blur-[120px]" />
+    <div className="ambient-stage h-full flex flex-row relative overflow-hidden">
+      <aside className="relative z-20 hidden w-[4.5rem] flex-shrink-0 flex-col border-r border-white/[0.07] bg-[#0d131a] px-2 py-5 md:flex xl:w-60 xl:px-4">
+        <div className="mb-8 flex items-center justify-center gap-3 px-1 xl:justify-start xl:px-2">
+          <img src="/icons/jukeboxroom-128.png" alt="" className="h-10 w-10 rounded-xl object-cover" width={40} height={40} />
+          <div className="hidden min-w-0 xl:block"><p className="truncate text-sm font-semibold text-white">JukeboxRoom</p><p className="mt-0.5 text-[10px] text-white/35">一起听歌</p></div>
+        </div>
+        <p className="hidden px-3 pb-2 text-[10px] font-medium text-white/35 xl:block">音乐空间</p>
+        <button type="button" title="音乐大厅" className="flex h-10 items-center justify-center gap-3 rounded-lg border border-[rgba(var(--om-accent-rgb),0.2)] bg-[rgba(var(--om-accent-rgb),0.08)] px-2 text-sm font-medium text-[var(--om-accent)] xl:justify-start xl:px-3" aria-current="page">
+          <Radio className="h-4 w-4 flex-shrink-0" /><span className="hidden xl:inline">音乐大厅</span><span className="hidden rounded-md bg-white/[0.07] px-1.5 py-0.5 text-[10px] text-white/65 xl:ml-auto xl:inline">{rooms.length}</span>
+        </button>
+        <div className="mt-8 flex items-center justify-center px-1 pb-2 xl:justify-between xl:px-3">
+          <p className="hidden text-[10px] font-medium text-white/35 xl:block">最近访问</p>
+          <button type="button" onClick={() => { setError(''); setShowCreate(true); }} className="flex h-7 w-7 items-center justify-center rounded-md text-white/45 transition hover:bg-white/10 hover:text-white" aria-label="创建房间"><Plus className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-1">
+          {recentRooms.slice(0, 5).map((room) => <button key={room.id} type="button" title={room.name} aria-label={`进入最近访问的房间 ${room.name}`} onClick={() => handleRoomCardClick(room)} className="flex h-9 w-full min-w-0 items-center justify-center gap-2.5 rounded-lg px-2 text-left text-xs text-white/55 transition hover:bg-white/[0.06] hover:text-white xl:justify-start xl:px-3"><span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${room.isPlaying ? 'bg-[var(--om-accent)]' : 'bg-white/25'}`} /><span className="hidden truncate xl:inline">{room.name}</span></button>)}
+          {recentRooms.length === 0 && <p className="hidden px-3 py-2 text-xs text-white/30 xl:block">加入房间后会显示在这里</p>}
+        </div>
+        <div className="mt-auto border-t border-white/[0.07] pt-4">
+          <label className="mb-2 hidden px-2 text-[10px] text-white/35 xl:block">当前用户</label>
+          <input type="text" value={nickname} onChange={(e) => { setNickname(e.target.value); setError(''); }} placeholder="你的昵称" aria-label="你的昵称" maxLength={20} className="glass-input hidden w-full rounded-lg border px-3 py-2 text-sm xl:block" />
+          <div className="flex h-9 items-center justify-center text-xs text-white/40 xl:hidden" title={nickname.trim() || '当前用户'}><Users className="h-4 w-4" aria-hidden /></div>
+          <div className="mt-3 hidden items-center justify-between px-2 text-[11px] text-white/35 xl:flex"><span>多人实时同步</span><span>JukeboxRoom</span></div>
+        </div>
+      </aside>
 
-      {/* 顶栏：昵称 + 创建/加入 */}
-      <header className="glass-surface glass-surface--elevated relative z-20 flex-shrink-0 border-x-0 border-t-0 safe-top">
-        <div className="relative h-14 sm:h-16">
-          <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-30 flex items-center gap-2">
-            <a
-              href="https://gitee.com/yuchen0x1/JukeboxRoom"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={repoLinkCls}
-              aria-label="Gitee 仓库"
-            >
-              <GiteeIcon className="w-4 h-4" />
-            </a>
-          </div>
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 pr-14 sm:pr-72 h-full flex items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-2.5 flex-shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-netease-red/15 flex items-center justify-center">
-              <Music className="w-5 h-5 text-netease-red" />
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
+      <header className="relative z-20 flex-shrink-0 border-b border-white/[0.07] bg-[#101720] safe-top">
+        <div className="flex min-h-14 w-full items-center gap-3 px-4 py-2 sm:px-6 xl:px-8">
+          <div className="flex min-w-0 items-center gap-3 md:hidden">
+            <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-lg border border-white/[0.08] bg-[#080c11]">
+              <img
+                src="/icons/jukeboxroom-128.png"
+                alt="JukeboxRoom 图标"
+                className="h-full w-full object-cover"
+                width={36}
+                height={36}
+              />
             </div>
-            <span className="hidden sm:block text-lg font-bold text-gradient">JukeboxRoom</span>
+            <span className="truncate text-sm font-semibold text-white">JukeboxRoom</span>
           </div>
 
-          <div className="flex-1 min-w-0 max-w-xs">
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => { setNickname(e.target.value); setError(''); }}
-              placeholder="你的昵称"
-              aria-label="你的昵称"
-              maxLength={20}
-              className={`${inputCls} py-2`}
-            />
+          <div className="hidden min-w-0 flex-1 md:block">
+            <p className="text-sm font-semibold text-white">音乐大厅</p>
+            <p className="mt-0.5 text-[11px] text-white/40">和朋友一起听歌</p>
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="hidden min-w-0 md:block xl:hidden">
+            <input type="text" value={nickname} onChange={(e) => { setNickname(e.target.value); setError(''); }} placeholder="你的昵称" aria-label="你的昵称" maxLength={20} className="glass-input w-32 rounded-lg border px-2.5 py-2 text-xs" />
+          </div>
+
+          <div className="ml-auto flex flex-shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => { setError(''); setShowJoin(true); }}
-              className="glass-button-secondary hidden sm:flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm"
+              className="glass-button-secondary hidden h-9 items-center gap-1.5 rounded-lg px-3 text-sm sm:flex"
             >
               <Hash className="w-4 h-4" />
-              加入
+              加入房间
             </button>
             <button
               type="button"
               onClick={() => { setError(''); setShowJoin(true); }}
-              className="glass-button-secondary sm:hidden rounded-xl p-2.5"
+              className="glass-button-secondary flex h-9 w-9 items-center justify-center rounded-lg sm:hidden"
               aria-label="加入房间"
             >
               <Hash className="w-4 h-4" />
@@ -381,65 +379,93 @@ export default function Home() {
             <button
               type="button"
               onClick={() => { setError(''); setShowCreate(true); }}
-              className="glass-button-primary glass-interactive flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium"
+              className="glass-button-primary flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-[filter,box-shadow] hover:brightness-105"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">创建房间</span>
-              <span className="sm:hidden">创建</span>
+              创建房间
             </button>
+
+            <button
+              type="button"
+              onClick={() => setShowChangelog(true)}
+              className="glass-button-secondary flex h-9 w-9 items-center justify-center rounded-lg sm:w-auto sm:gap-1.5 sm:px-3"
+              title="更新日志"
+              aria-haspopup="dialog"
+            >
+              <ScrollText className="w-4 h-4" />
+              <span className="hidden text-sm sm:inline">更新日志</span>
+            </button>
+            <a
+              href="https://gitee.com/yuchen0x1/JukeboxRoom"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${repoLinkCls} hidden sm:flex`}
+              aria-label="Gitee 仓库"
+              title="Gitee 仓库"
+            >
+              <GiteeIcon className="w-4 h-4" />
+            </a>
           </div>
-        </div>
         </div>
       </header>
 
       {/* 中间：房间列表 */}
       <main className="relative z-10 flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          <div className="flex items-center justify-between mb-6">
+        <div className="w-full px-5 py-4 sm:px-8 sm:py-6 xl:px-10">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-5 border-b border-white/[0.07] pb-4 xl:mb-7 xl:pb-6">
+            <div className="flex min-w-0 items-center gap-4">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">
+              <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-[var(--om-accent)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--om-accent)]" />
+                同步聆听
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 <span className="sr-only">JukeboxRoom 在线点歌 - </span>
                 房间大厅
               </h1>
-              <p className="text-sm text-white/40">选择一个房间加入，或创建你自己的</p>
+              <p className="mt-2 text-sm text-white/45">选择一个房间加入，或创建你自己的音乐空间</p>
+            </div>
+            <div className="flex h-14 min-w-32 flex-col justify-center rounded-xl border border-white/[0.07] bg-white/[0.025] px-4">
+              <span className="text-lg font-semibold leading-none text-white">{rooms.length}</span>
+              <span className="mt-1 text-[11px] text-white/40">在线房间</span>
+            </div>
             </div>
             <button
               type="button"
               onClick={() => fetchRooms()}
               disabled={roomsLoading}
-              className="glass-button-secondary flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs disabled:opacity-50"
+              className="glass-button-secondary flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${roomsLoading ? 'animate-spin' : ''}`} />
-              刷新
+              <RefreshCw className={`h-4 w-4 ${roomsLoading ? 'animate-spin' : ''}`} />
+              刷新房间
             </button>
           </div>
 
           {error && (
-            <div className="mb-4 rounded-xl border border-[rgba(255,107,122,0.22)] bg-[rgba(255,107,122,0.1)] px-4 py-3 text-center text-sm text-[#ff9aa5]">
+            <div className="mb-4 rounded-lg border border-[rgba(248,113,113,0.24)] bg-[rgba(248,113,113,0.08)] px-4 py-3 text-center text-sm text-[var(--om-danger)]">
               {error}
             </div>
           )}
 
           {roomsLoading && rooms.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-white/30">
-              <Loader2 className="w-8 h-8 animate-spin mb-3" />
-              <p className="text-sm">加载房间中...</p>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),26rem))] gap-4" aria-label="正在加载房间" aria-busy="true">
+              {[0, 1, 2, 3].map((item) => <div key={item} className="h-[10.75rem] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5"><div className="h-4 w-2/5 rounded bg-white/[0.08]" /><div className="mt-8 h-3 w-1/3 rounded bg-white/[0.06]" /><div className="mt-3 h-3 w-3/5 rounded bg-white/[0.06]" /><div className="mt-7 border-t border-white/[0.06] pt-3"><div className="h-3 w-1/4 rounded bg-white/[0.06]" /></div></div>)}
             </div>
           ) : rooms.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 sm:py-28">
+            <div className="flex flex-col items-center justify-center py-[clamp(1rem,5vh,4rem)]">
               <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
                 <Radio className="w-9 h-9 text-white/20" />
               </div>
               <p className="text-lg font-medium text-white/60 mb-2">还没有活跃房间</p>
               <p className="text-sm text-white/35 mb-6">成为第一个创建房间的人吧</p>
-              <button
-                type="button"
-                onClick={() => { setError(''); setShowCreate(true); }}
-                className="glass-button-primary glass-interactive flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                创建房间
-              </button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <button type="button" onClick={() => { setError(''); setShowCreate(true); }} className="glass-button-primary flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-[filter] hover:brightness-105">
+                  <Plus className="h-4 w-4" />创建房间
+                </button>
+                <button type="button" onClick={() => { setError(''); setShowJoin(true); }} className="glass-button-secondary flex h-10 items-center gap-2 rounded-lg px-4 text-sm">
+                  <Hash className="h-4 w-4" />加入房间
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-8">
@@ -449,7 +475,7 @@ export default function Home() {
                     <History className="w-4 h-4 text-sky-400/80" />
                     <h2 className="text-sm font-medium text-white/70">最近访问</h2>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),32rem))] justify-center gap-4">
                     {recentRooms.map((room) => (
                       <RoomCard key={room.id} room={room} onJoin={handleRoomCardClick} isRecent />
                     ))}
@@ -461,7 +487,7 @@ export default function Home() {
                   {recentRooms.length > 0 && (
                     <h2 className="text-sm font-medium text-white/50 mb-4">全部房间</h2>
                   )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),32rem))] justify-center gap-4">
                     {otherRooms.map((room) => (
                       <RoomCard key={room.id} room={room} onJoin={handleRoomCardClick} />
                     ))}
@@ -483,7 +509,7 @@ export default function Home() {
             </span>
             <span className="flex items-center gap-1.5">
               <Music className="w-3.5 h-3.5" />
-              三平台曲库
+              四平台曲库
             </span>
           </div>
           <VersionStatus />
@@ -502,6 +528,17 @@ export default function Home() {
           </p> */}
         </div>
       </footer>
+      </div>
+
+      <BaseModal
+        open={showChangelog}
+        onClose={() => setShowChangelog(false)}
+        ariaLabelledBy="changelog-title"
+        containerClassName="fixed inset-0 flex items-center justify-center p-3 sm:p-6"
+        panelClassName="glass-surface glass-surface--modal relative w-full max-w-2xl h-[min(82vh,48rem)] overflow-hidden rounded-2xl animate-fade-in"
+      >
+        <ChangelogViewer onClose={() => setShowChangelog(false)} />
+      </BaseModal>
 
       {showCreate && (
         <Modal title="创建房间" onClose={() => { setShowCreate(false); setCreateRoomName(''); setCreatePassword(''); }}>

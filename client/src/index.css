@@ -20,10 +20,142 @@ html, body, #root {
   margin: 0;
 }
 
+html, body, #root {
+  min-width: 0;
+  min-height: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #0b0f14;
+}
+
+.desktop-drag-region {
+  -webkit-app-region: drag;
+}
+
+.desktop-no-drag,
+.desktop-window-button {
+  -webkit-app-region: no-drag;
+}
+
+.desktop-titlebar {
+  user-select: none;
+}
+
+.desktop-titlebar-brand {
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.desktop-titlebar-brand:focus-visible {
+  outline: 1px solid rgba(67, 214, 184, 0.8);
+  outline-offset: -3px;
+}
+
+.desktop-window-menu {
+  position: fixed;
+  z-index: 120;
+  width: 196px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: #171e27;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+  color: #e8edf2;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-window-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  text-align: left;
+}
+
+.desktop-window-menu button:hover,
+.desktop-window-menu button:focus-visible {
+  outline: 0;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.desktop-window-menu button > svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  color: rgba(232, 237, 242, 0.72);
+}
+
+.desktop-window-menu button > span {
+  flex: 1;
+  font-size: 12px;
+}
+
+.desktop-window-menu kbd {
+  color: rgba(232, 237, 242, 0.48);
+  font-family: inherit;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.desktop-window-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.desktop-window-menu .desktop-window-menu-close:hover,
+.desktop-window-menu .desktop-window-menu-close:focus-visible {
+  background: rgba(201, 56, 69, 0.22);
+  color: #ffb4bb;
+}
+
+.desktop-window-button {
+  display: inline-flex;
+  width: 46px;
+  align-items: center;
+  justify-content: center;
+  color: rgba(241, 245, 249, 0.72);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.desktop-window-button:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.desktop-window-button:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.desktop-window-button--close:hover {
+  color: #fff;
+  background: #c93845;
+}
+
+.desktop-window-button--close:active {
+  background: #a92b37;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-window-button {
+    transition: none;
+  }
+}
+
 body {
   background: var(--color-bg-elevated);
   color: var(--color-text-secondary);
-  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -92,18 +224,10 @@ body {
 
   /* 房间顶栏/底栏：透出星河或封面背景 */
   .room-glass-bar {
-    background: rgba(0, 0, 0, 0.22);
-    border-color: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-  }
-
-  /** 房间顶栏/底栏：透出星河或封面背景 */
-  .room-glass-bar {
-    border-color: rgba(255, 255, 255, 0.1);
-    background: rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(11, 15, 20, 0.78);
+    backdrop-filter: blur(20px) saturate(1.15);
+    -webkit-backdrop-filter: blur(20px) saturate(1.15);
   }
 
   .text-gradient {
@@ -516,32 +640,32 @@ body {
 
 /* ---------- Mineradio 玻璃质感（源码对齐） ---------- */
 :root {/* ==== Design Tokens ==== */
---color-bg: #08090b;
---color-bg-deep: #080808;
---color-bg-elevated: #0d0d0d;
---color-surface: #242424;
---color-surface-2: #333;
---color-text: #fff;
---color-text-secondary: #e8e8e8;
---color-text-muted: #666;
---color-primary: #00f5d4;
---color-primary-hover: #31c27c;
---color-accent: #00f5d4;
---color-accent-rgb: 0, 245, 212;
---color-danger: #ec4141;
---color-danger-soft: #ff6b6b;
---color-success: #31c27c;
---color-warning: #f4d28a;
---color-border: #444;
---color-overlay: rgba(0, 0, 0, 0.5);
---color-primary-bg: rgba(0, 245, 212, 0.1);
---color-danger-bg: rgba(236, 65, 65, 0.1);
---color-tertiary: #eef7ff;
---color-sky: #d8f1ff;
+--color-bg: #0b0f14;
+--color-bg-deep: #080c11;
+--color-bg-elevated: #101720;
+--color-surface: #151e28;
+--color-surface-2: #1b2632;
+--color-text: #f1f5f9;
+--color-text-secondary: #d5dee8;
+--color-text-muted: #94a3b8;
+--color-primary: #65e6cf;
+--color-primary-hover: #7af0dc;
+--color-accent: #65e6cf;
+--color-accent-rgb: 101, 230, 207;
+--color-danger: #f87171;
+--color-danger-soft: #fca5a5;
+--color-success: #34d399;
+--color-warning: #fbbf24;
+--color-border: rgba(255, 255, 255, 0.08);
+--color-overlay: rgba(0, 0, 0, 0.62);
+--color-primary-bg: rgba(101, 230, 207, 0.1);
+--color-danger-bg: rgba(248, 113, 113, 0.1);
+--color-tertiary: #e7f0f8;
+--color-sky: #bfdbfe;
 --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
 --space-5: 20px; --space-6: 24px; --space-8: 32px;
---radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-full: 9999px;
---font-sans: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+--radius-sm: 8px; --radius-md: 10px; --radius-lg: 12px; --radius-xl: 14px; --radius-full: 9999px;
+--font-sans: Inter, "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
 --font-mono: "SF Mono", "Fira Code", Consolas, monospace;
 --font-size-xs: 10px; --font-size-sm: 11.5px; --font-size-base: 12px;
 --font-size-lg: 14px; --font-size-xl: 18px; --font-size-2xl: 24px;

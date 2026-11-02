@@ -96,10 +96,10 @@ function QueueRow({
             }`}
           />
           {hasSourceError && (
-            <Tooltip content="歌曲源异常，将跳过此歌" side="bottom">
-              <span className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-md border border-red-500/40 bg-red-500/15 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium leading-tight text-red-400 max-w-[9rem] sm:max-w-none">
+            <Tooltip content="歌曲源异常，可在播放器中重试或切歌" side="bottom">
+              <span className="inline-flex max-w-[9rem] flex-shrink-0 items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-rose-200 sm:max-w-none">
                 <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate sm:whitespace-nowrap">歌曲源异常，将跳过此歌</span>
+                <span className="truncate sm:whitespace-nowrap">音源异常，可重试</span>
               </span>
             </Tooltip>
           )}

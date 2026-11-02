@@ -1,6 +1,6 @@
 {
   "appId": "com.openmusic.app",
-  "appName": "OpenMusic",
+  "appName": "JukeboxRoom",
   "webDir": "dist",
   "android": {
     "allowMixedContent": false

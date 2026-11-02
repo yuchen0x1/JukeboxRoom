@@ -141,6 +141,7 @@ export function clearSongUrlCache() {
 export function invalidateTrackUrlCache(song: Pick<QueueItem, 'queueId' | 'id' | 'source'>) {
   const prefix = trackKeyOf(song);
   let changed = false;
+  clearTrackSourceError(song);
 
   for (const key of [...urlCache.keys()]) {
     if (key === prefix || key.startsWith(`${prefix}:`)) {

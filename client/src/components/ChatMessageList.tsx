@@ -20,6 +20,7 @@ import {
   hasMentionInText,
 } from '../lib/chatPanelUtils';
 import { getClientId } from '../lib/clientId';
+import { collapseAdjacentSystemEvents } from '../lib/chatDisplay';
 import { VariableSizeList, type ListChildComponentProps, type ListOnScrollProps } from 'react-window';
 
 const VIRTUAL_LIST_THRESHOLD = 24;
@@ -165,6 +166,7 @@ const ChatMessageList = forwardRef<ChatMessageListHandle, Props>(function ChatMe
   onScrollRootChange,
 }, ref) {
   const messages = useChatStore((s) => s.messages);
+  const displayMessages = useMemo(() => collapseAdjacentSystemEvents(messages), [messages]);
   const hasMoreOlder = useChatStore((s) => s.hasMoreOlder);
   const loadingOlder = useChatStore((s) => s.loadingOlder);
 
@@ -613,10 +615,11 @@ const ChatMessageList = forwardRef<ChatMessageListHandle, Props>(function ChatMe
       ref={bindScrollRoot}
       className="h-full space-y-2 overflow-x-hidden overflow-y-auto px-3 py-2 pb-3"
     >
-      {messages.map((msg) => (
+      {displayMessages.map(({ msg, repeatCount }) => (
         <ChatMessageRow
           key={msg.id}
           msg={msg}
+          repeatCount={repeatCount}
           room={roomMeta}
           myUserId={myUserId}
           pureMode={pureMode}

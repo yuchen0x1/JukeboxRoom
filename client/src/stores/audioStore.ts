@@ -17,6 +17,8 @@ function readStoredVolume(): number {
 interface AudioStore {
   trackLoading: boolean;
   setTrackLoading: (loading: boolean) => void;
+  playbackError: { queueId: string; message: string } | null;
+  setPlaybackError: (error: { queueId: string; message: string } | null) => void;
   lrcDurationMs: number | null;
   lrcTrackKey: string | null;
   setLrcDuration: (trackKey: string | null, ms: number | null) => void;
@@ -44,6 +46,8 @@ interface AudioStore {
 export const useAudioStore = create<AudioStore>((set) => ({
   trackLoading: false,
   setTrackLoading: (trackLoading) => set({ trackLoading }),
+  playbackError: null,
+  setPlaybackError: (playbackError) => set({ playbackError }),
   lrcDurationMs: null,
   lrcTrackKey: null,
   setLrcDuration: (lrcTrackKey, lrcDurationMs) => set({ lrcTrackKey, lrcDurationMs }),

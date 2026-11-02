@@ -25,16 +25,30 @@ test('Release 只解析 Gitee 官方桌面、Android 和 iOS 资产', () => {
     name: 'OpenMusic v2.0.2',
     html_url: 'https://gitee.com/yuchen0x1/JukeboxRoom/releases/tag/v2.0.2',
     assets: [
-      { name: 'openmusic-desktop-v2.0.2.zip', browser_download_url: giteeAsset('desktop.zip'), size: 10 },
+      { name: 'jukeboxroom-desktop-setup-v2.0.2-x64.exe', browser_download_url: giteeAsset('desktop-setup.exe'), size: 10 },
       { name: 'openmusic-android-v2.0.2.apk', browser_download_url: giteeAsset('android.apk'), size: 20 },
       { name: 'openmusic-ios-v2.0.2.ipa', browser_download_url: giteeAsset('ios.ipa'), size: 30 },
     ],
   });
   assert.equal(release.latestVersion, '2.0.2');
-  assert.equal(release.assets.desktop.url, giteeAsset('desktop.zip'));
+  assert.equal(release.assets.desktop.name, 'jukeboxroom-desktop-setup-v2.0.2-x64.exe');
+  assert.equal(release.assets.desktop.url, giteeAsset('desktop-setup.exe'));
   assert.equal(release.assets.android.url, giteeAsset('android.apk'));
   assert.equal(release.assets.ios.url, giteeAsset('ios.ipa'));
   assert.equal(release.releaseUrl, 'https://gitee.com/yuchen0x1/JukeboxRoom/releases/tag/v2.0.2');
+});
+
+test('Release 只识别正式 JukeboxRoom Windows 安装程序', () => {
+  const release = normalizeRelease({
+    tag_name: 'v0.0.5',
+    assets: [
+      { name: 'jukeboxroom-desktop-portable-0.0.5-x64.exe', browser_download_url: giteeAsset('portable.exe'), size: 10 },
+      { name: 'jukeboxroom-desktop-0.0.5-x64.zip', browser_download_url: giteeAsset('desktop.zip'), size: 10 },
+      { name: 'jukeboxroom-desktop-setup-0.0.5-x64.exe', browser_download_url: giteeAsset('setup.exe'), size: 10 },
+    ],
+  });
+  assert.equal(release.assets.desktop.name, 'jukeboxroom-desktop-setup-0.0.5-x64.exe');
+  assert.equal(release.assets.desktop.url, giteeAsset('setup.exe'));
 });
 
 test('国外更新地址和资产直链全部被拒绝', () => {

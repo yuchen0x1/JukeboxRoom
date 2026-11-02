@@ -29,7 +29,7 @@ export default class AppErrorBoundary extends Component<Props, State> {
               {this.state.message}
             </p>
           )}
-          <button type="button" onClick={() => window.location.reload()} className="mx-auto mt-6 inline-flex items-center gap-2 rounded-lg bg-netease-red px-4 py-2.5 text-sm font-medium transition-colors hover:bg-red-500">
+          <button type="button" onClick={() => window.location.reload()} className="mx-auto mt-6 inline-flex items-center gap-2 rounded-lg bg-netease-red px-4 py-2.5 text-sm font-medium transition-[filter] hover:brightness-105">
             <RefreshCw className="h-4 w-4" />
             刷新页面
           </button>

@@ -5,6 +5,30 @@ import { buildRobotsTxt, buildSitemapXml, resolveDevSiteOrigin } from '../server
 
 const appVersion = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as { version: string }).version;
 
+function changelogAsset() {
+  const changelogPath = new URL('../CHANGELOG.md', import.meta.url);
+  return {
+    name: 'jukeboxroom-changelog',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.split('?')[0] !== '/changelog.md') {
+          next();
+          return;
+        }
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+        res.end(readFileSync(changelogPath, 'utf-8'));
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'changelog.md',
+        source: readFileSync(changelogPath, 'utf-8'),
+      });
+    },
+  };
+}
+
 function seoDevMiddleware() {
   return {
     name: 'openmusic-seo-dev',
@@ -27,7 +51,7 @@ function seoDevMiddleware() {
 }
 
 export default defineConfig({
-  plugins: [react(), seoDevMiddleware()],
+  plugins: [react(), changelogAsset(), seoDevMiddleware()],
   define: {
     // 客户端展示用版本号；更新对比以服务端 /api/update 的 currentVersion 为准
     __APP_VERSION__: JSON.stringify(appVersion),

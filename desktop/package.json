@@ -1,13 +1,13 @@
 {
-  "name": "openmusic-desktop",
-  "productName": "OpenMusic",
-  "version": "0.0.4",
+  "name": "jukeboxroom-desktop",
+  "productName": "JukeboxRoom",
+  "version": "0.0.5",
   "private": true,
-  "description": "OpenMusic 桌面版（内置本地服务端）",
+  "description": "JukeboxRoom 桌面版（内置本地服务端）",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win portable"
+    "dist": "electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -15,14 +15,17 @@
   },
   "build": {
     "appId": "com.openmusic.app",
-    "productName": "OpenMusic",
+    "productName": "JukeboxRoom",
+    "afterPack": "scripts/afterPack.cjs",
     "directories": {
       "output": "../release/desktop",
       "buildResources": "build"
     },
     "files": [
       "main.js",
-      "package.json"
+      "preload.js",
+      "package.json",
+      "build/JukeboxRoom.ico"
     ],
     "extraResources": [
       {
@@ -42,12 +45,26 @@
     ],
     "win": {
       "target": [
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "icon": "build/icon.png"
+      "icon": "build/JukeboxRoom.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "jukeboxroom-desktop-${version}-${arch}.${ext}",
+      "requestedExecutionLevel": "asInvoker"
     },
-    "portable": {
-      "artifactName": "openmusic-desktop-${version}.exe"
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "jukeboxroom-desktop-setup-${version}-${arch}.${ext}"
     }
   }
 }

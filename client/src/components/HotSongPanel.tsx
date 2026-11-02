@@ -1,5 +1,5 @@
 import { memo, useState, useEffect } from 'react';
-import { Flame, Plus, Loader2, TrendingUp } from 'lucide-react';
+import { Flame, Plus, Loader2, TrendingUp, RefreshCw } from 'lucide-react';
 import type { HotSongItem, SearchResult } from '../types';
 import { getHotSongs, songKey } from '../api/music';
 import SongCover from './SongCover';
@@ -41,6 +41,8 @@ export default memo(function HotSongPanel({
   const fetchLimit = limit ?? HOT_SONG_LIST_LIMIT;
   const [songs, setSongs] = useState<HotSongItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,8 +53,9 @@ export default memo(function HotSongPanel({
         const data = await getHotSongs(fetchLimit);
         if (cancelled) return;
         setSongs(data);
+        setLoadError(false);
       } catch {
-        // 接口失败：保留现有数据，跳过本次更新
+        if (!cancelled && !silent) setLoadError(true);
       } finally {
         if (!cancelled && !silent) setLoading(false);
       }
@@ -67,7 +70,7 @@ export default memo(function HotSongPanel({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [compact, embedded, fetchLimit, refreshKey]);
+  }, [fetchLimit, refreshKey, reload]);
 
   const handleAdd = (song: HotSongItem) => {
     onAdd({
@@ -89,12 +92,22 @@ export default memo(function HotSongPanel({
             <Flame className="w-4 h-4 text-orange-400" />
             <h2 className="text-sm font-medium">点歌热榜</h2>
           </div>
+          <Tooltip content="刷新热榜">
+            <button type="button" onClick={() => setReload((value) => value + 1)} className="room-icon-button !h-7 !w-7" aria-label="刷新热榜">
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            </button>
+          </Tooltip>
         </div>
         <div className="p-2 overflow-x-auto">
           {loading && songs.length === 0 ? (
             <p className="text-xs text-netease-muted text-center py-3">加载中...</p>
+          ) : loadError && songs.length === 0 ? (
+            <div className="flex items-center gap-2 py-3 text-xs text-amber-200/80">
+              <span className="min-w-0 flex-1">热榜暂时无法载入</span>
+              <button type="button" onClick={() => setReload((value) => value + 1)} className="whitespace-nowrap text-[var(--om-accent)] hover:underline">重试</button>
+            </div>
           ) : songs.length === 0 ? (
-            <p className="text-xs text-netease-muted text-center py-3">暂无点歌记录</p>
+            <p className="text-xs text-netease-muted text-center py-3">暂无热榜数据</p>
           ) : (
             <div className="flex gap-2 min-w-min pb-1">
               {songs.map((song, i) => (
@@ -129,7 +142,15 @@ export default memo(function HotSongPanel({
           <Flame className="w-4 h-4 text-orange-400" />
           <h2 className="text-sm font-medium">点歌热榜</h2>
         </div>
-        <TrendingUp className="w-3.5 h-3.5 text-netease-muted" />
+        <div className="flex items-center gap-2 text-netease-muted">
+          <span className="text-[11px]">按点歌次数</span>
+          <Tooltip content="刷新热榜">
+            <button type="button" onClick={() => setReload((value) => value + 1)} className="room-icon-button !h-7 !w-7" aria-label="刷新热榜">
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            </button>
+          </Tooltip>
+          <TrendingUp className="w-3.5 h-3.5" />
+        </div>
       </div>
 
       <div className="glass-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
@@ -140,9 +161,10 @@ export default memo(function HotSongPanel({
           </div>
         ) : songs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-netease-muted px-3">
-            <Flame className="w-6 h-6 mb-2 opacity-30" />
-            <p className="text-xs text-center">还没有点歌记录</p>
-            <p className="text-[10px] text-center mt-1 opacity-70">点歌后会出现在这里</p>
+            {loadError ? <RefreshCw className="w-6 h-6 mb-2 opacity-50" /> : <Flame className="w-6 h-6 mb-2 opacity-30" />}
+            <p className="text-sm text-center">{loadError ? '热榜暂时无法载入' : '暂无热榜数据'}</p>
+            <p className="text-xs text-center mt-1 opacity-70">{loadError ? '检查连接后重试' : '有新的点歌记录后会显示在这里'}</p>
+            {loadError && <button type="button" onClick={() => setReload((value) => value + 1)} className="mt-3 text-xs text-[var(--om-accent)] hover:underline">重试</button>}
           </div>
         ) : (
           <div className="space-y-1">
@@ -154,23 +176,23 @@ export default memo(function HotSongPanel({
               return (
                   <div
                     key={key}
-                    className={`glass-row group flex items-start gap-2 ${embedded ? 'p-1.5' : 'p-2'}`}
+                    className={`glass-row group flex items-start gap-2.5 ${embedded ? 'p-2' : 'p-2.5'}`}
                   >
                   <span
-                    className={`flex-shrink-0 w-5 h-5 rounded text-[11px] font-bold flex items-center justify-center ${rankStyle(rank)}`}
+                    className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-xs font-bold ${rankStyle(rank)}`}
                   >
                     {rank}
                   </span>
                   <SongCover
                     song={song}
-                    className="w-9 h-9 rounded-md object-cover bg-netease-card flex-shrink-0"
+                    className="h-10 w-10 flex-shrink-0 rounded-md object-cover bg-netease-card"
                   />
                   <div className="flex-1 min-w-0">
-                    <TruncateTip text={song.name} className={`text-xs font-medium ${HOT_NAME_LINE_CLS}`} />
-                    <TruncateTip text={song.artist} className={`text-[10px] text-netease-muted ${HOT_ARTIST_LINE_CLS}`} />
+                    <TruncateTip text={song.name} className={`text-[13px] font-medium ${HOT_NAME_LINE_CLS}`} />
+                    <TruncateTip text={song.artist} className={`text-[11px] text-netease-muted ${HOT_ARTIST_LINE_CLS}`} />
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0 self-center">
-                    <span className="text-[10px] text-orange-400/90 font-medium">{song.count} 次</span>
+                    <span className="text-xs text-orange-300/90 font-medium">{song.count} 次</span>
                   </div>
                   <Tooltip content="点歌">
                     <button

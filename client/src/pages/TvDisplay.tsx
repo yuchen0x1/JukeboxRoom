@@ -145,7 +145,7 @@ export default function TvDisplay() {
   if (joinError) {
     content = (
       <div className="h-full flex items-center justify-center bg-[var(--color-bg-deep)]">
-        <p className="text-netease-red text-sm">{joinError}</p>
+        <p className="text-[var(--om-danger)] text-sm">{joinError}</p>
       </div>
     );
   } else if (!room) {

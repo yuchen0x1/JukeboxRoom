@@ -21,7 +21,7 @@ export default function RoomQualityBadge({ audioQuality, className = '', onClick
     <>
       <Tooltip content={`网易云音质：${getQualityLabel(quality.netease)}`}>
         <span className="whitespace-nowrap">
-          <span className="text-netease-red">网易云</span>
+          <span className="text-[#e0525a]">网易云</span>
           {' '}
           {getQualityLabel(quality.netease)}
         </span>

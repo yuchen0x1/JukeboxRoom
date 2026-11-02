@@ -2,12 +2,14 @@
  * 缓存核心静态资源，使应用在弱网/离线时仍可打开（壳层缓存）。
  * 采用 stale-while-revalidate 策略：优先返回缓存，后台更新。
  */
-const CACHE = 'openmusic-shell-v2';
+const CACHE = 'jukeboxroom-shell-v3';
 const SHELL = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/favicon.svg',
+  '/icons/jukeboxroom-32.png',
+  '/icons/jukeboxroom-192.png',
+  '/icons/jukeboxroom-512.png',
 ];
 
 self.addEventListener('install', (event) => {

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Minus, Plus, Sparkles, X } from 'lucide-react';
 import { NETEASE_FM_MODE_OPTIONS, getFmModeLabel, normalizeFmMode } from '../api/music/fmMode';
 import type { BannedSong } from '../types';
 import type { DislikeSkipMode } from '../lib/dislikeSkip';
 import SourceBadge from './SourceBadge';
+import Modal from './Modal';
 
 const ANNOUNCEMENT_MAX_LENGTH = 2000;
 const MIN_STAY_MINUTES_MAX = 24 * 60;
@@ -288,21 +288,18 @@ export default function RoomSettingsModal({
     return `${sec} 秒`;
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="glass-scrim absolute inset-0"
-        onClick={onClose}
-        aria-label="关闭"
-      />
-      <div
-        className="relative flex max-h-[min(88vh,640px)] w-full max-w-lg animate-fade-in flex-col rounded-2xl glass-surface glass-surface--modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      zIndex={80}
+      ariaLabelledBy="room-settings-title"
+      containerClassName="fixed inset-0 flex items-center justify-center p-4"
+      panelClassName="relative flex max-h-[min(88vh,640px)] w-full max-w-lg animate-fade-in flex-col rounded-2xl glass-surface glass-surface--modal"
+    >
         <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--om-glass-border)] px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-white">房间设置</h2>
+            <h2 id="room-settings-title" className="text-base font-semibold text-white">房间设置</h2>
             <p className="mt-0.5 text-xs text-netease-muted">漫游、贵宾、公告与点歌规则</p>
           </div>
           <button
@@ -687,8 +684,6 @@ export default function RoomSettingsModal({
             </section>
           )}
         </div>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

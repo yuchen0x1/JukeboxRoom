@@ -734,7 +734,7 @@ const ChatInputBar = forwardRef<ChatInputBarHandle, Props>(function ChatInputBar
                 ))}
               </div>
             )}
-            {!hasDraft && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-netease-muted/50">{nickname || '你'}说点什么...</span>}
+            {!hasDraft && <span className="pointer-events-none absolute left-3 right-3 top-1/2 truncate -translate-y-1/2 whitespace-nowrap text-sm text-netease-muted/50">{nickname || '你'}说点什么...</span>}
             <div
               ref={inputRef}
               role="textbox"

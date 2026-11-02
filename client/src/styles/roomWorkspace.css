@@ -1,0 +1,213 @@
+.room-workspace-grid {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  column-gap: 0;
+  row-gap: 0;
+}
+
+.room-workspace-grid > * {
+  order: 0;
+}
+
+.room-workspace-divider {
+  position: relative;
+  z-index: 2;
+  min-width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.room-workspace-divider::after {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.055);
+  content: '';
+  transition: background-color 120ms ease, top 120ms ease, bottom 120ms ease;
+}
+
+.room-workspace-divider:hover::after,
+.room-workspace-divider:focus-visible::after,
+.room-workspace-divider.is-dragging::after {
+  top: 3px;
+  bottom: 3px;
+  background: rgba(var(--om-accent-rgb), 0.75);
+}
+
+.room-workspace-divider:focus-visible::after {
+  box-shadow: 0 0 0 2px rgba(var(--om-accent-rgb), 0.16);
+}
+
+.room-discovery-panel > :first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.room-discovery-footer {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--om-glass-border);
+  background: rgba(8, 13, 18, 0.28);
+}
+
+.room-discovery-link {
+  display: flex;
+  min-width: 0;
+  min-height: 52px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 2px;
+  color: var(--om-text-muted);
+  font-size: 11px;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.room-discovery-link + .room-discovery-link {
+  border-left: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.room-discovery-link:hover,
+.room-discovery-link:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--om-accent);
+}
+
+.room-library-nav {
+  scrollbar-width: none;
+}
+
+.room-library-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.room-library-tab {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: rgba(213, 222, 232, 0.68);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
+.room-library-tab:hover,
+.room-library-tab:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.055);
+  color: #f1f5f9;
+}
+
+.room-library-tab.is-active,
+.room-library-tab.is-selected {
+  border-color: rgba(var(--om-accent-rgb), 0.16);
+  background: rgba(var(--om-accent-rgb), 0.09);
+  color: var(--om-accent);
+}
+
+.room-library-tab--utility {
+  padding: 0 8px;
+  color: rgba(148, 163, 184, 0.84);
+}
+
+.room-search-status {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 8px;
+  padding: 0 9px;
+  border-left: 2px solid rgba(var(--om-accent-rgb), 0.68);
+  color: rgba(213, 222, 232, 0.7);
+  font-size: 12px;
+}
+
+.room-icon-button {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: rgba(148, 163, 184, 0.8);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.room-icon-button:hover:not(:disabled),
+.room-icon-button:focus-visible {
+  outline: none;
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.room-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.room-player-content {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) auto;
+}
+
+.room-player-controls {
+  min-width: max-content;
+}
+
+@media (max-width: 1450px) {
+  .room-library-tab {
+    gap: 5px;
+    padding-right: 7px;
+    padding-left: 7px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 820px) {
+  .room-player-content {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .room-player-lyrics {
+    display: none;
+  }
+
+  .room-player-controls {
+    gap: 2px;
+  }
+}
+
+@media (max-width: 520px) {
+  .room-player-track .room-player-cover {
+    width: 38px;
+    height: 38px;
+  }
+
+  .room-player-controls > button,
+  .room-player-controls > div button {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-workspace-divider::after,
+  .room-library-tab,
+  .room-discovery-link,
+  .room-icon-button {
+    transition: none;
+  }
+}

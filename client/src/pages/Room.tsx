@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 
-import { Search, Loader2, Copy, Check, LogOut, X, Heart, Plus, Download, ListMusic, Upload, History, ListPlus, Pencil, Lock, LockOpen, ChevronLeft, ChevronRight, SlidersHorizontal, Shield, Maximize2, KeyRound } from 'lucide-react';
+import { Search, Loader2, Copy, Check, LogOut, X, Heart, Plus, Download, ListMusic, Upload, History, ListPlus, Pencil, Lock, LockOpen, ChevronLeft, ChevronRight, SlidersHorizontal, Shield, Maximize2, KeyRound, Trash2 } from 'lucide-react';
 
 import { searchAllSongs, getAvailableSources, type SearchFilterMode } from '../api/music';
 import { importPlaylist, searchPlaylists, type PlaylistSearchItem, type PlaylistPlatform, type PlaylistChannelFilter as PlaylistChannelFilterMode } from '../api/music/playlist';
@@ -34,6 +34,8 @@ import { songKey, getCoverUrl } from '../api/music';
 import SongCover from '../components/SongCover';
 
 import QueuePanel from '../components/QueuePanel';
+import RoomWorkspaceDivider from '../components/RoomWorkspaceDivider';
+import '../styles/roomWorkspace.css';
 
 import MiniPlayer from '../components/MiniPlayer';
 import ImmersiveExitModal from '../components/immersive/ImmersiveExitModal';
@@ -193,10 +195,29 @@ function formatHistoryTime(time: number) {
 }
 
 const FAVORITES_IMPORT_BATCH_SIZE = 500;
+const ROOM_COLUMN_SHARE_KEY = 'openmusic:room-column-shares';
+const DEFAULT_ROOM_COLUMN_SHARES = { left: 24, right: 25 };
 const FAVORITES_PAGE_SIZE_OPTIONS = [15, 30, 50] as const;
 type FavoritesPageSize = (typeof FAVORITES_PAGE_SIZE_OPTIONS)[number];
 const DEFAULT_FAVORITES_PAGE_SIZE: FavoritesPageSize = 15;
 type SearchMode = 'song' | 'playlist';
+type RoomColumnSide = 'left' | 'right';
+
+function readRoomColumnShares() {
+  try {
+    const raw = localStorage.getItem(ROOM_COLUMN_SHARE_KEY);
+    if (!raw) return DEFAULT_ROOM_COLUMN_SHARES;
+    const parsed = JSON.parse(raw) as { left?: number; right?: number };
+    const left = Number(parsed.left);
+    const right = Number(parsed.right);
+    if (!Number.isFinite(left) || !Number.isFinite(right) || left < 1 || right < 1 || left + right > 62) {
+      return DEFAULT_ROOM_COLUMN_SHARES;
+    }
+    return { left, right };
+  } catch {
+    return DEFAULT_ROOM_COLUMN_SHARES;
+  }
+}
 
 interface PlaylistSearchBackup {
   keyword: string;
@@ -211,6 +232,7 @@ interface PlaylistSearchBackup {
 export default function Room() {
 
   const { roomId } = useParams<{ roomId: string }>();
+  const roomWorkspaceRef = useRef<HTMLDivElement>(null);
 
   // 音源解析路由需要知道当前房间，才能动用该房间的房主凭据
   useEffect(() => {
@@ -262,7 +284,7 @@ export default function Room() {
     noindex: true,
   });
 
-  const { joinRoom, addSong, leaveRoom, listFavorites, setFavorite, importFavorites, renameRoomName, setRoomLock, setRoomFmMode, setRoomAnnouncement, setSongRequestEnabled, unbanRoomSong, setRoomMemberTier, removeRoomMemberTier, setRoomMemberSettings, setRoomSourceCredential, loadSongHistory } = useSocket();
+  const { joinRoom, addSong, leaveRoom, listFavorites, setFavorite, importFavorites, renameRoomName, setRoomLock, setRoomFmMode, setRoomAnnouncement, setSongRequestEnabled, unbanRoomSong, setRoomMemberTier, removeRoomMemberTier, setRoomMemberSettings, setRoomSourceCredential, loadSongHistory, clearQueue, requestJump, skipSong } = useSocket();
   const { applyFavorites } = useFavorites();
 
 
@@ -315,10 +337,15 @@ export default function Room() {
   const [visualFxOpen, setVisualFxOpen] = useState(false);
   const [visualFxDragging, setVisualFxDragging] = useState(false);
   const isLgUp = useMediaQuery('(min-width: 1024px)');
+  const isRoomWideLayout = useMediaQuery('(min-width: 1180px)');
   const isSmUp = useMediaQuery('(min-width: 640px)');
   const showImmersiveEntry = isLgUp && !isMobileDevice() && !pureMode;
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [songHistoryOpen, setSongHistoryOpen] = useState(false);
+  const [queueDrawerOpen, setQueueDrawerOpen] = useState(false);
+  const [clearingQueue, setClearingQueue] = useState(false);
+  const [roomColumnShares, setRoomColumnShares] = useState(readRoomColumnShares);
+  const queueSectionRef = useRef<HTMLDivElement>(null);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteSong[]>([]);
   const [favoriteQuery, setFavoriteQuery] = useState('');
@@ -370,6 +397,133 @@ export default function Room() {
   }, [showToast]);
 
   const closeToast = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(ROOM_COLUMN_SHARE_KEY, JSON.stringify(roomColumnShares));
+      } catch {
+        // Storage may be unavailable in private or restricted contexts.
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [roomColumnShares]);
+
+  const resizeRoomColumn = useCallback((side: RoomColumnSide, clientX: number) => {
+    const rect = roomWorkspaceRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const available = Math.max(1, rect.width - 16);
+    const minimumLeft = (230 / available) * 100;
+    const minimumCenter = (380 / available) * 100;
+    const minimumRight = (250 / available) * 100;
+    const nextShare = side === 'left'
+      ? ((clientX - rect.left - 4) / available) * 100
+      : ((rect.right - clientX - 4) / available) * 100;
+
+    setRoomColumnShares((current) => {
+      if (side === 'left') {
+        const maxLeft = 100 - minimumCenter - current.right;
+        return { ...current, left: Math.min(maxLeft, Math.max(minimumLeft, nextShare)) };
+      }
+      const maxRight = 100 - minimumCenter - current.left;
+      return { ...current, right: Math.min(maxRight, Math.max(minimumRight, nextShare)) };
+    });
+  }, []);
+
+  const nudgeRoomColumn = useCallback((side: RoomColumnSide, direction: -1 | 1) => {
+    const rect = roomWorkspaceRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const delta = Math.max(1, (120 / Math.max(1, rect.width - 16)) * 100) * direction;
+    const trackDelta = delta;
+    const available = Math.max(1, rect.width - 16);
+    const minimumLeft = (230 / available) * 100;
+    const minimumCenter = (380 / available) * 100;
+    const minimumRight = (250 / available) * 100;
+    setRoomColumnShares((current) => {
+      if (side === 'left') {
+        return {
+          ...current,
+          left: Math.min(100 - minimumCenter - current.right, Math.max(minimumLeft, current.left + trackDelta)),
+        };
+      }
+      return {
+        ...current,
+        right: Math.min(100 - minimumCenter - current.left, Math.max(minimumRight, current.right + trackDelta)),
+      };
+    });
+  }, []);
+
+  const [clearQueueConfirmOpen, setClearQueueConfirmOpen] = useState(false);
+  const confirmClearQueue = useCallback(async () => {
+    if (clearingQueue || !canControlPlayback || !room?.queue.length) return;
+    setClearingQueue(true);
+    const result = await clearQueue();
+    setClearingQueue(false);
+    setClearQueueConfirmOpen(false);
+    showToast(result.success ? '已清空待播队列' : (result.error || '清空队列失败'), result.success ? 'success' : 'error');
+  }, [canControlPlayback, clearQueue, clearingQueue, room?.queue.length, showToast]);
+
+  const handlePreviousTrack = useCallback(async () => {
+    const liveRoom = useRoomStore.getState().room;
+    if (!liveRoom?.current || !canControlPlayback) return;
+
+    const audioState = useAudioStore.getState();
+    if (audioState.smoothPlaybackTime > 3) {
+      audioState.seekPlayback?.(0);
+      return;
+    }
+
+    let historyState = useSongHistoryStore.getState();
+    if (historyState.roomId !== liveRoom.id || !historyState.loaded) {
+      const historyResult = await loadSongHistory();
+      if (!historyResult.success) {
+        showToast(historyResult.error || '播放历史加载失败', 'error');
+        return;
+      }
+      historyState = useSongHistoryStore.getState();
+    }
+
+    const previous = historyState.songs.find((song) => (
+      song.id !== liveRoom.current?.id
+      || (song.source || 'netease') !== (liveRoom.current?.source || 'netease')
+    ));
+    if (!previous) {
+      showToast('没有可重播的上一首', 'error');
+      return;
+    }
+
+    let queueItem = useRoomStore.getState().room?.queue.find((song) => (
+      song.id === previous.id && (song.source || 'netease') === (previous.source || 'netease')
+    ));
+    if (!queueItem) {
+      const added = await addSong(previous);
+      if (!added.success) {
+        showToast(added.error || '无法将上一首加入队列', 'error');
+        return;
+      }
+      queueItem = added.room?.queue.find((song) => (
+        song.id === previous.id && (song.source || 'netease') === (previous.source || 'netease')
+      )) || useRoomStore.getState().room?.queue.find((song) => (
+        song.id === previous.id && (song.source || 'netease') === (previous.source || 'netease')
+      ));
+    }
+    if (!queueItem) {
+      showToast('上一首已加入，但队列尚未同步', 'error');
+      return;
+    }
+
+    const jumped = await requestJump(queueItem.queueId);
+    if (!jumped.success) {
+      showToast(jumped.error || '无法切回上一首', 'error');
+      return;
+    }
+    const skipped = await skipSong();
+    if (!skipped.success) {
+      showToast(skipped.error || '上一首已排到队首，请稍后切换', 'error');
+      return;
+    }
+    showToast(`正在重播「${previous.name}」`);
+  }, [addSong, canControlPlayback, loadSongHistory, requestJump, showToast, skipSong]);
 
   const isCreator = Boolean(room?.creatorId && mySocketId && room.creatorId === mySocketId);
 
@@ -1488,7 +1642,7 @@ export default function Room() {
             placeholder="输入房间密码"
             className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-white mb-3"
           />
-          {joinError && <p className="text-xs text-netease-red mb-3">{joinError}</p>}
+          {joinError && <p className="mb-3 text-xs text-[var(--om-danger)]">{joinError}</p>}
           <button
             type="button"
             onClick={handlePasswordJoin}
@@ -1511,7 +1665,7 @@ export default function Room() {
 
       <div className="min-h-full flex items-center justify-center">
 
-        <p className="text-netease-red">{joinError}，正在返回...</p>
+        <p className="text-[var(--om-danger)]">{joinError}，正在返回...</p>
 
       </div>
 
@@ -1525,7 +1679,7 @@ export default function Room() {
 
       <div className="min-h-full flex items-center justify-center px-6 text-center">
 
-        <p className="text-netease-red">{exitReason}，正在返回...</p>
+        <p className="text-[var(--om-danger)]">{exitReason}，正在返回...</p>
 
       </div>
 
@@ -1607,15 +1761,35 @@ export default function Room() {
 
   const renderQueueSection = (fillHeight = false) => (
     <div
+      ref={queueSectionRef}
       className={`glass-surface glass-surface--panel overflow-hidden rounded-2xl flex flex-col ${
         fillHeight ? 'h-full flex-1 min-h-0' : 'flex-shrink-0'
       }`}
     >
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--om-glass-border)] px-4 py-2.5 sm:py-3">
-        <h2 className="text-sm font-medium">播放队列</h2>
-        <span className="text-xs text-netease-muted">
-          {queueCount > 0 ? `共 ${queueCount} 首` : '暂无歌曲'}
-        </span>
+      <div className="flex min-h-[56px] flex-shrink-0 items-center justify-between gap-3 border-b border-[var(--om-glass-border)] px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[rgba(var(--om-accent-rgb),0.1)] text-[var(--om-accent)]">
+            <ListMusic className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-white">播放队列</h2>
+            <p className="mt-0.5 truncate text-xs text-netease-muted">
+              {queueCount > 0 ? `${queueCount} 首歌曲 · 优先级自动排序` : '队列为空，搜索歌曲后加入房间'}
+            </p>
+          </div>
+        </div>
+        {canControlPlayback && room.queue.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setClearQueueConfirmOpen(true)}
+            disabled={clearingQueue}
+            className="room-icon-button flex-shrink-0"
+            aria-label="清空待播队列"
+            title="清空待播队列"
+          >
+            {clearingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </button>
+        )}
       </div>
       <div className={`p-2 ${fillHeight ? 'flex-1 min-h-0 overflow-hidden flex flex-col' : ''}`}>
         <QueuePanel fillHeight={fillHeight} />
@@ -1624,28 +1798,7 @@ export default function Room() {
   );
 
   const searchBar = (
-    <div className="flex gap-2 mb-2">
-      {!pureMode && (
-        <Tooltip side="bottom" content="搜索类型">
-          <div className="glass-surface glass-surface--panel flex flex-shrink-0 overflow-hidden rounded-xl p-1 sm:rounded-2xl">
-          {([
-            ['song', '歌曲'],
-            ['playlist', '歌单'],
-          ] as const).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => handleSearchModeChange(mode)}
-              className={`rounded-lg px-2.5 py-2 text-xs transition-colors sm:px-3 sm:py-2.5 sm:text-sm ${
-                searchMode === mode ? 'bg-[var(--om-accent)] text-[#07110f] shadow-sm' : 'text-netease-muted hover:text-white'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-          </div>
-        </Tooltip>
-      )}
+    <div className="mb-2 flex gap-2">
       <div className="relative flex-1 min-w-0">
         <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 sm:w-5 h-4 sm:h-5 text-netease-muted pointer-events-none" />
         <input
@@ -1668,6 +1821,53 @@ export default function Room() {
       </button>
     </div>
   );
+
+  const roomLibraryNav = !pureMode ? (
+    <nav className="room-library-nav mb-2 flex min-w-0 items-center justify-between gap-2 overflow-x-auto" aria-label="音乐工作区">
+      <div className="flex min-w-max items-center gap-1">
+        <button
+          type="button"
+          aria-pressed={searchMode === 'song'}
+          onClick={() => handleSearchModeChange('song')}
+          className={`room-library-tab ${searchMode === 'song' ? 'is-active' : ''}`}
+        >
+          <Search className="h-3.5 w-3.5" />歌曲
+        </button>
+        <button
+          type="button"
+          aria-pressed={searchMode === 'playlist'}
+          onClick={() => handleSearchModeChange('playlist')}
+          className={`room-library-tab ${searchMode === 'playlist' ? 'is-active' : ''}`}
+        >
+          <ListMusic className="h-3.5 w-3.5" />歌单
+        </button>
+        <button type="button" onClick={() => setSongHistoryOpen(true)} className="room-library-tab">
+          <History className="h-3.5 w-3.5" />播放历史
+        </button>
+        <button type="button" onClick={openFavorites} className="room-library-tab">
+          <Heart className="h-3.5 w-3.5" />我的收藏
+        </button>
+        <button
+          type="button"
+          aria-pressed="true"
+          onClick={() => queueSectionRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
+          className="room-library-tab is-selected"
+        >
+          <ListMusic className="h-3.5 w-3.5" />播放队列
+        </button>
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-1">
+        <button type="button" onClick={() => setRecommendDrawerOpen(true)} className="room-library-tab room-library-tab--utility">
+          <ListPlus className="h-3.5 w-3.5" />推荐歌单
+        </button>
+        {searchableCount > 0 && (
+          <button type="button" onClick={() => setPlaylistImportOpen(true)} className="room-library-tab room-library-tab--utility">
+            <Upload className="h-3.5 w-3.5" />导入
+          </button>
+        )}
+      </div>
+    </nav>
+  ) : null;
 
   const renderPlaylistSearchList = (fillHeight = false, immersiveGlass = false) => (
     <div
@@ -2080,9 +2280,9 @@ export default function Room() {
           immersiveMode || visualFxDragging ? 'pointer-events-none opacity-0' : ''
         }`}
       >
-      <header className={`relative z-30 flex-shrink-0 border-b px-3 py-2.5 sm:px-4 sm:py-3 safe-top ${ambientGlassClass}`}>
+      <header className={`relative z-30 flex-shrink-0 border-b border-white/[0.07] px-3 py-2 sm:px-5 sm:py-2.5 safe-top ${ambientGlassClass}`}>
 
-        <div className="max-w-[1680px] mx-auto flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
           <div className="flex items-center justify-between gap-2 min-w-0">
 
@@ -2142,7 +2342,7 @@ export default function Room() {
                       aria-label="房间设置"
                     >
                       <SlidersHorizontal className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">设置</span>
+                      <span className="hidden whitespace-nowrap xl:inline">设置</span>
                     </button>
                   </Tooltip>
                 )}
@@ -2156,7 +2356,7 @@ export default function Room() {
                       aria-label="音源登录"
                     >
                       <KeyRound className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">音源登录</span>
+                      <span className="hidden whitespace-nowrap xl:inline">音源登录</span>
                     </button>
                   </Tooltip>
                 )}
@@ -2242,7 +2442,7 @@ export default function Room() {
                   aria-pressed={pureMode}
                 >
                   <Shield className="w-4 h-4" />
-                  <span className="hidden sm:inline">{pureMode ? '纯净中' : '纯净模式'}</span>
+                  <span className="hidden whitespace-nowrap xl:inline">{pureMode ? '纯净中' : '纯净模式'}</span>
                 </button>
               </Tooltip>
 
@@ -2259,7 +2459,7 @@ export default function Room() {
                     aria-pressed={immersiveMode}
                   >
                     <Maximize2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">{immersiveMode ? '沉浸中' : '沉浸模式'}</span>
+                    <span className="hidden whitespace-nowrap xl:inline">{immersiveMode ? '沉浸中' : '沉浸模式'}</span>
                   </button>
                 </Tooltip>
               ) : null}
@@ -2270,7 +2470,7 @@ export default function Room() {
                   className="flex items-center gap-1.5 text-xs text-netease-muted hover:text-white transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-white/[0.08]"
                 >
                   {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                  <span className="hidden sm:inline">{copied ? '已复制' : '分享房间'}</span>
+                  <span className="hidden whitespace-nowrap xl:inline">{copied ? '已复制' : '分享房间'}</span>
                 </button>
               </Tooltip>
 
@@ -2283,7 +2483,7 @@ export default function Room() {
                   className="flex items-center gap-1.5 text-xs text-netease-muted hover:text-white transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-white/[0.08]"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">退出房间</span>
+                  <span className="hidden whitespace-nowrap xl:inline">退出房间</span>
                 </button>
               </Tooltip>
 
@@ -2311,20 +2511,50 @@ export default function Room() {
         </div>
       )}
 
-      <div className={`glass-scrollbar relative z-10 flex-1 min-h-0 mx-auto w-full px-3 sm:px-4 pt-3 sm:pt-4 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] overflow-y-auto lg:overflow-hidden ${pureMode ? 'max-w-3xl' : 'max-w-[1680px]'}`}>
+      <div className={`glass-scrollbar relative z-10 mx-auto flex min-h-0 w-full flex-1 px-3 pt-3 sm:px-5 sm:pt-4 xl:px-6 ${
+        isRoomWideLayout && !pureMode
+          ? 'overflow-hidden pb-0'
+          : isLgUp && pureMode
+            ? 'overflow-hidden pb-0'
+            : 'overflow-y-auto pb-0'
+      } ${pureMode ? 'max-w-4xl' : 'max-w-none'}`}>
 
-        <div className={`flex flex-col gap-3 lg:gap-4 lg:h-full lg:min-h-0 ${pureMode ? '' : 'lg:grid lg:grid-cols-[360px_minmax(0,1fr)_360px]'}`}>
+        <div
+          ref={roomWorkspaceRef}
+          className={isRoomWideLayout && !pureMode ? 'room-workspace-grid h-full min-h-0' : 'flex min-h-0 w-full flex-col gap-3'}
+          style={isRoomWideLayout && !pureMode ? {
+            gridTemplateColumns: `minmax(230px, ${roomColumnShares.left}fr) 8px minmax(380px, ${Math.max(1, 100 - roomColumnShares.left - roomColumnShares.right)}fr) 8px minmax(250px, ${roomColumnShares.right}fr)`,
+          } : undefined}
+        >
 
           {/* 左侧：点歌热榜 */}
-          {isLgUp && !pureMode && (
-            <div className="glass-surface glass-surface--panel order-0 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl lg:h-full">
+          {isRoomWideLayout && !pureMode && (
+            <div className="room-discovery-panel glass-surface glass-surface--panel order-0 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl">
               <HotSongPanel embedded addingId={addingId} onAdd={handleAdd} refreshKey={hotRefreshKey} />
+              <div className="room-discovery-footer">
+                <button type="button" onClick={() => setSongHistoryOpen(true)} className="room-discovery-link">
+                  <History className="h-4 w-4" />播放历史
+                </button>
+                <button type="button" onClick={openFavorites} className="room-discovery-link">
+                  <Heart className="h-4 w-4" />我的收藏
+                </button>
+                <button type="button" onClick={() => setRecommendDrawerOpen(true)} className="room-discovery-link">
+                  <ListPlus className="h-4 w-4" />推荐歌单
+                </button>
+              </div>
             </div>
+          )}
+          {isRoomWideLayout && !pureMode && (
+            <RoomWorkspaceDivider
+              label="调整音乐发现面板宽度"
+              onResize={(clientX) => resizeRoomColumn('left', clientX)}
+              onResizeBy={(direction) => nudgeRoomColumn('left', direction)}
+            />
           )}
 
           {/* 中间：搜索 + 播放队列 */}
-          <div className="order-1 flex min-h-0 min-w-0 flex-col lg:h-full lg:overflow-hidden">
-            {!isLgUp && !pureMode && (
+          <div className={`order-1 flex min-h-0 min-w-0 flex-col ${isRoomWideLayout && !pureMode ? 'h-full overflow-hidden' : ''}`}>
+            {!isRoomWideLayout && !pureMode && (
               <div className="mb-3">
                 <HotSongPanel compact addingId={addingId} onAdd={handleAdd} refreshKey={hotRefreshKey} />
               </div>
@@ -2333,46 +2563,18 @@ export default function Room() {
             <div className="flex-shrink-0">
               <JumpRequestBanner />
               {searchBar}
-              <div className="mb-2 flex items-center justify-between gap-2 overflow-x-auto px-1 sm:mb-4">
-                <div className="flex flex-shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setSongHistoryOpen(true)}
-                    className="rounded-lg px-2 py-1 text-[11px] sm:text-xs text-white/75 hover:bg-white/10 hover:text-white transition-colors whitespace-nowrap"
-                  >
-                    播放历史
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRecommendDrawerOpen(true)}
-                    className="hidden lg:inline-flex rounded-lg px-2 py-1 text-[11px] sm:text-xs text-white/75 hover:bg-white/10 hover:text-white transition-colors whitespace-nowrap"
-                  >
-                    热榜歌单
-                  </button>
+              {roomLibraryNav}
+              {(searching || playlistSearchLoading || searchedKeyword) && (
+                <div className="room-search-status" role="status" aria-live="polite">
+                  {(searching || playlistSearchLoading) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  <span className="truncate">{renderResultsSummary()}</span>
+                  {showSongListResults && <span className="ml-auto flex-shrink-0">{results.length} 首</span>}
                 </div>
-                {searchableCount > 0 && (
-                  <div className="flex flex-shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={openFavorites}
-                      className="rounded-lg px-2 py-1 text-[11px] sm:text-xs text-white/75 hover:bg-white/10 hover:text-white transition-colors whitespace-nowrap"
-                    >
-                      我的收藏
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPlaylistImportOpen(true)}
-                      className="rounded-lg px-2 py-1 text-[11px] sm:text-xs text-white/75 hover:bg-white/10 hover:text-white transition-colors whitespace-nowrap"
-                    >
-                      导入歌单
-                    </button>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
-            {isLgUp && (
-            <div className="flex-1 min-h-0 flex-col mt-1 flex">
+            {isRoomWideLayout && !pureMode && (
+            <div className="mt-1 flex min-h-0 flex-1 flex-col">
               {renderQueueSection(true)}
             </div>
             )}
@@ -2383,17 +2585,24 @@ export default function Room() {
               </div>
             )}
           </div>
+          {isRoomWideLayout && !pureMode && (
+            <RoomWorkspaceDivider
+              label="调整聊天室宽度"
+              onResize={(clientX) => resizeRoomColumn('right', clientX)}
+              onResizeBy={(direction) => nudgeRoomColumn('right', direction === -1 ? 1 : -1)}
+            />
+          )}
 
           {/* 右侧：聊天室（纯净模式桌面走滑入抽屉，手机内联展示） */}
           {(!pureMode || !isLgUp) && (
-          <div className="order-2 flex min-h-0 min-w-0 flex-col gap-3 lg:h-full lg:min-h-0">
-            {!pureMode && !isLgUp && (
+          <div className={`order-2 flex min-h-0 min-w-0 flex-col gap-3 ${isRoomWideLayout && !pureMode ? 'h-full' : ''}`}>
+            {!pureMode && !isRoomWideLayout && (
             <div>
               {renderQueueSection()}
             </div>
             )}
 
-            <div className="h-[min(55vh,480px)] sm:h-[min(60vh,520px)] lg:h-full lg:min-h-0 lg:flex-1">
+            <div className={`h-[min(50vh,440px)] min-h-[280px] sm:h-[min(58vh,520px)] ${isRoomWideLayout && !pureMode ? 'h-full min-h-0 flex-1' : ''}`}>
               <ChatPanel />
             </div>
           </div>
@@ -2402,6 +2611,56 @@ export default function Room() {
         </div>
 
       </div>
+
+      {queueDrawerOpen && createPortal(
+        <div className="fixed inset-0 z-[55] flex justify-end">
+          <button
+            type="button"
+            className="glass-scrim absolute inset-0"
+            onClick={() => setQueueDrawerOpen(false)}
+            aria-label="关闭播放队列"
+          />
+          <section className="glass-surface glass-surface--modal relative z-10 flex h-full w-[min(440px,94vw)] flex-col border-l border-[var(--om-glass-border)] shadow-2xl">
+            <header className="flex min-h-[58px] flex-shrink-0 items-center justify-between border-b border-[var(--om-glass-border)] px-4">
+              <div className="flex items-center gap-2 text-white">
+                <ListMusic className="h-4 w-4 text-[var(--om-accent)]" />
+                <h2 className="text-sm font-semibold">房间播放队列</h2>
+                <span className="text-xs text-netease-muted">{queueCount} 首</span>
+              </div>
+              <button type="button" onClick={() => setQueueDrawerOpen(false)} className="room-icon-button" aria-label="关闭">
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-2">
+              <QueuePanel fillHeight />
+            </div>
+          </section>
+        </div>,
+        document.body,
+      )}
+
+      {clearQueueConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="glass-scrim absolute inset-0"
+            onClick={() => !clearingQueue && setClearQueueConfirmOpen(false)}
+            aria-label="取消清空队列"
+          />
+          <section className="glass-surface glass-surface--modal relative z-10 w-full max-w-sm rounded-xl p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="clear-queue-title">
+            <h2 id="clear-queue-title" className="text-base font-semibold text-white">清空待播队列？</h2>
+            <p className="mt-2 text-sm leading-6 text-netease-muted">将移除 {room.queue.length} 首待播歌曲。当前播放不会中断。</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setClearQueueConfirmOpen(false)} disabled={clearingQueue} className="glass-button-secondary rounded-lg px-3 py-2 text-sm text-white/75 disabled:opacity-50">取消</button>
+              <button type="button" onClick={() => void confirmClearQueue()} disabled={clearingQueue} className="inline-flex items-center gap-2 rounded-lg bg-[var(--om-danger)] px-3 py-2 text-sm font-medium text-white transition-colors hover:brightness-110 disabled:opacity-50">
+                {clearingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                清空队列
+              </button>
+            </div>
+          </section>
+        </div>,
+        document.body,
+      )}
 
       {/* 搜索结果弹层（移动端底部抽屉 / 桌面居中弹窗） */}
       {showDesktopSearchOverlay && !immersiveMode && (
@@ -2756,7 +3015,12 @@ export default function Room() {
         )}
 
       {(room.current || room.randomLoading) && !(pureMode && purePlayerHidden) && !immersiveMode && (
-        <MiniPlayer onExpand={() => setShowPlayer(true)} barClassName={ambientGlassClass} />
+        <MiniPlayer
+          onExpand={() => setShowPlayer(true)}
+          onPrevious={handlePreviousTrack}
+          onQueueClick={() => setQueueDrawerOpen(true)}
+          barClassName={ambientGlassClass}
+        />
       )}
 
       {pureMode && isLgUp && <PureModeChatDock />}

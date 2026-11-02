@@ -11,6 +11,19 @@ const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const androidRoot = resolve(clientRoot, 'android');
 const buildType = (process.argv[2] || 'debug').toLowerCase();
 const task = buildType === 'release' ? 'assembleRelease' : 'assembleDebug';
+if (!['debug', 'release'].includes(buildType)) {
+  console.error(`[build-apk] 不支持的构建类型：${buildType}（可用 debug 或 release）`);
+  process.exit(1);
+}
+if (buildType === 'release') {
+  const signingFile = resolve(androidRoot, 'keystore.properties');
+  const hasEnvSigning = ['ANDROID_KEYSTORE_FILE', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
+    .every((key) => String(process.env[key] || '').trim());
+  if (!existsSync(signingFile) && !hasEnvSigning) {
+    console.error(`[build-apk] Release APK 需要本机签名配置。请创建 ${signingFile}（该文件已加入 .gitignore），或设置 ANDROID_KEYSTORE_FILE、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS、ANDROID_KEY_PASSWORD 环境变量。`);
+    process.exit(1);
+  }
+}
 
 function findAndroidHome() {
   if (process.env.ANDROID_HOME && existsSync(process.env.ANDROID_HOME)) {
@@ -39,8 +52,7 @@ if (!androidHome) {
   3. 设置环境变量 ANDROID_HOME 指向 SDK 目录
   4. sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-更简单的方式：用 GitHub Actions 云端打包（无需本地装任何 Android 工具）
-  GitHub 仓库 → Actions → Android APK → Run workflow
+也可在 Gitee 仓库查看是否配置了 CI 构建流程；当前请先安装本地 Android SDK 后重试。
 `);
   process.exit(1);
 }

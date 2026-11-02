@@ -884,6 +884,7 @@ const SEED_ROOM_ID = 'TEST01';
 
 /** 服务器启动时创建固定测试房（方便联调，不自动销毁；重启自动重建） */
 export function ensureSeedRoom() {
+  if (process.env.NODE_ENV === 'production') return;
   if (rooms.has(SEED_ROOM_ID)) return;
   const room = createEmptyRoom(SEED_ROOM_ID, '🎵测试房', null);
   room.creatorId = 'system-seed';
@@ -1387,6 +1388,35 @@ function appendSystemChatMessage(room, text) {
   return serializeChatMessage(message);
 }
 
+function appendSongRequestChatMessage(room, requestedBy, song) {
+  if (!room || !song?.id || !song?.name) return null;
+  const message = {
+    id: generateId(),
+    userId: requestedBy?.id || 'system',
+    nickname: formatActorName(requestedBy),
+    text: `${formatActorName(requestedBy)} 点了 ${formatSongTitle(song)}`,
+    kind: 'song_request',
+    song: {
+      id: String(song.id).slice(0, 120),
+      source: String(song.source || 'netease').slice(0, 24),
+      name: String(song.name).slice(0, 160),
+      artist: String(song.artist || '').slice(0, 160),
+      album: String(song.album || '').slice(0, 160),
+      pic: String(song.pic || '').startsWith('data:') ? '' : String(song.pic || '').slice(0, 2048),
+      duration: Number.isFinite(Number(song.duration)) ? Number(song.duration) : undefined,
+    },
+    mentions: [],
+    replyTo: null,
+    timestamp: Date.now(),
+  };
+
+  room.messages.push(message);
+  if (room.messages.length > MAX_CHAT_MESSAGES) {
+    room.messages.splice(0, room.messages.length - MAX_CHAT_MESSAGES);
+  }
+  return serializeChatMessage(message);
+}
+
 function isUserChatMuted(room, userId) {
   if (!room || !userId) return false;
   if (isRoomCreator(room, userId)) return false;
@@ -1882,10 +1912,7 @@ export async function addToQueue(roomId, song, requestedByUser) {
     });
   }
 
-  const systemMessage = appendSystemChatMessage(
-    room,
-    `${formatActorName(requestedBy)} 点了 ${formatSongTitle(item)}`,
-  );
+  const systemMessage = appendSongRequestChatMessage(room, requestedBy, item);
   persistRoom(room);
   return { room: serializeRoom(room), systemMessage };
 }
@@ -2566,6 +2593,18 @@ function serializeChatMessage(message, options = {}) {
     safeImageUrl = null;
   }
 
+  const song = message.kind === 'song_request' && message.song?.id && message.song?.name
+    ? {
+      id: String(message.song.id).slice(0, 120),
+      source: String(message.song.source || 'netease').slice(0, 24),
+      name: String(message.song.name).slice(0, 160),
+      artist: String(message.song.artist || '').slice(0, 160),
+      album: String(message.song.album || '').slice(0, 160),
+      pic: String(message.song.pic || '').startsWith('data:') ? null : (String(message.song.pic || '').slice(0, 2048) || null),
+      duration: Number.isFinite(Number(message.song.duration)) ? Number(message.song.duration) : undefined,
+    }
+    : undefined;
+
   return {
     id: message.id,
     userId: message.userId,
@@ -2582,6 +2621,7 @@ function serializeChatMessage(message, options = {}) {
     memberTier: message.memberTier || null,
     targetUserId: message.targetUserId || null,
     targetNickname: message.targetNickname || null,
+    ...(song ? { song } : {}),
   };
 }
 

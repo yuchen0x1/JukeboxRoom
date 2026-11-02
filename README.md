@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-brightgreen.svg)
-![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.5-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 
 一群人聚在一起听歌，最怕的就是"放什么"争不出结果。JukeboxRoom 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
@@ -105,7 +105,7 @@ docker compose up -d --build
 
 ### 方式三：Windows 桌面版（开箱即用）
 
-从 Gitee [发布页](https://gitee.com/yuchen0x1/JukeboxRoom/releases) 下载桌面版 ZIP，解压运行即可，适合不想碰命令行的场景。
+从 Gitee [发布页](https://gitee.com/yuchen0x1/JukeboxRoom/releases) 下载 Windows 正式安装程序（`jukeboxroom-desktop-setup-*.exe`），运行安装向导后即可从桌面或开始菜单启动 JukeboxRoom。桌面版是独立 App，内置本地服务端和完整页面，无需另行安装 Node.js。首次运行若出现 Windows SmartScreen 提示，请核对下载来源为本项目 Gitee Release；当前构建未使用商业代码签名证书。
 
 ### 本地开发
 
@@ -319,24 +319,27 @@ pm2 start deploy/ecosystem.config.cjs
 
 独立桌面客户端，双击即用：内置本地服务端和完整页面，**无需安装 Node.js**，窗口关闭时本地服务随之退出。
 
-- 首次启动会在 `%APPDATA%\JukeboxRoom\jukeboxroom.env` 自动生成配置模板和随机安全密钥；搜歌/播放依赖 Meting-API，按模板注释填写 `METING_API_URL` 后重启生效；
-- 房间、收藏等本地数据保存在 `%APPDATA%\JukeboxRoom\data`；
-- 构建：`npm run desktop:build`（先构建前端，再用 Electron 打包为 `release/desktop/openmusic-desktop-<版本>.exe`）。
+- 首次启动会在 `%APPDATA%\JukeboxRoom\jukeboxroom.env`（或升级时沿用既有 `%APPDATA%\openmusic-desktop` / `%APPDATA%\OpenMusic`）自动生成配置模板和随机安全密钥；搜歌/播放依赖 Meting-API，按模板注释填写 `METING_API_URL` 后重启生效；
+- 房间、收藏等本地数据保存在上述用户数据目录下的 `data`；卸载安装程序不会删除配置和数据；
+- 构建：`npm run desktop:build`（先构建前端，再只生成 `release/desktop/jukeboxroom-desktop-setup-<版本>-x64.exe` 正式安装程序）；
+- 当前 Windows 构建未使用商业代码签名证书，首次运行可能显示 SmartScreen 提示；发布前请确认文件来自项目 Gitee Release。
 
-### 手机 App（Capacitor 壳）
+### 手机 App（Android）
 
-App 采用远程 URL 模式，在 WebView 内打开线上站点。先复制 `client/.env.capacitor.example` 为 `client/.env.capacitor`，填写线上 HTTPS 地址（与 `CLIENT_URL` 一致），然后在根目录执行：
+Android 版是独立的个人音乐播放器，不需要填写 JukeboxRoom 服务器地址，也不依赖多人房间服务。应用直接通过互联网搜索和播放网易云音乐、QQ 音乐等平台的可用曲目，并在设备本地保存收藏、歌单、播放历史和队列；可使用系统媒体通知、锁屏控制和耳机按键继续播放。音乐平台的接口与音源可用性仍由对应服务提供方决定。
+
+构建 Android 调试 APK：
 
 ```bash
-# Android
-npm run cap:run:android     # 或分步：cap:sync:android + cap:open:android
-npm run cap:build:apk       # 构建 debug APK
+# Android debug（开发安装）
+npm run cap:run:android     # 或分步执行 cap:sync:android + cap:open:android
+npm run cap:build:apk
 
-# iOS
-npm run cap:run:ios
+# Android release（本地签名）
+npm run cap:build:apk:release --prefix client
 ```
 
-远程 URL 模式下，前端更新只需重新部署 Web 站点，无需重发 App。
+Release 构建前需在 `client/android/keystore.properties` 配置本机 keystore（文件已忽略，不要提交），或设置 `ANDROID_KEYSTORE_FILE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 环境变量。`com.openmusic.app` applicationId 保持不变以便沿用安装身份；若本机没有旧版签名证书，新 APK 无法覆盖安装在其他证书下签名的旧版，必须先卸载旧版（本地数据可能被删除）。iOS 本次仍使用现有客户端，不包含独立音乐播放器改版。
 
 ## 接口概览
 
@@ -351,7 +354,7 @@ npm run cap:run:ios
 | 媒体 | `GET /api/media-proxy?url=...`（同源媒体代理） |
 | 聊天 | `GET /api/chat/sticker-search`、`POST /api/chat/upload-token`（需对应凭据） |
 | 扩展模块 | `/api/auth/...`、`/api/admin/...`、`/api/library/...`、`/api/autodj/...`、`/api/playlists/...`（均需角色鉴权） |
-| 客户端分发 | `GET /downloads/openmusic.apk`、`/downloads/openmusic.ipa`、`/downloads/openmusic-desktop.zip` |
+| 客户端分发 | `GET /downloads/openmusic.apk`、`/downloads/openmusic.ipa`、`/downloads/jukeboxroom-desktop.exe` |
 
 WebSocket 与 HTTP 使用同一端口，连接路径 `/socket.io`。常用事件：
 
@@ -410,7 +413,7 @@ npm run check:health       # 对已启动实例做存活/就绪/更新接口冒�
 
 - **Quality**（push / PR 触发）：三端 `npm ci`、生产依赖安全审计、服务端语法检查、服务端/客户端测试、构建，并启动实例做健康冒烟检查；
 - **Android APK / iOS IPA**（手动触发）：构建移动端安装包；
-- **Release**（推送 `v*` 标签或手动触发）：产出桌面 ZIP、Android APK、iOS IPA 等 Release 资产，供 `/api/update` 与下载路由使用。
+- **Release**（推送 `v*` 标签或手动触发）：产出 Windows 桌面 NSIS 安装程序、Android APK、iOS IPA 等 Release 资产，供 `/api/update` 与下载路由使用。
 
 ## 常见问题排查
 

@@ -116,7 +116,7 @@ export function normalizeRelease(release) {
     publishedAt: release?.published_at || release?.created_at || null,
     releaseNotes: String(release?.body || '').trim().slice(0, 20_000),
     assets: {
-      desktop: pickAsset(assets, /^openmusic-desktop-.*\.zip$/i) || pickAsset(assets, /desktop.*\.zip$/i),
+      desktop: pickAsset(assets, /^jukeboxroom-desktop-setup-.*\.exe$/i),
       android: pickAsset(assets, /^openmusic-android-.*\.apk$/i) || pickAsset(assets, /\.apk$/i),
       ios: pickAsset(assets, /^openmusic-ios-.*\.ipa$/i) || pickAsset(assets, /\.ipa$/i),
     },

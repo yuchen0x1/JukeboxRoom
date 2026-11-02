@@ -1,22 +1,22 @@
 /* OpenMusic glass system: transparent surfaces sit above ambient music visuals. */
 :root {
-  --om-bg: #07090d;
-  --om-bg-elevated: #10141b;
-  --om-text: #f4f7fa;
-  --om-text-muted: #aab4c2;
-  --om-text-subtle: #748092;
-  --om-accent: #82f7de;
-  --om-accent-rgb: 130, 247, 222;
-  --om-accent-secondary: #9cb7ff;
-  --om-danger: #ff6b7a;
-  --om-warning: #f6c86a;
-  --om-glass-base: rgba(12, 17, 24, 0.58);
-  --om-glass-panel: rgba(16, 22, 31, 0.68);
-  --om-glass-elevated: rgba(21, 29, 40, 0.76);
-  --om-glass-modal: rgba(24, 32, 44, 0.84);
-  --om-glass-border: rgba(255, 255, 255, 0.12);
-  --om-glass-border-strong: rgba(255, 255, 255, 0.2);
-  --om-glass-highlight: rgba(255, 255, 255, 0.16);
+  --om-bg: var(--color-bg, #0b0f14);
+  --om-bg-elevated: var(--color-bg-elevated, #101720);
+  --om-text: var(--color-text, #f1f5f9);
+  --om-text-muted: var(--color-text-muted, #94a3b8);
+  --om-text-subtle: #64748b;
+  --om-accent: var(--color-accent, #65e6cf);
+  --om-accent-rgb: var(--color-accent-rgb, 101, 230, 207);
+  --om-accent-secondary: #60a5fa;
+  --om-danger: var(--color-danger, #f87171);
+  --om-warning: var(--color-warning, #fbbf24);
+  --om-glass-base: rgba(11, 15, 20, 0.78);
+  --om-glass-panel: rgba(21, 30, 40, 0.82);
+  --om-glass-elevated: rgba(27, 38, 50, 0.9);
+  --om-glass-modal: rgba(18, 26, 36, 0.96);
+  --om-glass-border: rgba(255, 255, 255, 0.08);
+  --om-glass-border-strong: rgba(255, 255, 255, 0.14);
+  --om-glass-highlight: rgba(255, 255, 255, 0.07);
   --om-glass-shadow: 0 18px 52px rgba(0, 0, 0, 0.28);
   --om-glass-shadow-elevated: 0 24px 72px rgba(0, 0, 0, 0.38);
   --om-glass-blur-base: 12px;
@@ -62,7 +62,7 @@
   z-index: -1;
   pointer-events: none;
   border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 38%, rgba(0, 0, 0, 0.08));
+  background: transparent;
 }
 
 .glass-surface--panel {
@@ -92,10 +92,8 @@
 }
 
 .glass-interactive:hover {
-  background: color-mix(in srgb, var(--om-glass-elevated) 88%, var(--om-accent) 12%);
-  border-color: rgba(var(--om-accent-rgb), 0.34);
-  box-shadow: var(--om-glass-shadow-elevated), 0 0 28px rgba(var(--om-accent-rgb), 0.08);
-  transform: translateY(-1px);
+  background: var(--om-glass-elevated);
+  border-color: var(--om-glass-border-strong);
 }
 
 .glass-interactive:active { transform: translateY(0); }
@@ -110,6 +108,7 @@
 }
 
 .glass-input {
+  border-radius: 12px;
   color: var(--om-text);
   background: rgba(0, 0, 0, 0.16);
   border: 1px solid var(--om-glass-border);
@@ -128,13 +127,13 @@
 
 .glass-button-primary {
   color: #07110f;
-  background: linear-gradient(135deg, var(--om-accent), #b4fff0);
-  box-shadow: 0 12px 28px rgba(var(--om-accent-rgb), 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  background: var(--om-accent);
+  box-shadow: 0 5px 16px rgba(var(--om-accent-rgb), 0.12);
 }
 
 .glass-button-primary:hover {
-  filter: brightness(1.05);
-  box-shadow: 0 16px 36px rgba(var(--om-accent-rgb), 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  filter: brightness(1.06);
+  box-shadow: 0 7px 20px rgba(var(--om-accent-rgb), 0.16);
 }
 
 .glass-button-secondary {
@@ -221,7 +220,20 @@
 }
 
 .ambient-stage {
-  background: radial-gradient(circle at 15% 10%, rgba(var(--om-accent-rgb), 0.1), transparent 32%), radial-gradient(circle at 85% 82%, rgba(156, 183, 255, 0.12), transparent 28%), var(--om-bg);
+  background: var(--om-bg);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(var(--om-accent-rgb), 0.72);
+  outline-offset: 2px;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
 }
 
 .glass-scrim {

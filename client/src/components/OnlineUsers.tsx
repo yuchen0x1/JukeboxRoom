@@ -215,7 +215,7 @@ export default function OnlineUsers({ users, creatorId, memberTiers = {}, onNoti
             </div>
           )}
         </div>
-        <span className="hidden sm:inline">共 {visibleUsers.length} 人</span>
+        <span className="hidden whitespace-nowrap xl:inline">共 {visibleUsers.length} 人</span>
         </button>
       </Tooltip>
 

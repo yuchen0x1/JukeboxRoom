@@ -1,26 +1,62 @@
 /**
  * JukeboxRoom 桌面版（Electron 壳）。
  * 启动时在本机拉起 JukeboxRoom 服务端（内嵌 Node 运行），再用窗口加载页面。
- * 配置与数据目录：%APPDATA%/openmusic-desktop（jukeboxroom.env 可覆盖任意服务端环境变量）。
+ * 配置与数据目录：优先沿用旧版 %APPDATA%/openmusic-desktop，首次安装的新目录为 %APPDATA%/JukeboxRoom。
  */
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
 
+for (const output of [process.stdout, process.stderr]) {
+  output.on('error', (error) => {
+    if (error.code !== 'EPIPE') process.emitWarning(error);
+  });
+}
+
 const isPackaged = app.isPackaged;
+if (!isPackaged) app.setName('JukeboxRoom Development');
+
+// 产品名已改为 JukeboxRoom；沿用 Electron 原默认目录或已存在的旧目录，避免升级后配置与本地数据看似丢失。
+const appDataPath = app.getPath('appData');
+const defaultUserDataPath = app.getPath('userData');
+const existingUserDataPath = isPackaged ? [
+  path.join(appDataPath, 'openmusic-desktop'),
+  path.join(appDataPath, 'OpenMusic'),
+  defaultUserDataPath,
+  path.join(appDataPath, 'JukeboxRoom'),
+].find((candidate) => fs.existsSync(candidate)) : null;
+app.setPath('userData', existingUserDataPath || path.join(appDataPath, isPackaged ? 'JukeboxRoom' : 'JukeboxRoom Development'));
+
 const resourcesBase = isPackaged ? process.resourcesPath : path.resolve(__dirname, '..');
 const serverDir = path.join(resourcesBase, 'server');
 const serverEntry = path.join(serverDir, 'index.js');
 
 const READY_TIMEOUT_MS = 20_000;
+const DESKTOP_MUSIC_STATE_MAX_BYTES = 2 * 1024 * 1024;
+const DESKTOP_MUSIC_STATE_KEYS = new Set([
+  'current',
+  'queue',
+  'favorites',
+  'history',
+  'playlists',
+  'recentSearches',
+  'volume',
+  'playbackQuality',
+  'repeatMode',
+  'shuffle',
+  'sourceFilter',
+]);
 const CONFIG_TEMPLATE = [
   '# JukeboxRoom 桌面版配置：每行一个 KEY=VALUE，修改后重启应用生效。',
-  '# 搜歌/播放依赖 Meting-API，必填一个可用地址（自托管或可信公共服务）：',
+  '# 网易云免登录播放依赖 Meting-API（自托管或可信公共服务）；扫码登录后可尝试使用本人账号播放：',
   '#   METING_API_URL=https://your-meting-api',
   '#   METING_API_AUTH=your-meting-token',
+  '#   METING_SEARCH_API_URL=https://your-search-api',
+  '# 酷狗免登录播放的备选解析：',
+  '#   CYAPI_KEY=your-cyapi-key',
   '# 本机/内网自托管 Meting 时再开启：',
   '#   ALLOW_PRIVATE_UPSTREAMS=1',
   '# 可选：酷狗蓝点 CYAPI_KEY=...；其余变量参考 server/.env.example。',
@@ -76,17 +112,110 @@ function waitUntilReady(url) {
 }
 
 let serverChild = null;
+let serverStopping = false;
 let mainWindow = null;
 let reportedExit = false;
+let desktopMusicWriteQueue = Promise.resolve();
+let desktopMusicWriteTarget = 0;
+let desktopMusicStateGeneration = 0;
+
+function normalizeDesktopMusicState(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Invalid desktop music state');
+  }
+  const serialized = JSON.stringify(value);
+  if (!serialized || Buffer.byteLength(serialized, 'utf8') > DESKTOP_MUSIC_STATE_MAX_BYTES) {
+    throw new Error('Desktop music state is too large');
+  }
+  const state = JSON.parse(serialized);
+  if (Object.keys(state).some((key) => !DESKTOP_MUSIC_STATE_KEYS.has(key))) {
+    throw new Error('Desktop music state contains an unsupported field');
+  }
+  for (const key of ['queue', 'favorites', 'history', 'playlists', 'recentSearches']) {
+    if (!Array.isArray(state[key])) throw new Error(`Invalid desktop music state field: ${key}`);
+  }
+  return { state, serialized };
+}
+
+async function loadDesktopMusicState() {
+  const userDataPath = app.getPath('userData');
+  const statePaths = [
+    path.join(userDataPath, 'music-library-a.json'),
+    path.join(userDataPath, 'music-library-b.json'),
+    path.join(userDataPath, 'music-library.json'),
+  ];
+  const candidates = await Promise.all(statePaths.map(async (statePath, index) => {
+    try {
+      const [raw, stat] = await Promise.all([
+        fs.promises.readFile(statePath, 'utf8'),
+        fs.promises.stat(statePath),
+      ]);
+      return { raw, modifiedAt: stat.mtimeMs, index };
+    } catch (error) {
+      if (error.code !== 'ENOENT') process.emitWarning(`Unable to read desktop music library: ${error.message}`);
+      return null;
+    }
+  }));
+
+  const validCandidates = [];
+  for (const candidate of candidates.filter(Boolean)) {
+    try {
+      const document = JSON.parse(candidate.raw);
+      const isVersioned = document?.schemaVersion === 1
+        && Number.isSafeInteger(document.generation)
+        && document.generation > 0;
+      const normalized = normalizeDesktopMusicState(isVersioned ? document.state : document);
+      validCandidates.push({
+        ...candidate,
+        state: normalized.state,
+        generation: isVersioned ? document.generation : 0,
+      });
+    } catch (error) {
+      process.emitWarning(`Ignoring an invalid desktop music library slot: ${error.message}`);
+    }
+  }
+
+  const latest = validCandidates.sort((a, b) => b.generation - a.generation || b.modifiedAt - a.modifiedAt)[0];
+  if (latest) {
+    desktopMusicStateGeneration = latest.generation;
+    desktopMusicWriteTarget = latest.index < 2 ? 1 - latest.index : 0;
+    return latest.state;
+  }
+
+  desktopMusicStateGeneration = 0;
+  desktopMusicWriteTarget = 0;
+  return null;
+}
+
+function saveDesktopMusicState(value) {
+  const { state } = normalizeDesktopMusicState(value);
+  const nextWrite = desktopMusicWriteQueue.then(async () => {
+    const generation = desktopMusicStateGeneration + 1;
+    const serialized = JSON.stringify({ schemaVersion: 1, generation, state });
+    if (Buffer.byteLength(serialized, 'utf8') > DESKTOP_MUSIC_STATE_MAX_BYTES) {
+      throw new Error('Desktop music state is too large');
+    }
+    const slots = ['music-library-a.json', 'music-library-b.json'].map((name) => path.join(app.getPath('userData'), name));
+    const targetIndex = desktopMusicWriteTarget;
+    await fs.promises.mkdir(path.dirname(slots[targetIndex]), { recursive: true });
+    await fs.promises.writeFile(slots[targetIndex], serialized, { encoding: 'utf8', mode: 0o600 });
+    desktopMusicStateGeneration = generation;
+    desktopMusicWriteTarget = 1 - targetIndex;
+  });
+  desktopMusicWriteQueue = nextWrite.catch(() => undefined);
+  return nextWrite.then(() => true);
+}
 
 function stopServer() {
   if (!serverChild) return;
+  const child = serverChild;
+  serverChild = null;
+  serverStopping = true;
   try {
-    serverChild.kill();
+    child.kill();
   } catch {
     // 进程可能已退出
   }
-  serverChild = null;
 }
 
 async function startServer() {
@@ -95,15 +224,14 @@ async function startServer() {
   if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, CONFIG_TEMPLATE, 'utf8');
   const userEnv = readConfigFile(configPath);
 
-  const missingSecrets = !userEnv.CLIENT_ID_SECRET || !userEnv.AUTH_JWT_SECRET;
-  if (missingSecrets) {
-    const generated = [
-      '# 以下由 JukeboxRoom 自动生成，删除会导致账号身份和登录态失效',
-      `CLIENT_ID_SECRET=${crypto.randomBytes(32).toString('hex')}`,
-      `AUTH_JWT_SECRET=${crypto.randomBytes(32).toString('hex')}`,
-      '',
-    ].join('\n');
-    fs.appendFileSync(configPath, generated, 'utf8');
+  const generatedSecrets = [];
+  if (!userEnv.CLIENT_ID_SECRET || !userEnv.AUTH_JWT_SECRET || !userEnv.DESKTOP_CREDENTIAL_SECRET) {
+    generatedSecrets.push('# 以下密钥由 JukeboxRoom 自动生成，请勿分享或删除。');
+    if (!userEnv.CLIENT_ID_SECRET) generatedSecrets.push(`CLIENT_ID_SECRET=${crypto.randomBytes(32).toString('hex')}`);
+    if (!userEnv.AUTH_JWT_SECRET) generatedSecrets.push(`AUTH_JWT_SECRET=${crypto.randomBytes(32).toString('hex')}`);
+    if (!userEnv.DESKTOP_CREDENTIAL_SECRET) generatedSecrets.push(`DESKTOP_CREDENTIAL_SECRET=${crypto.randomBytes(32).toString('hex')}`);
+    generatedSecrets.push('');
+    fs.appendFileSync(configPath, generatedSecrets.join('\n'), 'utf8');
     Object.assign(userEnv, readConfigFile(configPath));
   }
 
@@ -114,22 +242,25 @@ async function startServer() {
     ...process.env,
     ...userEnv,
     NODE_ENV: 'production',
+    JUKEBOX_DESKTOP_MODE: '1',
     PORT: String(port),
     CLIENT_URL: `http://127.0.0.1:${port}`,
     OPENMUSIC_DATA_DIR: dataDir,
     ELECTRON_RUN_AS_NODE: '1',
   };
 
-  serverChild = spawn(process.execPath, [serverEntry], {
+  serverStopping = false;
+  const child = spawn(process.execPath, [serverEntry], {
     cwd: serverDir,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  serverChild.stdout.on('data', (chunk) => process.stdout.write(chunk));
-  serverChild.stderr.on('data', (chunk) => process.stderr.write(chunk));
-  serverChild.on('exit', (code) => {
-    serverChild = null;
-    if (reportedExit) return;
+  serverChild = child;
+  child.stdout.on('data', (chunk) => process.stdout.write(chunk));
+  child.stderr.on('data', (chunk) => process.stderr.write(chunk));
+  child.on('exit', (code) => {
+    if (serverChild === child) serverChild = null;
+    if (serverStopping || reportedExit) return;
     reportedExit = true;
     dialog.showErrorBox(
       'JukeboxRoom 本地服务已退出',
@@ -161,20 +292,95 @@ async function createWindow() {
   }
 
   console.log(`[desktop] local server ready: ${base}`);
+  const appIcon = path.join(__dirname, 'build', 'JukeboxRoom.ico');
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 960,
     minHeight: 600,
+    frame: false,
+    resizable: true,
+    minimizable: true,
+    maximizable: true,
+    closable: true,
+    fullscreenable: true,
+    thickFrame: true,
     autoHideMenuBar: true,
     title: 'JukeboxRoom',
-    backgroundColor: '#141414',
+    icon: appIcon,
+    backgroundColor: '#0b0f14',
     webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
+      nodeIntegration: false,
       sandbox: true,
     },
   });
 
+  const assertTrustedWindowRequest = (event) => {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+      throw new Error('Untrusted window control request');
+    }
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error('Window controls are only available to the main frame');
+    }
+    try {
+      if (new URL(event.senderFrame.url).origin !== base) throw new Error('Unexpected renderer origin');
+    } catch {
+      throw new Error('Unexpected renderer origin');
+    }
+  };
+
+  const windowHandlers = {
+    'jukebox:window-minimize': (event) => {
+      assertTrustedWindowRequest(event);
+      mainWindow.minimize();
+    },
+    'jukebox:window-toggle-maximize': (event) => {
+      assertTrustedWindowRequest(event);
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      else mainWindow.maximize();
+      return mainWindow.isMaximized();
+    },
+    'jukebox:window-close': (event) => {
+      assertTrustedWindowRequest(event);
+      mainWindow.close();
+    },
+    'jukebox:window-is-maximized': (event) => {
+      assertTrustedWindowRequest(event);
+      return mainWindow.isMaximized();
+    },
+    'jukebox:load-music-state': async (event) => {
+      assertTrustedWindowRequest(event);
+      return loadDesktopMusicState();
+    },
+    'jukebox:save-music-state': async (event, state) => {
+      assertTrustedWindowRequest(event);
+      return saveDesktopMusicState(state);
+    },
+    'jukebox:open-music-config': async (event) => {
+      assertTrustedWindowRequest(event);
+      const configPath = path.join(app.getPath('userData'), 'jukeboxroom.env');
+      await fs.promises.mkdir(path.dirname(configPath), { recursive: true });
+      if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, CONFIG_TEMPLATE, 'utf8');
+      return (await shell.openPath(configPath)) === '';
+    },
+    'jukebox:restart-app': (event) => {
+      assertTrustedWindowRequest(event);
+      app.relaunch();
+      app.quit();
+    },
+  };
+
+  for (const [channel, handler] of Object.entries(windowHandlers)) ipcMain.handle(channel, handler);
+
+  const publishMaximizedState = () => {
+    if (!mainWindow?.isDestroyed()) {
+      mainWindow.webContents.send('jukebox:window-maximized', mainWindow.isMaximized());
+    }
+  };
+  mainWindow.on('maximize', publishMaximizedState);
+  mainWindow.on('unmaximize', publishMaximizedState);
   const isLocalUrl = (url) => url.startsWith(`${base}/`) || url === base;
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isLocalUrl(url)) return { action: 'allow' };
@@ -208,3 +414,16 @@ app.on('window-all-closed', () => {
 });
 app.on('before-quit', stopServer);
 process.on('exit', stopServer);
+
+app.on('will-quit', () => {
+  for (const channel of [
+    'jukebox:window-minimize',
+    'jukebox:window-toggle-maximize',
+    'jukebox:window-close',
+    'jukebox:window-is-maximized',
+    'jukebox:load-music-state',
+    'jukebox:save-music-state',
+    'jukebox:open-music-config',
+    'jukebox:restart-app',
+  ]) ipcMain.removeHandler(channel);
+});

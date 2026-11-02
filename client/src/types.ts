@@ -113,7 +113,8 @@ export interface ChatMessage {
   imageUrl?: string | null;
   imageKey?: string | null;
   asSticker?: boolean;
-  kind?: 'chat' | 'welcome' | 'system';
+  kind?: 'chat' | 'welcome' | 'system' | 'song_request';
+  song?: Pick<Song, 'id' | 'source' | 'name' | 'artist' | 'album' | 'pic' | 'duration'>;
   mentions?: ChatMention[];
   replyTo?: ChatReplyRef | null;
   timestamp: number;

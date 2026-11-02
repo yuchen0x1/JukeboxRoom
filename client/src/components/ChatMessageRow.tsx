@@ -1,7 +1,8 @@
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
-import { Reply, Smile } from 'lucide-react';
+import { Music2, Reply, Smile } from 'lucide-react';
 import type { ChatMessage, ChatReplyRef, RoomMemberTier, RoomUser } from '../types';
 import QFaceImage from './QFaceImage';
+import SongCover from './SongCover';
 import Tooltip from './Tooltip';
 import MemberTierBadge from './MemberTierBadge';
 import RoleBadge from './RoleBadge';
@@ -23,6 +24,19 @@ export type ChatRoomMeta = {
   memberTiers?: Record<string, RoomMemberTier>;
   muteAll?: boolean;
 };
+
+const AVATAR_TONES = [
+  'bg-[#173b3c] text-[#a9ece0]',
+  'bg-[#20334b] text-[#b8d3f7]',
+  'bg-[#3a2d46] text-[#ddc5ee]',
+  'bg-[#3b3829] text-[#ead99c]',
+];
+
+function avatarClassFor(userId: string) {
+  let hash = 0;
+  for (const char of userId) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return AVATAR_TONES[Math.abs(hash) % AVATAR_TONES.length];
+}
 
 function renderMessageText(
   messageText: string,
@@ -90,6 +104,7 @@ function renderReplyRefContent(
 
 export interface ChatMessageRowProps {
   msg: ChatMessage;
+  repeatCount?: number;
   room: ChatRoomMeta;
   myUserId: string;
   pureMode: boolean;
@@ -109,6 +124,7 @@ export interface ChatMessageRowProps {
 
 function ChatMessageRow({
   msg,
+  repeatCount = 1,
   room,
   myUserId,
   pureMode,
@@ -140,8 +156,12 @@ function ChatMessageRow({
 
   if (msg.kind === 'system') {
     return (
-      <SystemChatRow msg={msg} onContentResize={onContentResize} />
+      <SystemChatRow msg={msg} repeatCount={repeatCount} onContentResize={onContentResize} />
     );
+  }
+
+  if (msg.kind === 'song_request' && msg.song) {
+    return <SongRequestChatRow msg={msg} room={room} myUserId={myUserId} onContentResize={onContentResize} />;
   }
 
   const isMe = msg.userId === myUserId;
@@ -154,8 +174,8 @@ function ChatMessageRow({
   const isPhotoOnly = Boolean(
     msg.imageUrl && !msg.text && !isStickerImage && (!pureMode || pureImageRevealed),
   );
-  const bubbleClass = `min-w-0 max-w-full rounded-2xl text-sm leading-7 break-words [overflow-wrap:anywhere] ${isPhotoOnly ? 'p-1' : 'px-3 py-1.5'} ${isMe ? 'rounded-br-md bg-netease-red/20 text-white' : 'rounded-bl-md bg-netease-dark/80 text-white/90'}`;
-  const replyBubbleClass = `min-w-0 max-w-full rounded-2xl px-3 py-1.5 text-sm ${isMe ? 'rounded-br-md bg-netease-red/20 text-white' : 'rounded-bl-md bg-netease-dark/80 text-white/90'}`;
+  const bubbleClass = `min-w-0 max-w-full rounded-2xl text-sm leading-7 break-words [overflow-wrap:anywhere] ${isPhotoOnly ? 'p-1' : 'px-3 py-1.5'} ${isMe ? 'rounded-br-md bg-[rgba(var(--om-accent-rgb),0.14)] text-white' : 'rounded-bl-md bg-sky-400/10 text-white/90'}`;
+  const replyBubbleClass = `min-w-0 max-w-full rounded-2xl px-3 py-1.5 text-sm ${isMe ? 'rounded-br-md bg-[rgba(var(--om-accent-rgb),0.14)] text-white' : 'rounded-bl-md bg-sky-400/10 text-white/90'}`;
 
   const renderReplyPreview = () => {
     if (!msg.replyTo) return null;
@@ -250,11 +270,11 @@ function ChatMessageRow({
       className={`group flex w-full min-w-0 max-w-full flex-col ${isMe ? 'items-end' : 'items-start'}`}
       onContextMenu={(event) => { event.preventDefault(); onReply(msg); }}
     >
-      <div className={`mb-0.5 flex max-w-full min-w-0 items-center gap-1.5 ${isMe ? 'flex-row-reverse' : ''}`}>
+      <div className={`mb-1 flex max-w-full min-w-0 items-center gap-1.5 ${isMe ? 'flex-row-reverse' : ''}`}>
         <button
           type="button"
           onClick={() => user && onMentionUser(user)}
-          className={`max-w-full truncate text-[10px] ${isMe ? 'text-netease-red/80' : 'text-netease-muted'} hover:text-sky-300`}
+          className={`max-w-full truncate text-[11px] ${isMe ? 'text-[var(--om-accent)]/85' : 'text-netease-muted'} hover:text-sky-300`}
         >
           {msg.nickname}
         </button>
@@ -265,15 +285,22 @@ function ChatMessageRow({
           <Tooltip content={new Date(msg.timestamp).toLocaleString('zh-CN')} side="bottom">
             <time
               dateTime={new Date(msg.timestamp).toISOString()}
-              className="text-[10px] text-netease-muted/65 tabular-nums whitespace-nowrap"
+              className="text-[11px] text-netease-muted/75 tabular-nums whitespace-nowrap"
             >
               {formatChatTime(msg.timestamp)}
             </time>
           </Tooltip>
         )}
       </div>
-      <div className={`flex min-w-0 max-w-[90%] items-start gap-1.5 ${isMe ? 'flex-row-reverse justify-end' : ''}`}>
-        <div className={`flex min-w-0 max-w-full flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+      <div className={`flex min-w-0 max-w-full items-end gap-2 ${isMe ? 'flex-row-reverse justify-end' : ''}`}>
+        <div
+          className={`mb-4 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/[0.08] text-xs font-semibold ${avatarClassFor(msg.userId)}`}
+          title={msg.nickname}
+          aria-label={`${msg.nickname} 的头像`}
+        >
+          {(msg.nickname || '?').trim().slice(0, 1)}
+        </div>
+        <div className={`flex min-w-0 max-w-[calc(100%-2.5rem)] flex-1 flex-col ${isMe ? 'items-end' : 'items-start'}`}>
           {isStickerImage ? (
             <div className={`flex min-w-0 max-w-full flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
               {msg.replyTo && (
@@ -335,9 +362,11 @@ function ChatMessageRow({
 
 function SystemChatRow({
   msg,
+  repeatCount,
   onContentResize,
 }: {
   msg: ChatMessage;
+  repeatCount: number;
   onContentResize?: () => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -354,9 +383,70 @@ function SystemChatRow({
 
   return (
     <div ref={rowRef} className="flex justify-center px-2 py-0.5">
-      <p className="max-w-[92%] break-words text-center text-[11px] leading-5 text-netease-muted/85 [overflow-wrap:anywhere]">
+      <p className="flex max-w-[92%] items-center gap-2 break-words rounded-full bg-white/[0.035] px-3 py-1 text-center text-xs leading-5 text-netease-muted/85 [overflow-wrap:anywhere]">
         {msg.text}
+        {repeatCount > 1 && <span className="flex-shrink-0 text-[11px] text-netease-muted/60">×{repeatCount}</span>}
       </p>
+    </div>
+  );
+}
+
+function SongRequestChatRow({
+  msg,
+  room,
+  myUserId,
+  onContentResize,
+}: {
+  msg: ChatMessage;
+  room: ChatRoomMeta;
+  myUserId: string;
+  onContentResize?: () => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const isMe = msg.userId === myUserId;
+  const user = room.users.find((candidate) => candidate.id === msg.userId);
+  const isRoomCreator = msg.userId === room.creatorId;
+  const isRoomAdmin = room.adminIds.includes(msg.userId);
+
+  useLayoutEffect(() => {
+    if (!onContentResize) return;
+    const el = rowRef.current;
+    if (!el) return;
+    onContentResize();
+    const observer = new ResizeObserver(() => onContentResize());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [msg.id, msg.song?.name, onContentResize]);
+
+  return (
+    <div ref={rowRef} className={`flex w-full items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
+      {!isMe && (
+        <div className={`mb-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/[0.08] text-xs font-semibold ${avatarClassFor(msg.userId)}`} aria-label={`${msg.nickname} 的头像`}>
+          {(msg.nickname || '?').trim().slice(0, 1)}
+        </div>
+      )}
+      <article className={`min-w-0 max-w-[calc(100%-2.5rem)] rounded-xl border px-3 py-2 ${isMe ? 'border-[rgba(var(--om-accent-rgb),0.24)] bg-[rgba(var(--om-accent-rgb),0.08)]' : 'border-sky-300/[0.12] bg-sky-300/[0.045]'}`}>
+        <div className={`mb-2 flex min-w-0 items-center gap-1.5 ${isMe ? 'justify-end' : ''}`}>
+          <span className={`max-w-full truncate text-xs font-medium ${isMe ? 'text-[var(--om-accent)]' : 'text-sky-200/90'}`}>{user?.nickname || msg.nickname}</span>
+          {isRoomCreator && <RoleBadge role="owner" />}
+          {isRoomAdmin && !isRoomCreator && <RoleBadge role="admin" />}
+          <span className="text-[11px] text-netease-muted/75">点了一首歌</span>
+          {msg.timestamp > 0 && <time className="ml-auto flex-shrink-0 text-[11px] tabular-nums text-netease-muted/65" dateTime={new Date(msg.timestamp).toISOString()}>{formatChatTime(msg.timestamp)}</time>}
+        </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <SongCover song={msg.song!} className="h-10 w-10 flex-shrink-0 rounded-md object-cover" />
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-medium leading-5 text-white">{msg.song?.name}</p>
+            <p className="truncate text-xs leading-4 text-netease-muted">{msg.song?.artist || '未知歌手'}{msg.song?.album ? ` · ${msg.song.album}` : ''}</p>
+          </div>
+          <Music2 className={`ml-auto h-4 w-4 flex-shrink-0 ${isMe ? 'text-[var(--om-accent)]/75' : 'text-sky-200/60'}`} />
+        </div>
+      </article>
+      {isMe && (
+        <div className={`mb-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/[0.08] text-xs font-semibold ${avatarClassFor(msg.userId)}`} aria-label={`${msg.nickname} 的头像`}>
+          {(msg.nickname || '?').trim().slice(0, 1)}
+        </div>
+      )}
     </div>
   );
 }
@@ -407,6 +497,7 @@ function reactionsKey(reactions: ChatMessage['reactions']) {
 export default memo(ChatMessageRow, (prev, next) => (
   prev.msg.id === next.msg.id
   && prev.msg.kind === next.msg.kind
+  && prev.repeatCount === next.repeatCount
   && prev.msg.text === next.msg.text
   && prev.msg.imageUrl === next.msg.imageUrl
   && prev.msg.imageKey === next.msg.imageKey

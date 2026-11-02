@@ -182,6 +182,13 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
   const lastSkipAt = useRef(0);
   const wasLeaderRef = useRef(isPlaybackLeader);
 
+  useEffect(() => {
+    const playbackError = useAudioStore.getState().playbackError;
+    if (playbackError && playbackError.queueId !== room?.current?.queueId) {
+      useAudioStore.getState().setPlaybackError(null);
+    }
+  }, [room?.current?.queueId]);
+
   const shouldSkipForEndedTrackKey = useCallback((song: QueueItem, audio: HTMLAudioElement): boolean => {
     if (isEndedWhileServerPlaying(audio, song)) return false;
     return endedTrackKey.current === trackKeyOf(song);
@@ -403,8 +410,6 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
         if (!isAudioBoundToQueue(audio, live.room.current.queueId)) return;
 
         const song = live.room.current;
-        const isLeader = useRoomStore.getState().isPlaybackLeader;
-
         recordSongPlaybackFailure();
 
         void classifyMediaPlaybackError(audio).then((errorClass) => {
@@ -418,12 +423,18 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
               });
               return;
             }
-            if (isLeader) runtime.requestSkip();
+            useAudioStore.getState().setPlaybackError({
+              queueId: song.queueId,
+              message: '音源连接超时，请重试或切换歌曲',
+            });
             return;
           }
 
           if (runtime.lowestFallbackAttempted.current) {
-            if (isLeader) runtime.requestSkip();
+            useAudioStore.getState().setPlaybackError({
+              queueId: song.queueId,
+              message: '当前音源不可用，请重试或切换歌曲',
+            });
             return;
           }
 
@@ -442,7 +453,10 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
               });
               return;
             }
-            if (isLeader) runtime.requestSkip();
+            useAudioStore.getState().setPlaybackError({
+              queueId: song.queueId,
+              message: '音源地址已失效，请重试或切换歌曲',
+            });
           });
         });
       });
@@ -474,6 +488,10 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
 
       audio.addEventListener('playing', () => {
         const runtime = activeAudioRuntime;
+        const liveRoom = useRoomStore.getState().room;
+        if (liveRoom?.current?.queueId) {
+          useAudioStore.getState().setPlaybackError(null);
+        }
         if (runtime) {
           runtime.tempRetries.current = 0;
           if (runtime.stallRetryTimer.current) {
@@ -622,9 +640,10 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
 
     if (isTrackSourceError(current)) {
       setTrackLoading(false);
-      if (useRoomStore.getState().isPlaybackLeader) {
-        requestSkip({ bypassThrottle: true });
-      }
+      useAudioStore.getState().setPlaybackError({
+        queueId: current.queueId,
+        message: '无法获取可用的音乐源，请重试或切换歌曲',
+      });
       return;
     }
 
@@ -655,9 +674,10 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
           console.error('Failed to load song:', err);
           if (gen !== loadGeneration.current) return;
           clearAudioQueueBinding(controller.audio);
-          if (useRoomStore.getState().isPlaybackLeader) {
-            requestSkip();
-          }
+          useAudioStore.getState().setPlaybackError({
+            queueId: current.queueId,
+            message: '无法获取可用的音乐源，请重试或切换歌曲',
+          });
           return;
         }
 
@@ -733,9 +753,10 @@ export function useAudioPlayer(options: UseAudioPlayerOptions = {}) {
         console.error('Failed to load song:', err);
         if (gen !== loadGeneration.current) return;
         clearAudioQueueBinding(controller.audio);
-        if (useRoomStore.getState().isPlaybackLeader) {
-          requestSkip();
-        }
+        useAudioStore.getState().setPlaybackError({
+          queueId: current.queueId,
+          message: '歌曲加载失败，请重试或切换歌曲',
+        });
       } finally {
         releaseLoadLock(loadLockRef, queueId, gen);
         if (gen === loadGeneration.current) {

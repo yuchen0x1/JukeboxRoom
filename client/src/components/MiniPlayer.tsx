@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Play, Pause, SkipForward, ChevronUp, Loader2 } from 'lucide-react';
+import { Play, Pause, SkipForward, ChevronUp, ChevronLeft, Loader2, ListMusic, Music2, RefreshCw } from 'lucide-react';
 import { useRoomStore } from '../stores/roomStore';
 import { useAudioStore } from '../stores/audioStore';
 import { useSocket } from '../hooks/useSocket';
@@ -16,9 +16,12 @@ import VolumeControl from './VolumeControl';
 import FavoriteButton from './FavoriteButton';
 import Tooltip from './Tooltip';
 import { updateMediaSessionPlaybackState } from '../lib/mediaSession';
+import { invalidateTrackUrlCache } from '../lib/songPreloadCache';
 
 interface Props {
   onExpand: () => void;
+  onPrevious?: () => void;
+  onQueueClick?: () => void;
   transparentBar?: boolean;
   barClassName?: string;
   variant?: 'default' | 'immersive';
@@ -28,6 +31,8 @@ interface Props {
 
 export default memo(function MiniPlayer({
   onExpand,
+  onPrevious,
+  onQueueClick,
   transparentBar = true,
   barClassName,
   variant = 'default',
@@ -46,6 +51,7 @@ export default memo(function MiniPlayer({
 
   const canControlPlayback = useRoomStore((s) => s.canControlPlayback);
   const trackLoading = useAudioStore((s) => s.trackLoading);
+  const playbackError = useAudioStore((s) => s.playbackError);
   const setTrackLoading = useAudioStore((s) => s.setTrackLoading);
   const seekPlayback = useAudioStore((s) => s.seekPlayback);
   const localPlayback = useAudioStore((s) => s.localPlayback);
@@ -68,6 +74,14 @@ export default memo(function MiniPlayer({
   };
 
   const handleSeek = (time: number) => seekPlayback?.(time);
+
+  const handleRetryCurrent = () => {
+    if (!current) return;
+    invalidateTrackUrlCache(current);
+    useAudioStore.getState().setPlaybackError(null);
+    setTrackLoading(true);
+    useAudioStore.getState().requestTrackReload();
+  };
 
   const handleSkip = async () => {
     setSkipError('');
@@ -132,6 +146,15 @@ export default memo(function MiniPlayer({
 
     return (
       <div id="bottom-bar" className="mineradio-bottom-bar visible room-immersive-bottom mx-auto">
+        {playbackError?.queueId === current.queueId && (
+          <div className="mb-1 flex flex-wrap items-center justify-center gap-2 text-center text-xs text-rose-100/90" role="alert">
+            <span>{playbackError.message}</span>
+            <button type="button" onClick={handleRetryCurrent} className="inline-flex items-center gap-1 text-[var(--om-accent)]">
+              <RefreshCw className="h-3.5 w-3.5" />重试
+            </button>
+            {canControlPlayback && <button type="button" onClick={handleSkip} className="text-rose-200">切歌</button>}
+          </div>
+        )}
         {(skipError || skipMsg) && (
           <p className={`mb-1 text-center text-[10px] ${skipMsg ? 'text-amber-300' : 'text-red-300'}`}>
             {skipMsg || skipError}
@@ -224,7 +247,7 @@ export default memo(function MiniPlayer({
   const playerBarClass = barClassName
     ? `glass-surface glass-surface--elevated fixed bottom-0 left-0 right-0 z-40 border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)] ${barClassName}`
     : transparentBar
-      ? 'fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/25 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-xl [-webkit-backdrop-filter:blur(24px)]'
+      ? 'glass-surface glass-surface--elevated fixed bottom-0 left-0 right-0 z-40 border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)]'
       : 'glass-surface glass-surface--elevated fixed bottom-0 left-0 right-0 z-40 border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)]';
 
   if (fmLoading) {
@@ -238,14 +261,14 @@ export default memo(function MiniPlayer({
             disabled
             className="h-0.5"
             trackClassName="bg-netease-border"
-            fillClassName="bg-netease-red"
+            fillClassName="bg-[var(--om-accent)]"
           />
         </div>
 
         <div className="max-w-5xl mx-auto flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5">
           <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0 max-w-[38%] sm:max-w-[32%] min-w-0">
             <div className="flex h-10 w-10 sm:h-11 sm:w-11 flex-shrink-0 items-center justify-center rounded-lg bg-netease-card">
-              <Loader2 className="h-4 w-4 animate-spin text-netease-red" />
+              <Loader2 className="h-4 w-4 animate-spin text-[var(--om-accent)]" />
             </div>
             <div className="min-w-0 hidden sm:block">
               <p className="truncate text-sm font-medium text-netease-muted">私人漫游</p>
@@ -281,9 +304,25 @@ export default memo(function MiniPlayer({
 
     <div className={playerBarClass}>
 
+      {playbackError?.queueId === current.queueId && (
+        <div className="mx-auto flex w-full max-w-[1840px] flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-[rgba(248,113,113,0.14)] bg-[rgba(248,113,113,0.055)] px-3 py-1.5 text-xs text-rose-100/90 sm:px-6" role="alert">
+          <span className="min-w-0 truncate">{playbackError.message}</span>
+          <button type="button" onClick={handleRetryCurrent} className="inline-flex items-center gap-1 text-[var(--om-accent)] hover:underline">
+            <RefreshCw className="h-3.5 w-3.5" />重试
+          </button>
+          {canControlPlayback ? (
+            <button type="button" onClick={handleSkip} className="text-rose-200 hover:text-white hover:underline">切歌</button>
+          ) : (
+            <button type="button" onClick={() => void handleRequestSkip()} disabled={hasPendingSkip} className="text-rose-200 hover:text-white hover:underline disabled:opacity-50">
+              {hasPendingSkip ? '已申请切歌' : '申请切歌'}
+            </button>
+          )}
+        </div>
+      )}
+
       {(skipError || skipMsg) && (
 
-        <p className={`text-center text-[10px] py-0.5 ${skipMsg ? 'text-amber-400' : 'text-netease-red'}`}>
+        <p className={`py-0.5 text-center text-[10px] ${skipMsg ? 'text-amber-400' : 'text-[var(--om-danger)]'}`}>
           {skipMsg || skipError}
         </p>
 
@@ -296,21 +335,22 @@ export default memo(function MiniPlayer({
           disabled={!canControlPlayback}
           className="h-0.5"
           trackClassName="bg-netease-border"
-          fillClassName="bg-netease-red"
+          fillClassName="bg-[var(--om-accent)]"
         />
       </div>
 
 
 
-      <div className="max-w-5xl mx-auto flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5">
+      <div className="room-player-content mx-auto grid w-full max-w-[1840px] grid-cols-[minmax(160px,0.9fr)_minmax(100px,1.1fr)_auto] items-center gap-4 border-t border-white/[0.04] px-3 py-2 sm:px-6 sm:py-2.5">
 
-        <button onClick={onExpand} className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0 max-w-[38%] sm:max-w-[32%] min-w-0 text-left">
+        <div className="room-player-track flex min-w-0 items-center gap-3">
+        <button onClick={onExpand} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label="打开歌词和歌曲详情">
 
           <SongCover
             song={current}
             size="tiny"
             eager
-            className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg object-cover flex-shrink-0"
+            className="room-player-cover h-10 w-10 flex-shrink-0 rounded-lg object-cover sm:h-11 sm:w-11"
           />
 
           <div className="min-w-0 hidden sm:block">
@@ -334,13 +374,17 @@ export default memo(function MiniPlayer({
 
           </div>
 
-          <ChevronUp className="w-4 h-4 text-netease-muted flex-shrink-0 sm:hidden" />
+          <ChevronUp className="h-4 w-4 flex-shrink-0 text-netease-muted sm:hidden" />
 
         </button>
+        <FavoriteButton song={current} className="h-8 w-8 flex-shrink-0 text-netease-muted hover:text-rose-300" />
+        </div>
 
-        <MiniPlayerLyricTicker song={current} onExpand={onExpand} />
+        <div className="room-player-lyrics min-w-0">
+          <MiniPlayerLyricTicker song={current} onExpand={onExpand} />
+        </div>
 
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        <div className="room-player-controls flex flex-shrink-0 items-center justify-end gap-1 sm:gap-2">
 
         <PlaybackTimeLabel
           song={current}
@@ -348,6 +392,18 @@ export default memo(function MiniPlayer({
         />
 
 
+
+        <Tooltip content={canControlPlayback ? '上一首（播放到开头时回退）' : '仅房主或管理员可切回上一首'}>
+          <button
+            type="button"
+            onClick={canControlPlayback ? onPrevious : undefined}
+            disabled={!canControlPlayback || trackLoading || !onPrevious}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-netease-muted transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="上一首"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        </Tooltip>
 
         <Tooltip content={canControlPlayback ? '暂停/播放' : (isPlaying ? '房主正在播放' : '房主已暂停')}>
           <button
@@ -395,7 +451,18 @@ export default memo(function MiniPlayer({
         )}
 
         <VolumeControl compact className="flex-shrink-0" />
-        <FavoriteButton song={current} className="w-8 h-8 text-netease-muted hover:text-rose-300" />
+        <Tooltip content="打开歌词">
+          <button type="button" onClick={onExpand} className="flex h-8 w-8 items-center justify-center rounded-lg text-netease-muted transition-colors hover:bg-white/10 hover:text-white" aria-label="打开歌词">
+            <Music2 className="h-4 w-4" />
+          </button>
+        </Tooltip>
+        {onQueueClick && (
+          <Tooltip content="查看播放队列">
+            <button type="button" onClick={onQueueClick} className="flex h-8 w-8 items-center justify-center rounded-lg text-netease-muted transition-colors hover:bg-white/10 hover:text-white" aria-label="查看播放队列">
+              <ListMusic className="h-4 w-4" />
+            </button>
+          </Tooltip>
+        )}
 
         </div>
 

@@ -11,6 +11,7 @@ import { getUserPlaybackQuality } from './quality';
 import { resizeCoverUrl, type CoverSize } from '../../lib/coverUrl';
 import { requireSessionBootstrap } from '../../lib/sessionBootstrap';
 import { useRoomStore } from '../../stores/roomStore';
+import { resolveMobileApiUrl } from '../../lib/mobileApi';
 
 function getProvider(source: MusicSource) {
   return providers[source];
@@ -168,7 +169,7 @@ export function getCoverUrl(
   const normalized = toLocalMetingPicUrl(raw) ?? raw;
   // Request WebP format for modern browsers (reduces bandwidth ~30%)
   const preferWebp = typeof document !== 'undefined' && document.createElement('canvas').toDataURL('image/webp').indexOf('data:image/webp') === 0;
-  return resizeCoverUrl(normalized, size, preferWebp ? 'webp' : undefined);
+  return resolveMobileApiUrl(resizeCoverUrl(normalized, size, preferWebp ? 'webp' : undefined));
 }
 
 export type { CoverSize } from '../../lib/coverUrl';

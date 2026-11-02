@@ -688,7 +688,7 @@ if (s.connected) {
 
 
 
-  const addSong = useCallback((song: Song): Promise<{ success: boolean; error?: string }> => {
+  const addSong = useCallback((song: Song): Promise<{ success: boolean; error?: string; room?: RoomState }> => {
     return emitWithAck('add_song', { song }, { success: false, error: '连接超时，请重试' });
 
   }, []);

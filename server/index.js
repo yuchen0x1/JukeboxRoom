@@ -18,6 +18,11 @@ import {
   startNeteaseLogin,
   pollNeteaseLogin,
   resolveNeteasePlayUrl,
+  startDesktopQishuiLogin,
+  pollDesktopQishuiLogin,
+  searchDesktopQishuiWithHealth,
+  resolveDesktopQishuiPlayUrlWithHealth,
+  clearDesktopQishuiLogin,
 } from './sourceResolvers.js';
 import { neteaseSearchSongs, neteaseSearchPlaylists } from './neteaseSearch.js';
 import { mountWechatFileHelperProxy } from './wechatFileHelperProxy.js';
@@ -149,10 +154,18 @@ import {
 import { isAllowedReleaseRedirectUrl, updateService } from './update.js';
 import { getProviderHealth } from './mediaHealth.js';
 import { applySelfUpdate, getSelfUpdateState } from './selfUpdate.js';
+import {
+  getDesktopSourceCookie,
+  getDesktopSourceLogins,
+  isTrustedDesktopRequest,
+  removeDesktopSourceAccount,
+  saveDesktopSourceCookie,
+} from './desktopSourceAccounts.js';
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4000;
+const DESKTOP_MODE = process.env.JUKEBOX_DESKTOP_MODE === '1';
 const METING_API_URL = (process.env.METING_API_URL || '').replace(/\/$/, '');
 const METING_SEARCH_API_URL = (process.env.METING_SEARCH_API_URL || '').replace(/\/$/, '');
 const METING_API_AUTH = process.env.METING_API_AUTH || '';
@@ -169,6 +182,7 @@ const CLIENT_URL = (process.env.CLIENT_URL || '').replace(/\/$/, '');
 const ALLOWED_ORIGINS = CLIENT_URL
   ? new Set(CLIENT_URL.split(',').map((origin) => origin.trim().replace(/\/$/, '')).filter(Boolean))
   : null;
+const NATIVE_CLIENT_ORIGINS = new Set(['https://localhost', 'capacitor://localhost']);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const { CLIENT_ID_SECRET } = resolveSecrets({ logger: console });
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
@@ -186,6 +200,11 @@ const httpServer = createServer(app);
 
 function corsOrigin(origin, callback) {
   if (!origin) {
+    callback(null, true);
+    return;
+  }
+
+  if (NATIVE_CLIENT_ORIGINS.has(origin.replace(/\/$/, ''))) {
     callback(null, true);
     return;
   }
@@ -210,6 +229,13 @@ const io = new Server(httpServer, {
     threshold: 262144,
   },
   httpCompression: true,
+  allowRequest: (_req, callback) => {
+    if (DESKTOP_MODE) {
+      callback(new Error('Socket.IO is disabled for the desktop music player'), false);
+      return;
+    }
+    callback(null, true);
+  },
 });
 
 app.use(cors({ origin: corsOrigin }));
@@ -771,6 +797,168 @@ app.get('/api/music/health', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json({ ok: true, providers: getProviderHealth(), checkedAt: new Date().toISOString() });
 });
+
+if (DESKTOP_MODE) {
+  app.use('/api/desktop', (req, res, next) => {
+    if (!isTrustedDesktopRequest(req, PORT)) return res.status(403).json({ error: '仅允许本机桌面应用访问' });
+    next();
+  });
+
+  app.get('/api/desktop/music/capabilities', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const sourceLogins = getDesktopSourceLogins();
+    res.json({
+      sources: {
+        netease: { search: true, playback: Boolean(METING_API_URL) || sourceLogins.netease, accountRequiredForVip: true },
+        tencent: { search: true, playback: true, accountRequiredForVip: true },
+        kugou: { search: true, playback: true, accountRequiredForVip: true },
+        qishui: { search: true, playback: true, accountRequiredForVip: true },
+      },
+    });
+  });
+
+  app.get('/api/desktop/music/accounts', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ sources: getDesktopSourceLogins() });
+  });
+
+  app.post('/api/desktop/music/accounts/qr/start', async (req, res) => {
+    if (!limitProxyRequest(`desktop-account-start:${getRequestIp(req)}`)) {
+      return res.status(429).json({ error: '登录请求过于频繁，请稍后再试' });
+    }
+    const source = String(req.body?.source || '').trim().toLowerCase();
+    if (!['netease', 'tencent', 'kugou', 'qishui'].includes(source)) return res.status(400).json({ error: '不支持该音乐平台' });
+
+    try {
+      const result = source === 'netease'
+        ? await startNeteaseLogin()
+        : source === 'tencent'
+          ? await startTencentQrLogin()
+          : source === 'kugou'
+            ? await startKugouQrLogin()
+            : await startDesktopQishuiLogin();
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ success: true, sessionKey: result.sessionKey, qrImage: result.qrImage });
+    } catch (err) {
+      console.error('Desktop source QR start error:', err.message);
+      res.status(502).json({ error: err.message || '获取登录二维码失败' });
+    }
+  });
+
+  app.get('/api/desktop/music/accounts/qr/poll', async (req, res) => {
+    if (!limitProxyRequest(`desktop-account-poll:${getRequestIp(req)}`)) {
+      return res.status(429).json({ error: '登录状态查询过于频繁，请稍后再试' });
+    }
+    const source = String(req.query.source || '').trim().toLowerCase();
+    const sessionKey = String(req.query.session || '').trim();
+    if (!['netease', 'tencent', 'kugou', 'qishui'].includes(source)) return res.status(400).json({ error: '不支持该音乐平台' });
+    if (!/^[a-f0-9]{16,64}$/i.test(sessionKey)) return res.status(400).json({ error: '登录会话无效，请重新获取二维码' });
+
+    try {
+      const result = source === 'netease'
+        ? await pollNeteaseLogin(sessionKey)
+        : source === 'tencent'
+          ? await pollTencentQrLogin(sessionKey)
+          : source === 'kugou'
+            ? await pollKugouQrLogin(sessionKey)
+            : await pollDesktopQishuiLogin(sessionKey);
+      if (result.status === 'confirmed' && result.cookie) saveDesktopSourceCookie(source, result.cookie);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ success: true, status: result.status, loggedIn: result.status === 'confirmed', message: result.message });
+    } catch (err) {
+      console.error('Desktop source QR poll error:', err.message);
+      res.status(502).json({ error: err.message || '登录状态查询失败' });
+    }
+  });
+
+  app.post('/api/desktop/music/accounts/:source/cookie', (req, res) => {
+    if (!limitProxyRequest(`desktop-account-cookie:${getRequestIp(req)}`)) {
+      return res.status(429).json({ error: '账号保存请求过于频繁，请稍后再试' });
+    }
+    const source = String(req.params.source || '').trim().toLowerCase();
+    if (source !== 'tencent') return res.status(400).json({ error: '该平台不支持手动 Cookie 登录' });
+    try {
+      saveDesktopSourceCookie(source, String(req.body?.cookie || ''));
+      res.json({ success: true, sources: getDesktopSourceLogins() });
+    } catch (err) {
+      res.status(400).json({ error: err.message || '账号凭据保存失败' });
+    }
+  });
+
+  app.delete('/api/desktop/music/accounts/:source', (req, res) => {
+    const source = String(req.params.source || '').trim().toLowerCase();
+    if (!['netease', 'tencent', 'kugou', 'qishui'].includes(source)) return res.status(400).json({ error: '不支持该音乐平台' });
+    if (source === 'qishui') clearDesktopQishuiLogin();
+    else removeDesktopSourceAccount(source);
+    res.json({ success: true, sources: getDesktopSourceLogins() });
+  });
+
+  app.get('/api/desktop/music/search', async (req, res) => {
+    if (!limitProxyRequest(`desktop-music-search:${getRequestIp(req)}`)) {
+      return res.status(429).json({ error: '搜索请求过于频繁，请稍后再试' });
+    }
+    const source = String(req.query.source || '').trim().toLowerCase();
+    const keyword = String(req.query.q || '').trim();
+    if (source !== 'qishui') return res.status(400).json({ error: '桌面版当前仅通过该接口搜索汽水音乐' });
+    if (!keyword || keyword.length > 120) return res.status(400).json({ error: '搜索关键词无效' });
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ songs: await searchDesktopQishuiWithHealth(keyword) });
+    } catch (err) {
+      console.error('Desktop Qishui search error:', err.message);
+      res.status(502).json({ error: err.message || '汽水音乐搜索失败' });
+    }
+  });
+
+  app.get('/api/desktop/music/song-url', async (req, res) => {
+    if (!limitProxyRequest(`desktop-song-url:${getRequestIp(req)}`)) {
+      return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
+    }
+
+    const source = String(req.query.source || '').trim().toLowerCase();
+    const songId = String(req.query.id || '').trim();
+    const quality = String(req.query.quality || 'standard').trim().toLowerCase();
+    if (!['netease', 'tencent', 'kugou', 'qishui'].includes(source)) {
+      return res.status(400).json({ error: '桌面版不支持该音源' });
+    }
+    if (!songId || songId.length > 128) return res.status(400).json({ error: '歌曲 id 无效' });
+
+    try {
+      let url = null;
+      const accountCookie = getDesktopSourceCookie(source);
+      if (source === 'netease') {
+        if (accountCookie) url = await resolveNeteasePlayUrl(songId, quality, accountCookie);
+        if (!url && !METING_API_URL && !accountCookie) {
+          return res.status(503).json({ error: '网易云播放需要在设置中配置可用的 METING_API_URL，或切换到 QQ 音乐、酷狗音源' });
+        }
+        if (!url && METING_API_URL) {
+          const response = await fetchMeting(
+            buildMetingUrl({ server: source, type: 'url', id: songId, quality }),
+            { redirect: 'manual' },
+          );
+          url = response.headers.get('location') || '';
+          if (!url && response.status < 300) {
+            const bodyText = (await response.text()).trim();
+            if (bodyText.startsWith('http')) url = bodyText;
+          }
+        }
+      } else if (source === 'tencent') {
+        url = await resolveTencentPlayUrl(songId, quality, accountCookie);
+      } else if (source === 'kugou') {
+        url = await resolveKugouPlayUrl(songId, quality, accountCookie);
+      } else {
+        url = await resolveDesktopQishuiPlayUrlWithHealth(songId, quality);
+      }
+
+      if (!url) return res.status(404).json({ error: '该歌曲暂时没有可用的免费音源，可尝试其他平台或音质' });
+      if (!(await isSafeHttpUrl(url))) return res.status(403).json({ error: '音源地址未通过安全校验' });
+      res.json({ url });
+    } catch (err) {
+      console.error('Desktop music URL error:', err.message);
+      res.status(502).json({ error: formatMetingFetchError(err) || '音源解析失败' });
+    }
+  });
+}
 
 app.get('/api/meting', async (req, res) => {
   if (!limitProxyRequest(`meting:${getRequestIp(req)}`)) {
@@ -1381,7 +1569,7 @@ async function sendDesktopPackage(_req, res) {
 
 app.get('/downloads/openmusic.apk', sendAndroidApk);
 app.get('/downloads/openmusic.ipa', sendIosIpa);
-app.get('/downloads/openmusic-desktop.zip', sendDesktopPackage);
+app.get('/downloads/jukeboxroom-desktop.exe', sendDesktopPackage);
 
 mountWechatFileHelperProxy(app, fetchWithTimeout);
 
@@ -2758,17 +2946,17 @@ async function checkAutoAdvance() {
   }
 }
 
-const autoAdvanceTimer = setInterval(() => {
+const autoAdvanceTimer = DESKTOP_MODE ? null : setInterval(() => {
   void checkAutoAdvance();
 }, AUTO_ADVANCE_INTERVAL_MS);
-autoAdvanceTimer.unref?.();
+autoAdvanceTimer?.unref?.();
 
-await initRooms();
+if (!DESKTOP_MODE) await initRooms();
 runtime.setReady(true);
-ensureSeedRoom(); // 固定测试房（每次启动确保存在）
+if (!DESKTOP_MODE) ensureSeedRoom(); // 测试房仅在非生产环境创建
 
 // 每日自动检查更新：发现新版本且部署环境支持时自动完成拉取/构建/重启（AUTO_UPDATE=0 关闭）
-const AUTO_UPDATE_ENABLED = process.env.AUTO_UPDATE !== '0';
+const AUTO_UPDATE_ENABLED = !DESKTOP_MODE && process.env.AUTO_UPDATE !== '0';
 const AUTO_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 if (AUTO_UPDATE_ENABLED) {
   const autoUpdateTick = async () => {
@@ -2802,7 +2990,7 @@ async function shutdown(signal) {
 
   shutdownPromise = (async () => {
     runtime.setReady(false);
-    clearInterval(autoAdvanceTimer);
+    if (autoAdvanceTimer) clearInterval(autoAdvanceTimer);
     stopLibraryWatcher();
     stopTaskScheduler();
     console.log(`收到 ${signal}，开始优雅停机`);
@@ -2837,13 +3025,16 @@ async function shutdown(signal) {
 process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
 process.once('SIGINT', () => { void shutdown('SIGINT'); });
 
-await initRedisAdapter(io);
+if (!DESKTOP_MODE) await initRedisAdapter(io);
 
-httpServer.listen(PORT, () => {
-  startTaskScheduler();
-  console.log(`🎵 OpenMusic 服务运行在 http://localhost:${PORT}`);
+const onServerListening = () => {
+  if (!DESKTOP_MODE) startTaskScheduler();
+  console.log(`${DESKTOP_MODE ? '🎵 JukeboxRoom 桌面音乐 API' : '🎵 OpenMusic 服务'}运行在 http://localhost:${PORT}`);
   console.log(`📡 Meting API: ${METING_API_URL || '(未配置)'}`);
   console.log(`🔍 Meting 搜索备源: ${METING_SEARCH_API_URL || '(未配置，仅网易官方直连搜索)'}`);
   console.log(`🎤 Cyapi (QQ音乐/酷狗音乐): ${isCyapiConfigured() ? '已配置' : '未配置'}`);
   console.log(`💾 房间存储: ${isRedisEnabled() ? 'Redis' : '内存'}`);
-});
+};
+
+if (DESKTOP_MODE) httpServer.listen(PORT, '127.0.0.1', onServerListening);
+else httpServer.listen(PORT, onServerListening);

@@ -5,16 +5,16 @@ export default {
     extend: {
       colors: {
         netease: {
-          red: '#ec4141',
-          dark: '#1a1a1a',
-          card: '#242424',
-          hover: '#2a2a2a',
-          border: '#333333',
-          muted: '#888888',
+          red: 'rgba(var(--om-accent-rgb), <alpha-value>)',
+          dark: '#0b0f14',
+          card: '#151e28',
+          hover: '#1b2632',
+          border: 'rgb(255 255 255 / <alpha-value>)',
+          muted: '#94a3b8',
         },
       },
       fontFamily: {
-        sans: ['"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'],
+        sans: ['Inter', '"Microsoft YaHei"', '"PingFang SC"', 'system-ui', 'sans-serif'],
       },
       animation: {
         'spin-slow': 'spin 20s linear infinite',

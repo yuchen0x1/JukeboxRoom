@@ -14,6 +14,7 @@ import ChatImageLightbox from './ChatImageLightbox';
 import ChatMessageList, { type ChatMessageListHandle } from './ChatMessageList';
 import ChatInputBar, { type ChatInputBarHandle, type PendingChatImage } from './ChatInputBar';
 import ChatMutePicker from './ChatMutePicker';
+import OnlineUsers from './OnlineUsers';
 import { compactReplyText } from '../lib/chatPanelUtils';
 import { useChatRoomMeta, useChatRoomSlice } from '../lib/chatRoomSlice';
 import { fetchChatUploadEnabled } from '../api/chatImage';
@@ -176,27 +177,35 @@ export default function ChatPanel({ className = '' }: { className?: string }) {
   ) : null;
 
   return (
-    <div ref={chatPanelRef} className={`relative flex h-full flex-col overflow-hidden rounded-2xl glass-surface glass-surface--panel ${className}`}>
-      <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-[var(--om-glass-border)] px-4 py-2">
+    <div ref={chatPanelRef} className={`room-chat-panel relative flex h-full flex-col overflow-hidden rounded-xl glass-surface glass-surface--panel ${className}`}>
+      <div className="flex min-h-[56px] flex-shrink-0 items-center justify-between gap-2 border-b border-[var(--om-glass-border)] px-3.5 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-netease-muted" />
-          <h3 className="text-sm font-medium">聊天室</h3>
+          <MessageCircle className="h-4 w-4 flex-shrink-0 text-[var(--om-accent)]" />
+          <h3 className="text-sm font-semibold text-white">聊天室</h3>
+          <span className="truncate text-xs text-netease-muted">{roomMeta.users.filter((user) => !user.readOnly).length} 人在线</span>
           {chatRoomSlice.muteAll && (
             <span className="rounded-full bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400/90">全体禁言</span>
           )}
         </div>
-        {canControlPlayback && (
+        <div className="flex flex-shrink-0 items-center gap-1">
+          <OnlineUsers
+            users={roomMeta.users}
+            creatorId={roomMeta.creatorId}
+            memberTiers={roomMeta.memberTiers}
+          />
+          {canControlPlayback && (
           <Tooltip side="bottom" content="禁言管理">
             <button
               type="button"
               onClick={() => setShowMutePicker(true)}
-              className="rounded-lg p-1.5 text-netease-muted transition-colors hover:bg-white/10 hover:text-white"
+              className="rounded-md p-1.5 text-netease-muted transition-colors hover:bg-white/10 hover:text-white"
               aria-label="禁言管理"
             >
               <MicOff className="h-4 w-4" />
             </button>
           </Tooltip>
-        )}
+          )}
+        </div>
       </div>
 
       {muteError && (
