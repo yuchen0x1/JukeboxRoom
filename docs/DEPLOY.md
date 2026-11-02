@@ -8,7 +8,7 @@
 请帮我在这台服务器上部署 JukeboxRoom 多人在线点歌系统（Node.js ≥ 20）：
 
 1. 安装 Node.js 20（没有的话用 nvm 或系统包管理器安装）
-2. 克隆仓库：git clone https://gitee.com/yuchen0x1/JukeboxRoom.git 并进入目录
+2. 克隆仓库：git clone https://github.com/yuchen0x1/JukeboxRoom.git 并进入目录
 3. 安装依赖：npm run install:all（会依次安装根目录、server、client 三处依赖）
 4. 创建 server/.env，内容包含：
    NODE_ENV=production
@@ -32,7 +32,7 @@
 仓库根目录自带 `Dockerfile` 与 `docker-compose.yml`：
 
 ```bash
-git clone https://gitee.com/yuchen0x1/JukeboxRoom.git
+git clone https://github.com/yuchen0x1/JukeboxRoom.git
 cd JukeboxRoom
 # 编辑 docker-compose.yml：把 CLIENT_ID_SECRET 和 AUTH_JWT_SECRET 换成不同的长随机串
 docker compose up -d --build

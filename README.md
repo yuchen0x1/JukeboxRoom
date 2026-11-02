@@ -8,7 +8,7 @@
 一群人聚在一起听歌，最怕的就是"放什么"争不出结果。JukeboxRoom 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
 
 - 原创作者项目：<https://github.com/qq01-hub/openmusic>（本项目基于 OpenMusic 二次开发）
-- 代码托管：Gitee <https://gitee.com/yuchen0x1/JukeboxRoom>
+- 代码托管：GitHub <https://github.com/yuchen0x1/JukeboxRoom>
 
 | 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
 |:---:|:---:|:---:|
@@ -76,7 +76,7 @@ JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web �
 请帮我在这台服务器上部署 JukeboxRoom 多人在线点歌系统（Node.js ≥ 20）：
 
 1. 安装 Node.js 20（没有的话用 nvm 或系统包管理器安装）
-2. 克隆仓库：git clone https://gitee.com/yuchen0x1/JukeboxRoom.git 并进入目录
+2. 克隆仓库：git clone https://github.com/yuchen0x1/JukeboxRoom.git 并进入目录
 3. 安装依赖：npm run install:all（会依次安装根目录、server、client 三处依赖）
 4. 创建 server/.env，内容包含：
    NODE_ENV=production
@@ -105,12 +105,12 @@ docker compose up -d --build
 
 ### 方式三：Windows 桌面版（开箱即用）
 
-从 Gitee [发布页](https://gitee.com/yuchen0x1/JukeboxRoom/releases) 下载 Windows 正式安装程序（`jukeboxroom-desktop-setup-*.exe`），运行安装向导后即可从桌面或开始菜单启动 JukeboxRoom。桌面版是独立 App，内置本地服务端和完整页面，无需另行安装 Node.js。首次运行若出现 Windows SmartScreen 提示，请核对下载来源为本项目 Gitee Release；当前构建未使用商业代码签名证书。
+从 GitHub [发布页](https://github.com/yuchen0x1/JukeboxRoom/releases) 下载 Windows 正式安装程序（`jukeboxroom-desktop-setup-*.exe`），运行安装向导后即可从桌面或开始菜单启动 JukeboxRoom。桌面版是独立 App，内置本地服务端和完整页面，无需另行安装 Node.js。首次运行若出现 Windows SmartScreen 提示，请核对下载来源为本项目 GitHub Release；当前构建未使用商业代码签名证书。
 
 ### 本地开发
 
 ```bash
-git clone https://gitee.com/yuchen0x1/JukeboxRoom.git
+git clone https://github.com/yuchen0x1/JukeboxRoom.git
 cd JukeboxRoom
 npm run install:all   # 依次安装根目录、server 和 client 的依赖
 npm run dev           # 同时启动服务端(4000)和前端(5173)
@@ -132,7 +132,7 @@ npm run dev           # 同时启动服务端(4000)和前端(5173)
 ### 第 1 步：克隆并安装依赖
 
 ```bash
-git clone https://gitee.com/yuchen0x1/JukeboxRoom.git
+git clone https://github.com/yuchen0x1/JukeboxRoom.git
 cd JukeboxRoom
 npm run install:all   # 依次安装根目录、server 和 client 的依赖
 ```
@@ -407,13 +407,16 @@ npm run check:health       # 对已启动实例做存活/就绪/更新接口冒�
 
 `check:health` 默认检查 `http://127.0.0.1:4000`，可用 `OPENMUSIC_URL` 指向其他实例，`OPENMUSIC_SKIP_UPDATE=1` 跳过外部更新源检查。
 
-### CI
+### Windows 桌面版构建
 
-仓库在 `.github/workflows/` 提供 GitHub Actions 工作流：
+在 Windows 环境安装项目依赖并构建：
 
-- **Quality**（push / PR 触发）：三端 `npm ci`、生产依赖安全审计、服务端语法检查、服务端/客户端测试、构建，并启动实例做健康冒烟检查；
-- **Android APK / iOS IPA**（手动触发）：构建移动端安装包；
-- **Release**（推送 `v*` 标签或手动触发）：产出 Windows 桌面 NSIS 安装程序、Android APK、iOS IPA 等 Release 资产，供 `/api/update` 与下载路由使用。
+```bash
+npm run install:all
+npm run desktop:build
+```
+
+NSIS 安装程序输出到 `release/desktop/`。Android 与 iOS 安装包需分别在对应平台工具链中构建；当前 GitHub Release 提供的安装资产以实际发布页为准。
 
 ## 常见问题排查
 
@@ -452,11 +455,11 @@ npm run check:health       # 对已启动实例做存活/就绪/更新接口冒�
 
 ## 版本
 
-当前版本 `0.0.1`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 Gitee 最新稳定 Release 提供更新检测（`GET /api/update`）。
+当前版本 `0.0.5`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 Gitee 最新稳定 Release 提供更新检测（`GET /api/update`）。
 
 ## 参与贡献
 
-欢迎通过 Gitee 的 Issue 或 Pull Request 提交 Bug、改进建议和代码。提交前请至少运行：
+欢迎通过 GitHub 的 Issue 或 Pull Request 提交 Bug、改进建议和代码。提交前请至少运行：
 
 ```bash
 npm test
