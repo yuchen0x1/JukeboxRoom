@@ -1,13 +1,11 @@
-// 一次性脚本：通过 GitHub Git Data API 推送本地 HEAD 提交（github.com git 通道被代理拦截时的替代方案）
-// 用法：node scripts/push-head-via-api.mjs
+// Git Data API 推送本地提交（github.com git 通道被代理拦截时的替代方案）
+// 逐个重建远程缺失的提交并推进 refs/heads/main；用法：node scripts/push-head-via-api.mjs
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, mkdtempSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const REPO = 'yuchen0x1/JukeboxRoom';
-const LOCAL_HEAD = exec('git', ['rev-parse', 'HEAD']).trim();
-const LOCAL_PARENT = exec('git', ['rev-parse', 'HEAD^']).trim();
 
 function exec(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opts });
@@ -20,67 +18,70 @@ function ghApi(method, path, body) {
     writeFileSync(tmp, JSON.stringify(body));
     args.push('--input', tmp);
   }
-  const out = exec('gh', args);
-  return JSON.parse(out);
+  return JSON.parse(exec('gh', args));
 }
 
-// 父提交优先取远程 main（本地父提交可能因元数据序列化差异在远程以另一 SHA 存在）
+function localTree(sha) {
+  return exec('git', ['rev-parse', `${sha}^{tree}`]).trim();
+}
+
+// 1. 找到本地与远程的同步点（树与远程 main 一致的最近提交）
 const remoteMain = ghApi('GET', `repos/${REPO}/git/refs/heads/main`).object.sha;
-const remoteCommit = ghApi('GET', `repos/${REPO}/git/commits/${remoteMain}`);
-const localParentTree = exec('git', ['rev-parse', `${LOCAL_PARENT}^{tree}`]).trim();
-let PARENT = LOCAL_PARENT;
-if (remoteMain !== LOCAL_PARENT) {
-  if (remoteCommit.tree.sha !== localParentTree) {
-    console.error(`远程 main 树 ${remoteCommit.tree.sha} 与本地 HEAD^ 树 ${localParentTree} 不一致，请先手动拉平。`);
-    process.exit(1);
+const remoteTree = ghApi('GET', `repos/${REPO}/git/commits/${remoteMain}`).tree.sha;
+
+const chain = exec('git', ['rev-list', '--reverse', 'HEAD']).trim().split('\n');
+let syncIndex = -1;
+for (let i = chain.length - 1; i >= 0; i -= 1) {
+  if (chain[i] === remoteMain || localTree(chain[i]) === remoteTree) {
+    syncIndex = i;
+    break;
   }
-  PARENT = remoteMain;
-  console.log(`parent 使用远程 main ${PARENT}（树一致，本地父 ${LOCAL_PARENT}）`);
+}
+if (syncIndex === -1) {
+  console.error('找不到本地与远程 main 的同步点（树不一致），请先手动拉平。');
+  process.exit(1);
+}
+const pending = chain.slice(syncIndex + 1);
+if (pending.length === 0) {
+  console.log('远程已包含本地全部提交，无需推送。');
+  process.exit(0);
+}
+console.log(`待推送 ${pending.length} 个提交，基点 ${chain[syncIndex].slice(0, 7)}（remote ${remoteMain.slice(0, 7)}）`);
+
+// 2. 逐提交重建
+let parentSha = remoteMain;
+let baseTree = remoteTree;
+for (const sha of pending) {
+  const diff = exec('git', ['diff-tree', '--no-commit-id', '--name-status', '-r', sha]).trim().split('\n').filter(Boolean);
+  const entries = [];
+  for (const line of diff) {
+    const [status, path] = line.split('\t');
+    if (status === 'D') {
+      entries.push({ path, mode: '100644', type: 'blob', sha: null });
+      continue;
+    }
+    const mode = exec('git', ['ls-tree', sha, '--', path]).trim().split(/\s+/)[0];
+    const b64 = exec('git', ['cat-file', 'blob', `${sha}:${path}`], { encoding: 'buffer' }).toString('base64');
+    const created = ghApi('POST', `repos/${REPO}/git/blobs`, { content: b64, encoding: 'base64' });
+    entries.push({ path, mode: mode === '100755' ? '100755' : '100644', type: 'blob', sha: created.sha });
+    console.log(`  blob: ${path} (${created.sha.slice(0, 7)})`);
+  }
+  const tree = ghApi('POST', `repos/${REPO}/git/trees`, { base_tree: baseTree, tree: entries });
+  const meta = exec('git', ['log', '-1', '--format=%an%n%ae%n%aI%n%cn%n%ce%n%cI', sha]).split('\n');
+  const [an, ae, ad, cn, ce, cd] = meta;
+  const commit = ghApi('POST', `repos/${REPO}/git/commits`, {
+    message: exec('git', ['log', '-1', '--format=%B', sha]),
+    tree: tree.sha,
+    parents: [parentSha],
+    author: { name: an, email: ae, date: ad },
+    committer: { name: cn, email: ce, date: cd },
+  });
+  console.log(`commit: ${sha.slice(0, 7)} -> ${commit.sha.slice(0, 7)}`);
+  parentSha = commit.sha;
+  baseTree = tree.sha;
 }
 
-// 1. 变更文件
-const diff = exec('git', ['diff-tree', '--no-commit-id', '--name-status', '-r', 'HEAD']).trim().split('\n');
-const entries = [];
-for (const line of diff) {
-  const [status, path] = line.split('\t');
-  if (status === 'D') {
-    entries.push({ path, mode: '100644', type: 'blob', sha: null });
-    continue;
-  }
-  const mode = exec('git', ['ls-tree', 'HEAD', '--', path]).trim().split(/\s+/)[0].replace(/^\d+/, (m) => m);
-  const blobSha = exec('git', ['rev-parse', `HEAD:${path}`]).trim();
-  // 上传 blob（base64）
-  const b64 = exec('git', ['cat-file', 'blob', `HEAD:${path}`], { encoding: 'buffer' }).toString('base64');
-  const created = ghApi('POST', `repos/${REPO}/git/blobs`, { content: b64, encoding: 'base64' });
-  if (created.sha !== blobSha) {
-    console.warn(`blob sha mismatch for ${path}: api=${created.sha} local=${blobSha}`);
-  }
-  entries.push({ path, mode: mode.startsWith('1007') ? '100755' : '100644', type: 'blob', sha: created.sha });
-  console.log(`blob ok: ${path} (${created.sha.slice(0, 7)})`);
-}
-
-// 2. 建树（基于父提交树）
-const parentTree = exec('git', ['rev-parse', `${PARENT}^{tree}`]).trim();
-const tree = ghApi('POST', `repos/${REPO}/git/trees`, { base_tree: parentTree, tree: entries });
-console.log('tree:', tree.sha);
-
-// 3. 提交（元数据与本地一致 → SHA 应完全相同）
-const msg = exec('git', ['log', '-1', '--format=%B']);
-const meta = exec('git', ['log', '-1', '--format=%an%n%ae%n%aI%n%cn%n%ce%n%cI']).split('\n');
-const [an, ae, ad, cn, ce, cd] = meta;
-const commit = ghApi('POST', `repos/${REPO}/git/commits`, {
-  message: msg,
-  tree: tree.sha,
-  parents: [PARENT],
-  author: { name: an, email: ae, date: ad },
-  committer: { name: cn, email: ce, date: cd },
-});
-console.log('commit:', commit.sha, '| local:', LOCAL_HEAD);
-if (commit.sha !== LOCAL_HEAD) {
-  console.warn('SHA 不一致（内容仍一致，仅元数据序列化差异）；继续推进引用。');
-}
-
-// 4. 推进 main 引用
-const ref = ghApi('PATCH', `repos/${REPO}/git/refs/heads/main`, { sha: commit.sha });
+// 3. 推进 main 引用
+const ref = ghApi('PATCH', `repos/${REPO}/git/refs/heads/main`, { sha: parentSha });
 console.log('ref updated:', ref.object?.sha || JSON.stringify(ref));
 console.log('DONE');
