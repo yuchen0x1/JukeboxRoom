@@ -18,6 +18,7 @@ import {
   saveDesktopSourceSession,
 } from './desktopSourceAccounts.js';
 import { getRoomSourceCredential, getRoomInternal, setRoomSourceCredential } from './roomManager.js';
+import { removeSourceAccount, saveSourceAccountSession } from './sourceAccounts.js';
 import { canRequestProvider, recordProviderFailure, recordProviderSuccess } from './mediaHealth.js';
 import { isSafeHttpUrl } from './outboundUrl.js';
 
@@ -69,7 +70,6 @@ function withHealth(provider, fn) {
 /* ------------------------------------------------------------------ */
 
 const QQ_REFERER = 'https://y.qq.com/';
-const QQ_AID = '100497308';
 
 /** QQ 音乐 vkey 音质前缀：M500=128k mp3, M800=320k mp3, F000=flac */
 const TENCENT_QUALITY_PREFIX = { standard: 'M500', exhigh: 'M800', lossless: 'F000', hires: 'F000' };
@@ -128,7 +128,8 @@ async function resolveTencentPlayUrlImpl(songMid, quality, roomCookie = '') {
         guid,
         songmid: [songMid],
         songtype: [0],
-        uin: extractCookieValue(roomCookie, 'uin') || '',
+        // Cookie 里的 uin 是 o+QQ号 形式，vkey 接口要纯数字
+        uin: (extractCookieValue(roomCookie, 'uin') || '').replace(/^["']|["']$/g, '').replace(/^o/i, ''),
         loginflag: 1,
         platform: '20',
         filename: [filename],
@@ -159,8 +160,34 @@ export const resolveTencentPlayUrl = withHealth('tencent', resolveTencentPlayUrl
 
 /* ---------- QQ 扫码登录（ptlogin2 标准二维码流程） ---------- */
 
-const qqLoginSessions = new Map(); // sessionKey -> { qrsig, createdAt }
+const qqLoginSessions = new Map(); // sessionKey -> { qrsig, cookie, createdAt }
 const QQ_SESSION_TTL_MS = 3 * 60 * 1000;
+
+/**
+ * 扫码流程图（必须严格按浏览器顺序，否则腾讯风控直接 403）：
+ *   1) xlogin            → 拿 pt_login_sig 等前置会话 Cookie
+ *   2) ptqrshow          → 拿 qrsig（二维码图片）
+ *   3) ptqrlogin         → 用 ptqrtoken=hash33(qrsig) 轮询状态
+ *   4) check_url 重定向链 → 换到 uin / skey / p_skey 等登录凭据
+ *
+ * 两个关键点：
+ * - 必须用「QQ互联」appid=716027609 + pt_3rd_aid=100497308（QQ音乐）。
+ *   直接拿 QQ音乐 appid=100497308 请求 ptqrshow 会被风控 403。
+ * - u1 必须是 graph.qq.com/oauth2.0/login_jump；换成 y.qq.com 同样 403。
+ */
+const QQ_CONNECT_APPID = '716027609';
+const QQ_CONNECT_DAID = '383';
+const QQ_MUSIC_AID = '100497308';
+const QQ_LOGIN_S_URL = 'https://graph.qq.com/oauth2.0/login_jump';
+const QQ_XUI_REFERER = 'https://xui.ptlogin2.qq.com/';
+
+function qqXloginUrl() {
+  return `https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=${QQ_CONNECT_APPID}&daid=${QQ_CONNECT_DAID}`
+    + '&style=33&login_text=' + encodeURIComponent('授权并登录')
+    + '&hide_title_bar=1&hide_border=1&target=self'
+    + `&s_url=${encodeURIComponent(QQ_LOGIN_S_URL)}&pt_3rd_aid=${QQ_MUSIC_AID}`
+    + '&pt_feedback_link=' + encodeURIComponent('https://support.qq.com/products/77942?customInfo=.appid100497308');
+}
 
 function hash33(text) {
   let hash = 0;
@@ -187,6 +214,15 @@ function createCookieJar(initialCookie = '') {
         if (eq > 0) map.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
       }
     },
+    get(name) {
+      return map.get(name) || '';
+    },
+    set(name, value) {
+      map.set(name, value);
+    },
+    delete(name) {
+      map.delete(name);
+    },
     toString() {
       return Array.from(map.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
     },
@@ -200,92 +236,200 @@ export function extractCookieValue(cookieStr, name) {
 
 /** 发起 QQ 扫码登录：返回 { sessionKey, qrImage }（png 的 data URL） */
 export async function startTencentQrLogin() {
-  const res = await fetch(
-    `https://ssl.ptlogin2.qq.com/ptqrshow?appid=${QQ_AID}&e=0&l=L&s=8&d=72&v=4&t=${Math.random()}&daid=1&pt_type=1`,
-    { headers: { 'User-Agent': UA }, redirect: 'manual' },
-  );
-  if (res.status === 403) {
-    throw new Error('腾讯风控拦截了本服务器的扫码请求（403），请按提示用 Cookie 方式登录：浏览器登录 y.qq.com 后复制 Cookie');
+  const jar = createCookieJar();
+
+  // 1) 先建立登录会话（缺失这一步会让后续 ptqrlogin 一律 403）
+  const xr = await fetch(qqXloginUrl(), {
+    headers: { 'User-Agent': UA, Referer: QQ_REFERER },
+    redirect: 'manual',
+  });
+  if (xr.status === 403) {
+    throw new Error('腾讯风控拦截了登录会话请求（403），请稍后重试，或改用 Cookie 方式登录：浏览器登录 y.qq.com 后复制 Cookie');
   }
-  if (!res.ok) throw new Error('获取登录二维码失败');
-  const setCookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
-  const qrsig = (setCookies.find((c) => c.startsWith('qrsig=')) || '').split(';')[0]?.slice(6) || '';
+  jar.absorb(xr);
+  await xr.arrayBuffer();
+  if (!jar.get('pt_login_sig')) {
+    console.warn('[qq-qr] xlogin 未下发 pt_login_sig，继续尝试获取二维码');
+  }
+
+  // 2) 取二维码
+  const showUrl = `https://ssl.ptlogin2.qq.com/ptqrshow?appid=${QQ_CONNECT_APPID}&e=2&l=M&s=3&d=72&v=4`
+    + `&t=${Math.random()}&daid=${QQ_CONNECT_DAID}&pt_3rd_aid=${QQ_MUSIC_AID}`
+    + `&u1=${encodeURIComponent(QQ_LOGIN_S_URL)}`;
+  const res = await fetch(showUrl, {
+    headers: { 'User-Agent': UA, Cookie: jar.toString(), Referer: QQ_XUI_REFERER },
+    redirect: 'manual',
+  });
+  if (res.status === 403) {
+    throw new Error('腾讯风控拦截了扫码请求（403），请稍后重试，或改用 Cookie 方式登录：浏览器登录 y.qq.com 后复制 Cookie');
+  }
+  if (!res.ok) throw new Error(`获取登录二维码失败（HTTP ${res.status}）`);
+
+  jar.absorb(res);
+  const qrsig = jar.get('qrsig');
   if (!qrsig) throw new Error('二维码会话异常，请重试');
 
   const buf = Buffer.from(await res.arrayBuffer());
   const sessionKey = randomBytes(12).toString('hex');
-  qqLoginSessions.set(sessionKey, { qrsig, createdAt: Date.now() });
+  qqLoginSessions.set(sessionKey, { qrsig, cookie: jar.toString(), createdAt: Date.now() });
   for (const [key, value] of qqLoginSessions) {
     if (Date.now() - value.createdAt > QQ_SESSION_TTL_MS) qqLoginSessions.delete(key);
   }
+  console.log('[qq-qr] 二维码已生成');
   return { sessionKey, qrImage: `data:image/png;base64,${buf.toString('base64')}` };
 }
 
-const QQ_LOGIN_STATUS_TEXT = {
+/**
+ * 上游状态码（实测 + 官方前端一致）：
+ *   66 = 二维码未失效（等待扫码）
+ *   67 = 二维码认证中（已扫码，等待手机确认）
+ *   65 = 二维码已失效
+ *    0 = 登录成功（第 3 段为 check_url）
+ * 注意：旧实现把 66 当作「已扫码」、67 当作「已过期」，映射整体错位，
+ * 会导致「还没扫就显示已扫码」或「刚确认就显示已过期」。
+ */
+const QQ_LOGIN_STATUS = {
   0: 'confirmed',
-  65: 'waiting',
-  66: 'scanned',
-  67: 'expired',
+  65: 'expired',
+  66: 'waiting',
+  67: 'scanned',
 };
 
 /**
  * 轮询 QQ 扫码状态。confirmed 时完成 cookie 交换并返回房间凭据。
- * 返回 { status: waiting|scanned|expired|confirmed, cookie? }
+ * 返回 { status: waiting|scanned|expired|confirmed|failed, cookie?, message? }
  */
 export async function pollTencentQrLogin(sessionKey) {
   const session = qqLoginSessions.get(sessionKey);
   if (!session) return { status: 'expired' };
 
+  const jar = createCookieJar(session.cookie);
   const ptqrtoken = hash33(session.qrsig);
   const loginUrl =
-    `https://ssl.ptlogin2.qq.com/ptqrlogin?u1=${encodeURIComponent('https://y.qq.com/')}` +
+    `https://ssl.ptlogin2.qq.com/ptqrlogin?u1=${encodeURIComponent(QQ_LOGIN_S_URL)}` +
     `&ptqrtoken=${ptqrtoken}&ptredirect=0&h=1&t=1&g=1&from_ui=1&ptlang=2052` +
     `&action=0-0-${Date.now()}&js_ver=20122815&js_type=1&login_sig=&pt_uistyle=40` +
-    `&aid=${QQ_AID}&daid=1&`;
+    `&aid=${QQ_CONNECT_APPID}&daid=${QQ_CONNECT_DAID}&pt_3rd_aid=${QQ_MUSIC_AID}&`;
 
-  const jar = createCookieJar();
-  const first = await fetch(loginUrl, { headers: { 'User-Agent': UA }, redirect: 'manual' });
+  const first = await fetch(loginUrl, {
+    headers: { 'User-Agent': UA, Cookie: jar.toString(), Referer: QQ_XUI_REFERER },
+    redirect: 'manual',
+  });
   jar.absorb(first);
-  const text = await first.text();
-  const match = text.match(/ptuiCB\('(\d+)'[^']*'([^']*)'/);
-  if (!match) return { status: 'waiting' };
+  // 会话 Cookie 随轮询更新，必须回写，否则后续请求会丢会话
+  session.cookie = jar.toString();
 
-  const status = QQ_LOGIN_STATUS_TEXT[match[1]];
-  if (!status || status === 'waiting' || status === 'scanned') return { status: status || 'waiting' };
-  if (status === 'expired') {
-    qqLoginSessions.delete(sessionKey);
-    return { status: 'expired' };
+  if (first.status === 403) {
+    console.warn('[qq-qr] 轮询被风控拦截（403）');
+    return { status: 'failed', message: '腾讯风控拦截了登录状态查询，请重新获取二维码或改用 Cookie 登录' };
+  }
+
+  const text = await first.text();
+  const match = text.match(/ptuiCB\('(\d+)','\d+','([^']*)','[^']*','([^']*)'/);
+  if (!match) {
+    console.warn(`[qq-qr] 无法解析上游响应：${text.slice(0, 120).replace(/\s+/g, ' ')}`);
+    return { status: 'waiting' };
+  }
+
+  const code = match[1];
+  const checkUrl = match[2];
+  const message = match[3] || '';
+  const status = QQ_LOGIN_STATUS[code];
+  if (!status) {
+    console.warn(`[qq-qr] 未预期的上游状态 code=${code} msg=${message}`);
+    return { status: 'waiting' };
+  }
+  if (status !== 'confirmed') {
+    if (status === 'expired') qqLoginSessions.delete(sessionKey);
+    return { status };
   }
 
   // 登录成功：跟随 check_url 重定向链，收集全部 Set-Cookie
-  let checkUrl = match[2];
-  for (let hop = 0; hop < 5 && checkUrl; hop += 1) {
-    const res = await fetch(checkUrl, {
+  // uin 可能出现在 check_url 的查询串、跳转 Location 或 HTML 内的 JS 跳转里，
+  // 三个来源都要兜住，否则会出现「扫码确认成功但取不到账号」。
+  const uinCandidates = [];
+  const collectUin = (str) => {
+    const m = String(str || '').match(/[?&]uin=o?(\d+)/);
+    if (m && !uinCandidates.includes(m[1])) uinCandidates.push(m[1]);
+  };
+  collectUin(checkUrl);
+
+  let url = checkUrl;
+  for (let hop = 0; hop < 6 && url; hop += 1) {
+    const r = await fetch(url, {
+      headers: { 'User-Agent': UA, Cookie: jar.toString(), Referer: QQ_REFERER },
+      redirect: 'manual',
+    });
+    jar.absorb(r);
+    const body = await r.text();
+    const location = r.headers.get('location');
+    console.log(`[qq-qr] check_url hop${hop + 1} http=${r.status} location=${location ? 'yes' : 'no'}`);
+
+    if (location && r.status >= 300 && r.status < 400) {
+      url = new URL(location, url).toString();
+      collectUin(url);
+      continue;
+    }
+
+    // 200 HTML 内可能用 JS 做二次跳转（check_sig 在部分环境下就是这样）
+    const jump = body.match(/https?:\\?\/\\?\/[^\s"'<>\\]+/);
+    if (jump) {
+      const candidate = jump[0].replace(/\\\//g, '/');
+      if (candidate !== url && /check_sig|login_jump|graph\.qq\.com|ptlogin/i.test(candidate)) {
+        url = candidate;
+        collectUin(url);
+        continue;
+      }
+    }
+    break;
+  }
+
+  // 补齐 y.qq.com 业务 Cookie（部分环境会在此下发 qm_keyst）
+  try {
+    const home = await fetch('https://y.qq.com/', {
       headers: { 'User-Agent': UA, Cookie: jar.toString() },
       redirect: 'manual',
     });
-    jar.absorb(res);
-    const location = res.headers.get('location');
-    if (!location || res.status < 300 || res.status >= 400) break;
-    checkUrl = new URL(location, checkUrl).toString();
+    jar.absorb(home);
+    await home.arrayBuffer();
+  } catch {
+    // 补齐失败不阻塞登录
   }
-
-  // 访问一次 y.qq.com 接口补齐 qm_keyst 等业务 Cookie
   try {
     const warm = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Referer: QQ_REFERER, 'User-Agent': UA, Cookie: jar.toString() },
-      body: JSON.stringify({ req_1: { module: 'music.musicsearch.HistoryKeyService', method: 'get', param: {} } }),
+      body: JSON.stringify({
+        comm: { ct: 24, cv: 0 },
+        req: { module: 'music.UserInfo.userInfoServer', method: 'GetLoginUserInfo', param: {} },
+      }),
     });
     jar.absorb(warm);
+    await warm.arrayBuffer();
   } catch {
     // 补齐失败不阻塞登录
   }
 
+  // uin 在 QQ 系 Cookie 里是 o+QQ号 形式，播放接口要纯数字。
+  // 多个 Cookie 都携带同一账号，按可靠性依次兜底；最后才用 URL 里解析出的值。
+  const uinRaw = jar.get('uin') || jar.get('p_uin') || jar.get('pt2gguin')
+    || jar.get('ptui_loginuin') || uinCandidates[0] || '';
+  const uin = String(uinRaw).replace(/^["']|["']$/g, '').replace(/^o/i, '');
+  if (!/^\d+$/.test(uin)) {
+    const cookieNames = jar.toString().split(';').map((s) => s.trim().split('=')[0]).filter(Boolean);
+    console.warn(`[qq-qr] 未取到有效 uin；cookie=${cookieNames.join(',')} URL候选=${uinCandidates.join(',') || '无'}`);
+    return { status: 'failed', message: '登录成功但未获取到账号信息，请重新扫码' };
+  }
+  jar.set('uin', uin);
+
+  // qm_keyst 是 VIP 播放的鉴权值，等价于登录态 skey；缺失时用 skey 补齐
+  const skey = jar.get('skey') || jar.get('p_skey') || '';
+  if (!jar.get('qm_keyst') && skey) jar.set('qm_keyst', skey);
+  if (!jar.get('qqmusic_key') && jar.get('qm_keyst')) jar.set('qqmusic_key', jar.get('qm_keyst'));
+
   qqLoginSessions.delete(sessionKey);
-  const cookie = jar.toString();
-  if (!extractCookieValue(cookie, 'uin')) return { status: 'expired' };
-  return { status: 'confirmed', cookie };
+  console.log(`[qq-qr] 登录成功 uin=${uin} qm_keyst=${jar.get('qm_keyst') ? '已获取' : '缺失'}`);
+  return { status: 'confirmed', cookie: jar.toString() };
 }
 
 /* ------------------------------------------------------------------ */
@@ -325,31 +469,60 @@ function neteaseWeapi(obj) {
   return { params, encSecKey: r.toString(16).padStart(256, '0') };
 }
 
-async function neteaseWeapiPost(path, obj) {
+/** 从响应里提取 Set-Cookie 键值对（网易云用 NMTID 绑定扫码会话） */
+function neteaseCookieJar(res) {
+  const jar = new Map();
+  const lines = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  for (const line of lines) {
+    const [pair] = line.split(';');
+    const idx = pair.indexOf('=');
+    if (idx <= 0) continue;
+    jar.set(pair.slice(0, idx).trim(), pair.slice(idx + 1).trim());
+  }
+  return jar;
+}
+
+function neteaseJarToString(jar) {
+  return [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+/** 网易云 weapi 公共 Cookie：缺少时接口容易返回 8821（风控/非法请求） */
+const NETEASE_BASE_COOKIE = 'os=pc; appver=2.10.13';
+
+async function neteaseWeapiPost(path, obj, cookie = '') {
   const { params, encSecKey } = neteaseWeapi(obj);
+  const headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'User-Agent': UA,
+    Referer: 'https://music.163.com/',
+    Cookie: [NETEASE_BASE_COOKIE, cookie].filter(Boolean).join('; '),
+  };
   const res = await fetch(`https://music.163.com${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': UA, Referer: 'https://music.163.com/' },
+    headers,
     body: `params=${encodeURIComponent(params)}&encSecKey=${encodeURIComponent(encSecKey)}`,
   });
   if (!res.ok) throw new Error(`网易接口返回 HTTP ${res.status}`);
-  return { json: await res.json(), res };
+  return { json: await res.json(), res, jar: neteaseCookieJar(res) };
 }
 
-const neteaseLoginSessions = new Map(); // sessionKey -> { unikey, createdAt }
+const neteaseLoginSessions = new Map(); // sessionKey -> { unikey, jar, lastCode, createdAt }
 const NETEASE_SESSION_TTL_MS = 5 * 60 * 1000;
 
 /** 发起网易云扫码登录：本地生成二维码（内容为官方登录确认页地址） */
 export async function startNeteaseLogin() {
-  const { json } = await neteaseWeapiPost('/weapi/login/qrcode/unikey', { type: 1 });
+  const { json, jar } = await neteaseWeapiPost('/weapi/login/qrcode/unikey', { csrf_token: '', type: 1 });
   const unikey = json?.unikey;
   if (json?.code !== 200 || !unikey) throw new Error('获取网易云登录二维码失败');
 
   const sessionKey = randomBytes(12).toString('hex');
-  neteaseLoginSessions.set(sessionKey, { unikey, createdAt: Date.now() });
+  // 关键：后续每次轮询都要带上这次会话的 Cookie（NMTID），
+  // 否则上游认为“查询方”不是发起扫码的会话，确认后拿不到 MUSIC_U。
+  neteaseLoginSessions.set(sessionKey, { unikey, jar, lastCode: null, createdAt: Date.now() });
   for (const [key, value] of neteaseLoginSessions) {
     if (Date.now() - value.createdAt > NETEASE_SESSION_TTL_MS) neteaseLoginSessions.delete(key);
   }
+  console.log(`[netease-qr] 新建扫码会话，初始 Cookie 数=${jar.size}`);
 
   const { default: QRCode } = await import('qrcode');
   const qrImage = await QRCode.toDataURL(`https://music.163.com/login?codekey=${unikey}`, { margin: 1, width: 400 });
@@ -359,30 +532,61 @@ export async function startNeteaseLogin() {
 /**
  * 轮询网易云扫码状态。
  * 上游状态码：800 过期 / 801 等待 / 802 已扫 / 803 授权成功（Set-Cookie 返回 MUSIC_U）。
+ * 上游偶发超时或非 200 时内部重试，避免单次抖动让前端永远停在“已扫码”。
  */
 export async function pollNeteaseLogin(sessionKey) {
   const session = neteaseLoginSessions.get(sessionKey);
   if (!session) return { status: 'expired' };
 
-  const { json, res } = await neteaseWeapiPost('/weapi/login/qrcode/client/login', { key: session.unikey, type: 1 });
-  const code = Number(json?.code);
-  if (code === 803) {
-    neteaseLoginSessions.delete(sessionKey);
-    const jar = [];
-    for (const line of (typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [])) {
-      const [pair] = line.split(';');
-      if (pair.includes('=')) jar.push(pair.trim());
+  let lastError = '';
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const { json, jar } = await neteaseWeapiPost(
+        '/weapi/login/qrcode/client/login',
+        { csrf_token: '', key: session.unikey, type: 1 },
+        neteaseJarToString(session.jar),
+      );
+      const code = Number(json?.code);
+      if (session.lastCode !== code) {
+        console.log(`[netease-qr] 上游状态 ${session.lastCode ?? '-'} → ${code}`);
+        session.lastCode = code;
+      }
+      for (const [name, value] of jar) session.jar.set(name, value);
+      if (code === 803) {
+        const cookie = neteaseJarToString(session.jar);
+        if (!extractCookieValue(cookie, 'MUSIC_U')) {
+          // 已授权但拿不到 MUSIC_U：保留会话并明确报错，不能伪装成“二维码过期”
+          console.warn(`[netease-qr] 803 但未取到 MUSIC_U（本次 Set-Cookie ${jar.size} 条，累计 ${session.jar.size} 条）`);
+          return { status: 'failed', message: '授权成功但未获取到登录凭据，请重新扫码' };
+        }
+        neteaseLoginSessions.delete(sessionKey);
+        console.log('[netease-qr] 授权成功，已拿到 MUSIC_U');
+        return { status: 'confirmed', cookie };
+      }
+      if (code === 800) {
+        neteaseLoginSessions.delete(sessionKey);
+        return { status: 'expired' };
+      }
+      if (code === 802) return { status: 'scanned' };
+      if (code === 801) return { status: 'waiting' };
+      if (code === 8821) {
+        // 8821 = 上游风控/请求被拒，不是“等待确认”。连续命中就明确失败，避免界面永久卡在已扫码
+        session.riskHits = (session.riskHits || 0) + 1;
+        console.warn(`[netease-qr] 上游返回 8821（第 ${session.riskHits} 次）`);
+        if (session.riskHits >= 3) {
+          return { status: 'failed', message: '网易云限制了本次登录请求（8821），请稍后重新获取二维码' };
+        }
+        return { status: 'waiting' };
+      }
+      console.warn(`[netease-qr] 未预期的上游响应 code=${code}`);
+      return { status: 'waiting' };
+    } catch (err) {
+      lastError = err?.message || String(err);
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
     }
-    const cookie = jar.join('; ');
-    if (!extractCookieValue(cookie, 'MUSIC_U')) return { status: 'expired' };
-    return { status: 'confirmed', cookie };
   }
-  if (code === 800) {
-    neteaseLoginSessions.delete(sessionKey);
-    return { status: 'expired' };
-  }
-  if (code === 802) return { status: 'scanned' };
-  return { status: 'waiting' };
+  console.warn(`[netease-qr] 轮询上游连续失败：${lastError}`);
+  return { status: 'failed', message: '网易云登录状态查询失败，请重新获取二维码' };
 }
 
 /**
@@ -795,9 +999,18 @@ export function clearDesktopQishuiLogin() {
 /** 以房主身份落库汽水会话（包内令牌刷新/扫码确认都会走到这里） */
 function persistQishuiSession(roomId, session) {
   const room = getRoomInternal(roomId);
-  const actor = room?.creatorId;
+  const actor = room?.creatorId || '';
+  // 先写本机长期账号：房间可能已被销毁或房主暂离线，会话不能因此丢掉
+  try {
+    if (session) saveSourceAccountSession(session, actor);
+    else removeSourceAccount('qishui', actor);
+  } catch (err) {
+    console.warn(`[source-account] 汽水本机会话保存失败：${err.message}`);
+  }
+
   if (!actor) return;
-  setRoomSourceCredential(roomId, actor, 'qishui', session ? { session } : null);
+  const saved = setRoomSourceCredential(roomId, actor, 'qishui', session ? { session } : null);
+  if (saved.error) console.warn(`[source-account] 汽水房间会话保存失败（${roomId}）：${saved.error}`);
 }
 
 /** 发起汽水扫码授权：返回官方二维码（抖音 / 汽水音乐 App 扫码） */

@@ -21,7 +21,8 @@ import { isMobileDevice } from './audioUnlock';
 
 const MAX_URL_CACHE = 24;
 const DEFAULT_PREFETCH_COUNT = 2;
-const URL_CACHE_STORAGE_KEY = 'openmusic:song-url-cache';
+/** 缓存键带版本号：代理策略变更（如汽水 CDN 改为必须走代理）后旧直链缓存自动失效 */
+const URL_CACHE_STORAGE_KEY = 'openmusic:song-url-cache:v2';
 
 type FetchUrlResult =
   | { ok: true; url: string }
@@ -291,8 +292,15 @@ export async function fetchServiceFallbackUrl(
   return fallback.ok ? fallback.url : null;
 }
 
-export function rememberSongUrl(trackKey: string, url: string) {
-  urlCache.set(trackKey, url);
+/**
+ * 记录已解析出的播放地址。key 必须与 fetchSongUrl 读取侧的 urlCacheKey 一致
+ * （trackKey:音质:代理标记），否则缓存永远不命中、还会占用 FIFO 名额。
+ */
+export function rememberSongUrl(
+  song: Pick<QueueItem, 'queueId' | 'id' | 'source' | 'url'>,
+  url: string,
+) {
+  urlCache.set(urlCacheKey(song), url);
   trimUrlCache();
 }
 

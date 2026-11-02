@@ -382,15 +382,24 @@ async function createWindow() {
   mainWindow.on('maximize', publishMaximizedState);
   mainWindow.on('unmaximize', publishMaximizedState);
   const isLocalUrl = (url) => url.startsWith(`${base}/`) || url === base;
+  // 只把 http/https 交给系统浏览器：否则渲染层被注入后可用 file:、ms-msdt: 等任意协议执行本机程序
+  const isSafeExternalUrl = (url) => {
+    try {
+      const protocol = new URL(url).protocol;
+      return protocol === 'http:' || protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isLocalUrl(url)) return { action: 'allow' };
-    shell.openExternal(url);
+    if (isSafeExternalUrl(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (isLocalUrl(url)) return;
     event.preventDefault();
-    shell.openExternal(url);
+    if (isSafeExternalUrl(url)) shell.openExternal(url);
   });
 
   await mainWindow.loadURL(base);

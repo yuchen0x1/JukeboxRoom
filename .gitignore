@@ -35,3 +35,9 @@ server/data/
 # ZCode local session state
 .zcode/
 server/.qishui-device
+
+# 本机工作区与测试隔离残留
+.workbuddy/
+client/dist.bak-*/
+server/data_quarantine/
+server/data_quarantine2/

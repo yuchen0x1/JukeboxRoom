@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, X, Check, QrCode, RefreshCw, Music2, LogOut } from 'lucide-react';
 import { fetchWithTimeout } from '../api/http';
+import { useRoomStore } from '../stores/roomStore';
 import {
   pollDesktopSourceLogin,
   saveDesktopSourceCookie,
@@ -34,7 +35,7 @@ type ScanStatus = 'idle' | 'loading' | 'waiting' | 'scanned' | 'confirmed' | 'ex
 
 const QR_PLATFORMS: Array<{ id: 'netease' | 'tencent' | 'kugou' | 'qishui'; label: string; hint: string; color: string }> = [
   { id: 'netease', label: '网易云', hint: '使用网易云音乐 App 扫码并确认登录，VIP 歌曲完整播放', color: '#ec4141' },
-  { id: 'tencent', label: 'QQ音乐', hint: '使用手机 QQ / 微信扫码并确认登录', color: '#31c27c' },
+  { id: 'tencent', label: 'QQ音乐', hint: '使用手机 QQ 扫码并确认登录', color: '#31c27c' },
   { id: 'kugou', label: '酷狗音乐', hint: '使用酷狗音乐 App 扫码并确认登录', color: '#2688ee' },
   { id: 'qishui', label: '汽水音乐', hint: '使用汽水音乐 App 或抖音扫码并确认授权', color: '#f5a623' },
 ];
@@ -56,12 +57,17 @@ export default function RoomSourceLoginModal({
   const [showCookieInput, setShowCookieInput] = useState(false);
   const [cookieDraft, setCookieDraft] = useState('');
   const [cookieSaving, setCookieSaving] = useState(false);
+  const [removingSource, setRemovingSource] = useState<string | null>(null);
   const [remainingSec, setRemainingSec] = useState(0);
   const [enlarged, setEnlarged] = useState(false);
   const pollTimer = useRef<number | null>(null);
   const tickTimer = useRef<number | null>(null);
   const sessionRef = useRef('');
   const expiresAtRef = useRef(0);
+  /** 连续轮询失败次数：多次失败要显式报错，不能一直静默等待 */
+  const pollFailRef = useRef(0);
+  /** 单次轮询未返回前不叠加新请求，避免并发触发上游风控 */
+  const pollInFlightRef = useRef(false);
 
   /** 二维码有效期：QQ 3 分钟，酷狗 2 分钟；到点自动过期需重新获取 */
   const QR_TTL_SEC: Record<string, number> = { netease: 300, tencent: 180, kugou: 120, qishui: 300 };
@@ -101,6 +107,7 @@ export default function RoomSourceLoginModal({
     setScanError('');
     setQrImage('');
     sessionRef.current = '';
+    pollFailRef.current = 0;
     try {
       if (mode === 'desktop') {
         const result = await startDesktopSourceLogin(source as DesktopAccountSource);
@@ -135,7 +142,8 @@ export default function RoomSourceLoginModal({
 
       pollTimer.current = window.setInterval(async () => {
         const key = sessionRef.current;
-        if (!key) return;
+        if (!key || pollInFlightRef.current) return;
+        pollInFlightRef.current = true;
         try {
           let status: ScanStatus | undefined;
           let message: string | undefined;
@@ -154,8 +162,15 @@ export default function RoomSourceLoginModal({
             message = polled.message || polled.error;
           }
           if (status === 'confirmed') {
-            // 凭据已在服务端随轮询写入房间；room_update 广播会刷新 sourceLogins
             stopPolling();
+            // 不依赖 room_update 广播时序：立即把本地房间登录态翻成已登录
+            const currentRoom = useRoomStore.getState().room;
+            if (currentRoom) {
+              useRoomStore.getState().setRoom({
+                ...currentRoom,
+                sourceLogins: { ...currentRoom.sourceLogins, [source]: true },
+              });
+            }
             setScanStatus('confirmed');
             await onCredentialChange?.();
             setTimeout(() => {
@@ -172,8 +187,17 @@ export default function RoomSourceLoginModal({
             setScanStatus('failed');
             setScanError(message || '登录失败，请重新扫码');
           }
+          pollFailRef.current = 0;
         } catch {
-          // 单次轮询失败忽略，下个周期重试
+          // 偶发失败重试；连续失败必须暴露出来，否则界面会永远停在“已扫码”
+          pollFailRef.current += 1;
+          if (pollFailRef.current >= 3) {
+            stopPolling();
+            setScanStatus('failed');
+            setScanError('登录状态查询失败（服务端或网络异常），请重新获取二维码');
+          }
+        } finally {
+          pollInFlightRef.current = false;
         }
       }, 2500);
     } catch (err) {
@@ -236,7 +260,7 @@ export default function RoomSourceLoginModal({
         </div>
         <p className="text-xs text-white/40 mb-5">{mode === 'desktop'
           ? '扫码登录用于调用本人账号的播放权限。搜索仍来自平台公开曲库，不会读取私人歌单；账号会话加密保存在这台电脑，可随时退出。'
-          : '房主登录后，本房间所有成员点歌都可用这些平台的 VIP 音源。凭据仅保存在服务端。'}</p>
+          : '登录一次即加密保存在本机，刷新页面、重启程序或更换房间都不用重新扫码；账号只用于解析播放地址，不会读取私人歌单，可随时退出。'}</p>
 
         {/* 扫码登录平台 */}
         <div className="space-y-3">
@@ -266,18 +290,31 @@ export default function RoomSourceLoginModal({
                           Cookie
                         </button>
                       )}
-                      {mode === 'desktop' && sourceLogins[platform.id] && onRemoveCredential && (
+                      {sourceLogins[platform.id] && (
                         <button
                           type="button"
+                          disabled={removingSource === platform.id}
                           onClick={async () => {
-                            const result = await onRemoveCredential(platform.id as DesktopAccountSource);
-                            if (result.success) await onCredentialChange?.();
-                            else setScanError(result.error || '退出账号失败');
+                            if (removingSource) return;
+                            setRemovingSource(platform.id);
+                            try {
+                              const result = mode === 'desktop' && onRemoveCredential
+                                ? await onRemoveCredential(platform.id as DesktopAccountSource)
+                                : await onSaveCredential(platform.id, null);
+                              if (result.success) await onCredentialChange?.();
+                              else setScanError(result.error || '退出账号失败');
+                            } catch (error) {
+                              setScanError(error instanceof Error ? error.message : '退出账号失败');
+                            } finally {
+                              setRemovingSource(null);
+                            }
                           }}
-                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-white/45 border border-white/10 transition-colors hover:bg-red-400/10 hover:text-red-300"
-                          title={`退出${platform.label}账号`}
+                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-white/45 border border-white/10 transition-colors hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
+                          title={`退出${platform.label}账号（同时删除本机保存的登录信息）`}
                         >
-                          <LogOut className="w-3.5 h-3.5" />退出
+                          {removingSource === platform.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <LogOut className="w-3.5 h-3.5" />}退出
                         </button>
                       )}
                       <button
@@ -334,7 +371,7 @@ export default function RoomSourceLoginModal({
                         {scanStatus === 'scanned'
                           ? '已扫码，请在手机上确认登录'
                           : scanStatus === 'failed'
-                            ? '登录失败，请重试'
+                            ? (scanError || '登录失败，请重试')
                             : scanStatus === 'expired'
                               ? '二维码已过期'
                               : '请使用对应 App 扫码登录'}
@@ -348,7 +385,7 @@ export default function RoomSourceLoginModal({
                         <p className="mt-1 text-[11px] text-white/35">扫不上？点击二维码放大后再扫</p>
                       )}
                       <p className="mt-1 text-[11px] text-white/35 leading-4">{platform.hint}</p>
-                      {scanStatus === 'expired' && (
+                      {(scanStatus === 'expired' || scanStatus === 'failed') && (
                         <button
                           type="button"
                           onClick={() => void startScan(platform.id)}

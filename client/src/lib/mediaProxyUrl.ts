@@ -59,6 +59,30 @@ export function isHttpsPageContext(): boolean {
   return typeof window !== 'undefined' && window.location.protocol === 'https:';
 }
 
+/**
+ * 校验 Referer 的 CDN 域名：浏览器直连会带上本站地址，被上游直接 403。
+ * 这类地址必须经服务端代理，由服务端改用平台自己的 Referer 取流。
+ * 汽水音乐（字节 CDN）已实测：Referer=localhost → 403，空/抖音系 → 200。
+ */
+const REFERER_LOCKED_MEDIA_SUFFIXES = [
+  '365yg.com',
+  'douyinvod.com',
+  'douyinpic.com',
+  'byteicdn.com',
+  'snssdk.com',
+];
+
+export function requiresProxyForReferer(url: string): boolean {
+  if (!url) return false;
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const host = new URL(url, base).hostname.toLowerCase();
+    return REFERER_LOCKED_MEDIA_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  } catch {
+    return false;
+  }
+}
+
 /** HTTPS 页面播放 HTTP 直链会被混合内容策略拦截 */
 export function shouldProxyInsecurePlaybackUrl(url: string): boolean {
   return isHttpsPageContext() && isInsecureRemoteMediaUrl(url);
@@ -68,9 +92,10 @@ export function shouldProxyInsecurePlaybackUrl(url: string): boolean {
  * 播放地址是否应走同源代理：
  * - 沉浸/Web Audio 频谱模式
  * - HTTPS 站点上的 HTTP 音频（如酷狗音乐直链）
+ * - 校验 Referer 的 CDN（汽水/字节）：直连必被 403
  */
 export function shouldProxyPlaybackUrl(url: string, visualModeProxy = false): boolean {
-  return visualModeProxy || shouldProxyInsecurePlaybackUrl(url);
+  return visualModeProxy || shouldProxyInsecurePlaybackUrl(url) || requiresProxyForReferer(url);
 }
 
 /**
