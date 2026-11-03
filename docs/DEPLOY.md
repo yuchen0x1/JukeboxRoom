@@ -9,7 +9,7 @@
 
 1. 安装 Node.js 20（没有的话用 nvm 或系统包管理器安装）
 2. 克隆仓库：git clone https://github.com/yuchen0x1/JukeboxRoom.git 并进入目录
-3. 安装依赖：npm run install:all（会依次安装根目录、server、client 三处依赖）
+3. 安装网页服务依赖：npm run install:web（根目录、server、client；桌面版依赖仅在构建桌面版时安装）
 4. 创建 server/.env，内容包含：
    NODE_ENV=production
    CLIENT_ID_SECRET=<随机生成一段至少 32 个字符的密钥>
@@ -141,7 +141,7 @@ REDIS_URL=redis://127.0.0.1:6379/0
 页面 `canonical`、Open Graph 等标签在浏览器端按**当前访问域名**自动写入；`/sitemap.xml` 与 `/robots.txt` 由 Node 服务动态生成（优先 `CLIENT_URL`），无需单独配置前端环境变量。
 
 ```bash
-npm run install:all
+npm run install:web
 npm run build
 cp server/.env.example server/.env
 # 编辑 server/.env

@@ -165,7 +165,7 @@ import { isAllowedReleaseRedirectUrl, updateService } from './update.js';
 import { getProviderHealth } from './mediaHealth.js';
 import { applySelfUpdate, getSelfUpdateState } from './selfUpdate.js';
 import {
-  getDesktopSourceCookie,
+  getDesktopSourceCookieForPlayback,
   getDesktopSourceLogins,
   isTrustedDesktopRequest,
   removeDesktopSourceAccount,
@@ -948,7 +948,7 @@ if (DESKTOP_MODE) {
 
     try {
       let url = null;
-      const accountCookie = getDesktopSourceCookie(source);
+      const accountCookie = getDesktopSourceCookieForPlayback(source);
       if (source === 'netease') {
         if (accountCookie) url = await resolveNeteasePlayUrl(songId, quality, accountCookie);
         if (!url && !METING_API_URL && !accountCookie) {

@@ -100,13 +100,13 @@ export function applySelfUpdate() {
       if (!step.ok) throw new Error('git reset 失败');
 
       // 2. 重装服务端依赖
-      step = await run('npm ci --omit=dev', path.join(repoRoot, 'server'));
+      step = await run('npm ci --omit=dev', { cwd: path.join(repoRoot, 'server') });
       if (!step.ok) throw new Error('服务端依赖安装失败');
 
       // 3. 重装客户端依赖并重建
-      step = await run('npm ci', path.join(repoRoot, 'client'), 900_000);
+      step = await run('npm ci', { cwd: path.join(repoRoot, 'client'), timeoutMs: 900_000 });
       if (!step.ok) throw new Error('客户端依赖安装失败');
-      step = await run('npm run build', path.join(repoRoot, 'client'), 900_000);
+      step = await run('npm run build', { cwd: path.join(repoRoot, 'client'), timeoutMs: 900_000 });
       if (!step.ok) throw new Error('前端构建失败');
 
       // 4. 重启进程

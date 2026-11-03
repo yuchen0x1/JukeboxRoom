@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-brightgreen.svg)
-![Version](https://img.shields.io/badge/version-0.0.5-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.7-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 
 一群人聚在一起听歌，最怕的就是"放什么"争不出结果。JukeboxRoom 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
@@ -77,7 +77,7 @@ JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web �
 
 1. 安装 Node.js 20（没有的话用 nvm 或系统包管理器安装）
 2. 克隆仓库：git clone https://github.com/yuchen0x1/JukeboxRoom.git 并进入目录
-3. 安装依赖：npm run install:all（会依次安装根目录、server、client 三处依赖）
+3. 安装网页服务依赖：npm run install:web（根目录、server、client；桌面版依赖仅在构建桌面版时安装）
 4. 创建 server/.env，内容包含：
    NODE_ENV=production
    CLIENT_ID_SECRET=<随机生成一段至少 32 个字符的密钥>
@@ -112,7 +112,7 @@ docker compose up -d --build
 ```bash
 git clone https://github.com/yuchen0x1/JukeboxRoom.git
 cd JukeboxRoom
-npm run install:all   # 依次安装根目录、server 和 client 的依赖
+npm run install:web   # 网页服务：根目录、server、client；桌面版另行安装 desktop 依赖
 npm run dev           # 同时启动服务端(4000)和前端(5173)
 ```
 
@@ -134,7 +134,7 @@ npm run dev           # 同时启动服务端(4000)和前端(5173)
 ```bash
 git clone https://github.com/yuchen0x1/JukeboxRoom.git
 cd JukeboxRoom
-npm run install:all   # 依次安装根目录、server 和 client 的依赖
+npm run install:web   # 网页服务：根目录、server、client；桌面版另行安装 desktop 依赖
 ```
 
 ### 第 2 步：启动 Meting-API
@@ -194,7 +194,7 @@ npm run dev
 生产环境由同一个 Node 进程提供 API、WebSocket 和 `client/dist` 静态资源：
 
 ```bash
-npm run install:all
+npm run install:web
 npm run build
 cp server/.env.example server/.env
 # 编辑 server/.env：设置 NODE_ENV=production 及生产必填项
@@ -409,10 +409,11 @@ npm run check:health       # 对已启动实例做存活/就绪/更新接口冒�
 
 ### Windows 桌面版构建
 
-在 Windows 环境安装项目依赖并构建：
+在 Windows 环境安装网页依赖和桌面端依赖后构建：
 
 ```bash
-npm run install:all
+npm run install:web
+npm install --prefix desktop
 npm run desktop:build
 ```
 

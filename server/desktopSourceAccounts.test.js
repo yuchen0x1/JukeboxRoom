@@ -24,16 +24,20 @@ test('desktop source accounts encrypt credentials and never expose them in accou
   const cookie = 'uin=o123456789; skey=private-account-session';
   try {
     const saved = JSON.parse(runWithStore(dataDir, secret, `
-      import { getDesktopSourceLogins, getDesktopSourceCookie, getDesktopSourceSession, isTrustedDesktopRequest, saveDesktopSourceCookie, saveDesktopSourceSession } from ${JSON.stringify(moduleUrl)};
+      import { getDesktopSourceLogins, getDesktopSourceCookie, getDesktopSourceCookieForPlayback, getDesktopSourceSession, isTrustedDesktopRequest, saveDesktopSourceCookie, saveDesktopSourceSession } from ${JSON.stringify(moduleUrl)};
+      const qishuiPlaybackCookieBeforeLogin = getDesktopSourceCookieForPlayback('qishui');
       saveDesktopSourceCookie('tencent', ${JSON.stringify(cookie)});
       saveDesktopSourceSession({ ticket: 'private-qishui-ticket', userId: 'qishui-user' });
       const request = { headers: { host: '127.0.0.1:34567', origin: 'http://127.0.0.1:34567', 'sec-fetch-site': 'same-origin' }, socket: { remoteAddress: '127.0.0.1' } };
       const crossOrigin = { ...request, headers: { ...request.headers, origin: 'http://evil.example' } };
-      console.log(JSON.stringify({ logins: getDesktopSourceLogins(), cookie: getDesktopSourceCookie('tencent'), qishuiTicket: getDesktopSourceSession()?.ticket, local: isTrustedDesktopRequest(request, 34567), crossOrigin: isTrustedDesktopRequest(crossOrigin, 34567) }));
+      console.log(JSON.stringify({ logins: getDesktopSourceLogins(), cookie: getDesktopSourceCookie('tencent'), tencentPlaybackCookie: getDesktopSourceCookieForPlayback('tencent'), qishuiPlaybackCookieBeforeLogin, qishuiPlaybackCookie: getDesktopSourceCookieForPlayback('qishui'), qishuiTicket: getDesktopSourceSession()?.ticket, local: isTrustedDesktopRequest(request, 34567), crossOrigin: isTrustedDesktopRequest(crossOrigin, 34567) }));
     `));
 
     assert.deepEqual(saved.logins, { netease: false, tencent: true, kugou: false, qishui: true });
     assert.equal(saved.cookie, cookie);
+    assert.equal(saved.tencentPlaybackCookie, cookie);
+    assert.equal(saved.qishuiPlaybackCookieBeforeLogin, '');
+    assert.equal(saved.qishuiPlaybackCookie, '');
     assert.equal(saved.qishuiTicket, 'private-qishui-ticket');
     assert.equal(saved.local, true);
     assert.equal(saved.crossOrigin, false);

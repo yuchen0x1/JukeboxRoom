@@ -5,7 +5,7 @@
 在项目根目录执行：
 
 ```bash
-npm run install:all   # 首次需要
+npm run install:web   # 网页服务首次需要
 npm run build         # 构建前端 → client/dist
 ```
 

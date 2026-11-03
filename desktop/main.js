@@ -76,6 +76,16 @@ function readConfigFile(filePath) {
   return out;
 }
 
+function protectConfigFile(filePath) {
+  try {
+    // POSIX 部署中配置文件含有第三方账号密钥，限制为当前用户可读写。
+    // Windows 对 chmod 的支持有限，但调用是安全的，并不会阻断桌面端启动。
+    fs.chmodSync(filePath, 0o600);
+  } catch {
+    // 权限保护失败不应阻断本地应用启动；配置仍保存在 userData 目录。
+  }
+}
+
 function getFreePort() {
   return new Promise((resolve, reject) => {
     const probe = net.createServer();
@@ -221,7 +231,8 @@ function stopServer() {
 async function startServer() {
   const port = await getFreePort();
   const configPath = path.join(app.getPath('userData'), 'jukeboxroom.env');
-  if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, CONFIG_TEMPLATE, 'utf8');
+  if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, CONFIG_TEMPLATE, { encoding: 'utf8', mode: 0o600 });
+  protectConfigFile(configPath);
   const userEnv = readConfigFile(configPath);
 
   const generatedSecrets = [];
@@ -231,7 +242,8 @@ async function startServer() {
     if (!userEnv.AUTH_JWT_SECRET) generatedSecrets.push(`AUTH_JWT_SECRET=${crypto.randomBytes(32).toString('hex')}`);
     if (!userEnv.DESKTOP_CREDENTIAL_SECRET) generatedSecrets.push(`DESKTOP_CREDENTIAL_SECRET=${crypto.randomBytes(32).toString('hex')}`);
     generatedSecrets.push('');
-    fs.appendFileSync(configPath, generatedSecrets.join('\n'), 'utf8');
+    fs.appendFileSync(configPath, generatedSecrets.join('\n'), { encoding: 'utf8', mode: 0o600 });
+    protectConfigFile(configPath);
     Object.assign(userEnv, readConfigFile(configPath));
   }
 

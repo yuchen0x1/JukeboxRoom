@@ -94,6 +94,16 @@ export function getDesktopSourceCookie(source) {
   return record?.credential?.version === 1 ? decryptPayload(record.credential) : '';
 }
 
+/**
+ * 获取桌面播放链路使用的 Cookie。
+ * 汽水音乐不使用 Cookie，而是由 sourceResolvers 读取独立 session；
+ * 返回空字符串让调用方继续进入汽水专用解析分支。
+ */
+export function getDesktopSourceCookieForPlayback(source) {
+  assertSource(source);
+  return source === 'qishui' ? '' : getDesktopSourceCookie(source);
+}
+
 export function saveDesktopSourceCookie(source, cookie) {
   assertSource(source);
   validateCookie(source, cookie);
