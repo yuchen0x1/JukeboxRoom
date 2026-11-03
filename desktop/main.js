@@ -3,7 +3,7 @@
  * 启动时在本机拉起 JukeboxRoom 服务端（内嵌 Node 运行），再用窗口加载页面。
  * 配置与数据目录：优先沿用旧版 %APPDATA%/openmusic-desktop，首次安装的新目录为 %APPDATA%/JukeboxRoom。
  */
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, dialog, ipcMain, nativeImage, shell } = require('electron');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -124,6 +124,8 @@ function waitUntilReady(url) {
 let serverChild = null;
 let serverStopping = false;
 let mainWindow = null;
+let tray = null;
+let trayHintShown = false;
 let reportedExit = false;
 let desktopMusicWriteQueue = Promise.resolve();
 let desktopMusicWriteTarget = 0;
@@ -214,6 +216,41 @@ function saveDesktopMusicState(value) {
   });
   desktopMusicWriteQueue = nextWrite.catch(() => undefined);
   return nextWrite.then(() => true);
+}
+
+function resolveTrayIcon() {
+  for (const name of ['JukeboxRoom.ico', 'icon.png']) {
+    const iconPath = path.join(__dirname, 'build', name);
+    if (!fs.existsSync(iconPath)) continue;
+    const image = nativeImage.createFromPath(iconPath);
+    if (!image.isEmpty()) return image;
+  }
+  return null;
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createTray() {
+  const icon = resolveTrayIcon();
+  if (!icon) {
+    // 托盘不可用时保持“关闭即退出”的原行为，避免窗口隐藏后应用无入口可恢复
+    process.emitWarning('托盘图标资源缺失，关闭主窗口将直接退出应用');
+    return;
+  }
+  tray = new Tray(icon);
+  tray.setToolTip('JukeboxRoom');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '显示主界面', click: () => showMainWindow() },
+    { type: 'separator' },
+    { label: '退出 JukeboxRoom', click: () => { app.isQuitting = true; app.quit(); } },
+  ]));
+  tray.on('click', () => showMainWindow());
+  tray.on('double-click', () => showMainWindow());
 }
 
 function stopServer() {
@@ -415,6 +452,28 @@ async function createWindow() {
   });
 
   await mainWindow.loadURL(base);
+
+  createTray();
+
+  // 点关闭 = 最小化到托盘继续播放（与常见音乐软件一致）；真正退出走托盘菜单或应用退出流程
+  mainWindow.on('close', (event) => {
+    if (app.isQuitting || !tray) return;
+    event.preventDefault();
+    mainWindow.hide();
+    if (!trayHintShown) {
+      trayHintShown = true;
+      if (process.platform === 'win32' && typeof tray.displayBalloon === 'function') {
+        try {
+          tray.displayBalloon({
+            title: 'JukeboxRoom 仍在运行',
+            content: '已最小化到系统托盘：点击托盘图标恢复界面，右键图标可选择退出。',
+          });
+        } catch {
+          // 气泡提示失败不影响托盘功能
+        }
+      }
+    }
+  });
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -422,9 +481,8 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    // 已在托盘后台运行时再次启动，唤起主窗口而不是无响应
+    showMainWindow();
   });
   app.whenReady().then(createWindow);
 }
@@ -433,10 +491,18 @@ app.on('window-all-closed', () => {
   stopServer();
   app.quit();
 });
-app.on('before-quit', stopServer);
+app.on('before-quit', () => {
+  // 标记正在退出，让主窗口的“关闭转托盘”拦截放行窗口真正关闭
+  app.isQuitting = true;
+  stopServer();
+});
 process.on('exit', stopServer);
 
 app.on('will-quit', () => {
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
   for (const channel of [
     'jukebox:window-minimize',
     'jukebox:window-toggle-maximize',
