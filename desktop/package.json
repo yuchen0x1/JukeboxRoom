@@ -63,7 +63,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "deleteAppDataOnUninstall": false,
+      "deleteAppDataOnUninstall": true,
       "artifactName": "jukeboxroom-desktop-setup-${version}-${arch}.${ext}"
     }
   }
