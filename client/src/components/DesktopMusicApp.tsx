@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Download,
   ExternalLink,
@@ -37,7 +39,8 @@ import {
   X,
 } from 'lucide-react';
 import type { SearchResult, Song } from '../types';
-import { formatDuration, getCoverUrl, getSourceLabel } from '../api/music';
+import { formatDuration, getSourceLabel } from '../api/music';
+import SongCover from './SongCover';
 import { fetchUpdateInfo, type UpdateInfo } from '../api/update';
 import {
   getDesktopMusicCapabilities,
@@ -74,6 +77,8 @@ const SOURCE_OPTIONS: Array<{ id: DesktopSourceFilter; label: string }> = [
   { id: 'kugou', label: '酷狗音乐' },
   { id: 'qishui', label: '汽水音乐' },
 ];
+
+const SEARCH_PAGE_SIZE = 30;
 
 const VIEW_META: Record<DesktopView, { title: string; subtitle: string }> = {
   discover: { title: '发现音乐', subtitle: '从真实平台榜单里找到下一首想听的歌。' },
@@ -116,15 +121,7 @@ function Cover({ song, size = 'small' }: { song: Song & Partial<DesktopTrack>; s
   if (local) {
     return <span className={`${className} desktop-cover--local`}><FileAudio aria-hidden="true" /></span>;
   }
-  return (
-    <img
-      className={className}
-      src={getCoverUrl(song, size === 'medium' ? 'medium' : 'tiny')}
-      alt=""
-      loading={size === 'small' ? 'lazy' : 'eager'}
-      onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-    />
-  );
+  return <SongCover song={song} size={size === 'medium' ? 'medium' : 'tiny'} className={className} />;
 }
 
 function EmptyState({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) {
@@ -455,6 +452,7 @@ export default function DesktopMusicApp() {
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchPage, setSearchPage] = useState(1);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [topSongs, setTopSongs] = useState<SearchResult[]>([]);
@@ -474,6 +472,8 @@ export default function DesktopMusicApp() {
   const [localTracks, setLocalTracks] = useState<DesktopTrack[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlsRef = useRef<string[]>([]);
+  const viewScrollRef = useRef<HTMLDivElement>(null);
+  const searchTotalPages = Math.max(1, Math.ceil(searchResults.length / SEARCH_PAGE_SIZE));
   const updateCheckInFlight = useRef(false);
 
   const current = useDesktopMusicStore((state) => state.current);
@@ -599,6 +599,7 @@ export default function DesktopMusicApp() {
     setSearchInput(trimmed);
     setSearchTerm(trimmed);
     setSearchError('');
+    setSearchPage(1);
     setSearchLoading(true);
     addRecentSearch(trimmed);
     try {
@@ -614,6 +615,11 @@ export default function DesktopMusicApp() {
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void runSearch();
+  };
+
+  const gotoSearchPage = (page: number) => {
+    setSearchPage(Math.min(Math.max(1, page), searchTotalPages));
+    viewScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const openQueue = () => {
@@ -788,7 +794,7 @@ export default function DesktopMusicApp() {
                 </form>
               </header>
 
-              <div className="desktop-view-scroll" key={view}>
+              <div className="desktop-view-scroll" key={view} ref={viewScrollRef}>
                 {view === 'discover' && (
                   <>
                     <div className="desktop-section-heading"><div><h2>网易云音乐榜单</h2><p>实时读取平台公开榜单，不填充模拟歌曲。</p></div><button type="button" className="desktop-text-button" onClick={() => { setTopLoading(true); void getDesktopTopSongs(100).then(setTopSongs).catch((error: unknown) => setTopError(error instanceof Error ? error.message : '榜单加载失败')).finally(() => setTopLoading(false)); }}><RefreshCw aria-hidden="true" />刷新</button></div>
@@ -803,7 +809,22 @@ export default function DesktopMusicApp() {
                     ) : (
                       <div className="desktop-section-heading"><div><h2>最近搜索</h2><p>本机保存的搜索记录。</p></div></div>
                     )}
-                    {searchLoading ? <div className="desktop-loading"><Loader2 className="animate-spin" aria-hidden="true" />正在搜索音乐源…</div> : searchError ? <EmptyState title="搜索暂不可用" detail={searchError} action={<button type="button" className="desktop-primary-button" onClick={() => void runSearch(searchTerm)}>重试</button>} /> : searchTerm ? renderSongs(searchResults, '没有找到歌曲', '换一个歌名或搜索其他音源。') : recentSearches.length ? <div className="desktop-recent-searches">{recentSearches.map((query) => <button type="button" key={query} onClick={() => void runSearch(query)}><Clock3 aria-hidden="true" />{query}</button>)}</div> : <EmptyState title="开始搜索音乐" detail="输入歌曲名、歌手或专辑，即可搜索可用音乐源。" />}
+                    {searchLoading ? <div className="desktop-loading"><Loader2 className="animate-spin" aria-hidden="true" />正在搜索音乐源…</div> : searchError ? <EmptyState title="搜索暂不可用" detail={searchError} action={<button type="button" className="desktop-primary-button" onClick={() => void runSearch(searchTerm)}>重试</button>} /> : searchTerm ? (
+                      <>
+                        {renderSongs(searchResults.slice((searchPage - 1) * SEARCH_PAGE_SIZE, searchPage * SEARCH_PAGE_SIZE), '没有找到歌曲', '换一个歌名或搜索其他音源。')}
+                        {searchResults.length > SEARCH_PAGE_SIZE && (
+                          <div className="desktop-pagination">
+                            <button type="button" className="desktop-secondary-button" onClick={() => gotoSearchPage(searchPage - 1)} disabled={searchPage <= 1}>
+                              <ChevronLeft aria-hidden="true" />上一页
+                            </button>
+                            <span className="desktop-pagination-status">第 {searchPage} / {searchTotalPages} 页 · 共 {searchResults.length} 首</span>
+                            <button type="button" className="desktop-secondary-button" onClick={() => gotoSearchPage(searchPage + 1)} disabled={searchPage >= searchTotalPages}>
+                              下一页<ChevronRight aria-hidden="true" />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : recentSearches.length ? <div className="desktop-recent-searches">{recentSearches.map((query) => <button type="button" key={query} onClick={() => void runSearch(query)}><Clock3 aria-hidden="true" />{query}</button>)}</div> : <EmptyState title="开始搜索音乐" detail="输入歌曲名、歌手或专辑，即可搜索可用音乐源。" />}
                   </>
                 )}
 

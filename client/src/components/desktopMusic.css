@@ -653,6 +653,20 @@
   line-height: 1.55;
 }
 
+.desktop-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 14px 4px 22px;
+}
+
+.desktop-pagination-status {
+  color: #8796a0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .desktop-empty-icon {
   display: grid;
   width: 42px;
