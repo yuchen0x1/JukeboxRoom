@@ -4,11 +4,13 @@ import {
   ChevronDown,
   ChevronLeft,
   Disc3,
+  ExternalLink,
   Heart,
   History,
   ListMusic,
   ListPlus,
   LoaderCircle,
+  MessagesSquare,
   Music2,
   Pause,
   Play,
@@ -33,11 +35,13 @@ import { getAndroidLyrics, getAndroidSongUrl, getAndroidTopSongs, searchAndroidS
 import Lyrics from './Lyrics';
 import { useDesktopMusicStore } from '../stores/desktopMusicStore';
 import { NativeMedia, type NativeMediaState } from '../lib/androidMedia';
-import { resolveMobileApiUrl } from '../lib/mobileApi';
+import { openExternalUrl, resolveMobileApiUrl } from '../lib/mobileApi';
 import './androidMusic.css';
 
 type MainTab = 'discover' | 'search' | 'favorites' | 'history' | 'playlists' | 'settings';
 type PlayerPanel = 'player' | 'lyrics' | 'queue' | null;
+
+const QQ_GROUP_URL = 'https://qm.qq.com/q/ktfryAk4Y8';
 
 const SOURCE_FILTERS: Array<{ id: 'all' | MusicSource; label: string }> = [
   { id: 'all', label: '全部' },
@@ -423,6 +427,18 @@ export default function AndroidMusicApp() {
         <label className="android-setting-row"><span><Volume2 aria-hidden="true" />音量</span><input type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => setVolume(Number(event.target.value))} aria-label="音量" /></label>
         <label className="android-setting-row"><span><AudioLines aria-hidden="true" />音质</span><select value={playbackQuality} onChange={(event) => setPlaybackQuality(event.target.value)}><option value="standard">标准</option><option value="higher">较高</option><option value="exhigh">高品质</option><option value="lossless">无损</option><option value="hires">Hi-Res</option></select></label>
         <p className="android-settings-note">收藏、歌单、播放队列和最近播放保存在本机。</p>
+      </section>
+      <section className="android-settings-section">
+        <h2>关于与交流</h2>
+        <button type="button" className="android-setting-row" onClick={() => void openExternalUrl(QQ_GROUP_URL)}>
+          <span><MessagesSquare aria-hidden="true" />QQ 交流群</span>
+          <span>冷漠网络科技交流群①</span>
+        </button>
+        <button type="button" className="android-setting-row" onClick={() => void openExternalUrl('https://github.com/yuchen0x1/JukeboxRoom/releases')}>
+          <span><ExternalLink aria-hidden="true" />GitHub 发布页</span>
+          <span>获取最新版本</span>
+        </button>
+        <p className="android-settings-note">点歌、播放或账号问题欢迎进群反馈。</p>
       </section>
     </div>
   );

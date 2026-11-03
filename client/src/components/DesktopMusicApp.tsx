@@ -10,6 +10,7 @@ import {
   ExternalLink,
   FileAudio,
   FolderHeart,
+  MessagesSquare,
   FolderPlus,
   Heart,
   Headphones,
@@ -79,6 +80,7 @@ const SOURCE_OPTIONS: Array<{ id: DesktopSourceFilter; label: string }> = [
 ];
 
 const SEARCH_PAGE_SIZE = 30;
+const QQ_GROUP_URL = 'https://qm.qq.com/q/ktfryAk4Y8';
 
 const VIEW_META: Record<DesktopView, { title: string; subtitle: string }> = {
   discover: { title: '发现音乐', subtitle: '从真实平台榜单里找到下一首想听的歌。' },
@@ -885,6 +887,14 @@ export default function DesktopMusicApp() {
                           onClick={() => window.open(updateInfo?.releasePageUrl || 'https://github.com/yuchen0x1/JukeboxRoom/releases', '_blank', 'noopener,noreferrer')}
                         >
                           <ExternalLink aria-hidden="true" />GitHub 发布页
+                        </button>
+                        <button
+                          type="button"
+                          className="desktop-text-button"
+                          onClick={() => window.open(QQ_GROUP_URL, '_blank', 'noopener,noreferrer')}
+                          title="加入 QQ 交流群：冷漠网络科技交流群①"
+                        >
+                          <MessagesSquare aria-hidden="true" />QQ 交流群
                         </button>
                       </div>
                       <p className="desktop-update-feedback" aria-live="polite">

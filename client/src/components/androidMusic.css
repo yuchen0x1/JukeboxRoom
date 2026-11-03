@@ -233,7 +233,10 @@
 .android-connection-state.is-connected { color: var(--android-accent); }
 .android-connection-state.is-checking { color: #9fb2da; }
 .android-setting-row { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid rgba(190, 210, 220, 0.055); }
+button.android-setting-row { width: 100%; padding: 0; border: none; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+button.android-setting-row:active { background: rgba(228, 238, 242, 0.045); }
 .android-setting-row > span { display: inline-flex; align-items: center; gap: 9px; color: #c5d0d5; font-size: 13px; }
+.android-setting-row > span:last-child { color: #7d8f98; font-size: 11px; }
 .android-setting-row > span svg { width: 17px; height: 17px; color: #91a5ad; }
 .android-setting-row input[type="range"] { width: 47%; accent-color: var(--android-accent); }
 .android-setting-row select { max-width: 48%; padding: 8px 23px 8px 10px; border: 1px solid var(--android-line); border-radius: 8px; background: #18222c; color: var(--android-text); font-size: 12px; }
