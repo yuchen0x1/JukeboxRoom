@@ -44,4 +44,15 @@ module.exports = async function afterPack(context) {
   if (!fs.existsSync(icon)) throw new Error(`应用图标不存在：${icon}`);
 
   execFileSync(findRcedit(), [executable, '--set-icon', icon], { stdio: 'inherit' });
+
+  // electron-builder v26 起 extraResources 的 glob 复制不再包含 node_modules，
+  // 内嵌 server 的依赖必须显式补齐，否则应用启动即 ERR_MODULE_NOT_FOUND（服务进程 code=1）。
+  const serverNodeModules = path.resolve(__dirname, '..', '..', 'server', 'node_modules');
+  const targetNodeModules = path.join(context.appOutDir, 'resources', 'server', 'node_modules');
+  if (!fs.existsSync(path.join(serverNodeModules, 'dotenv'))) {
+    throw new Error('server/node_modules 依赖不完整，请先在 server 目录执行 npm install 再打包');
+  }
+  if (!fs.existsSync(targetNodeModules)) {
+    fs.cpSync(serverNodeModules, targetNodeModules, { recursive: true });
+  }
 };
