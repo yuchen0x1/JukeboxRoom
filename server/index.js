@@ -167,6 +167,7 @@ import { applySelfUpdate, getSelfUpdateState } from './selfUpdate.js';
 import {
   getDesktopSourceCookieForPlayback,
   getDesktopSourceLogins,
+  getDesktopSourceLoginsWithValidity,
   isTrustedDesktopRequest,
   removeDesktopSourceAccount,
   saveDesktopSourceCookie,
@@ -840,9 +841,14 @@ if (DESKTOP_MODE) {
     });
   });
 
-  app.get('/api/desktop/music/accounts', (_req, res) => {
+  app.get('/api/desktop/music/accounts', async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ sources: getDesktopSourceLogins() });
+    try {
+      // 携带有效期探测：cookie 过期的平台会显示为未登录
+      res.json({ sources: await getDesktopSourceLoginsWithValidity() });
+    } catch {
+      res.json({ sources: getDesktopSourceLogins() });
+    }
   });
 
   app.post('/api/desktop/music/accounts/qr/start', async (req, res) => {

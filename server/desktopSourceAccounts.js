@@ -123,6 +123,7 @@ export function saveDesktopSourceSession(session) {
 }
 
 function saveEncryptedCredential(source, credential) {
+  validityCache.delete(source);
   const matchesSource = (record) => record.source === source;
   const update = findAndUpdate(COLLECTION, matchesSource, { credential });
   if (update.matched) return true;
@@ -133,7 +134,59 @@ function saveEncryptedCredential(source, credential) {
 
 export function removeDesktopSourceAccount(source) {
   assertSource(source);
+  validityCache.delete(source);
   return remove(COLLECTION, (record) => record.source === source) > 0;
+}
+
+// ── 登录有效期探测（网易云）───────────────────────────────
+// 目标：cookie 真正过期后状态显示"未登录"，用户重新扫码绑定即可。
+// 只有能给出确定性结论时才翻转状态：网络异常/接口异常一律维持"已登录"，
+// 避免网络抖动把用户误报成未登录。其余平台暂无可靠的轻量校验接口，
+// 维持"凭据存在即已登录"，后续可按同样模式逐个接入。
+const SOURCE_VALIDITY_TTL_MS = 10 * 60 * 1000;
+const SOURCE_VALIDITY_RETRY_MS = 60 * 1000;
+const validityCache = new Map();
+
+async function probeNeteaseCookieValid(cookie) {
+  try {
+    const res = await fetch('https://music.163.com/api/nuser/account/get', {
+      headers: {
+        Cookie: cookie,
+        Referer: 'https://music.163.com',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) JukeboxRoom Desktop',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (!data || typeof data !== 'object') return null;
+    if (data.code === 200 && data.profile) return true;
+    if (data.code === 301) return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getDesktopSourceLoginsWithValidity() {
+  const logins = getDesktopSourceLogins();
+  for (const source of Object.keys(logins)) {
+    if (!logins[source] || source !== 'netease') continue;
+    const cached = validityCache.get(source);
+    if (cached && cached.expiresAt > Date.now()) {
+      logins[source] = cached.valid;
+      continue;
+    }
+    const verdict = await probeNeteaseCookieValid(getDesktopSourceCookie(source));
+    if (verdict === null) {
+      // 判定不了：短暂缓存"已登录"并尽快重试，而不是永久相信
+      validityCache.set(source, { valid: true, expiresAt: Date.now() + SOURCE_VALIDITY_RETRY_MS });
+      continue;
+    }
+    validityCache.set(source, { valid: verdict, expiresAt: Date.now() + SOURCE_VALIDITY_TTL_MS });
+    logins[source] = verdict;
+  }
+  return logins;
 }
 
 export function isTrustedDesktopRequest(req, port) {
