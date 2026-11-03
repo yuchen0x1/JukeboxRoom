@@ -184,6 +184,60 @@ function parseGithubReleaseAtom(body) {
 // 兼容旧调用方，但更新通道固定为 GitHub。
 export function resetChannelCache() {}
 
+const CHANGELOG_CACHE_TTL_MS = 10 * 60 * 1000;
+let changelogCache = null;
+
+function getGithubReleasesListUrl() {
+  return `https://api.github.com/repos/${getRepository()}/releases?per_page=15`;
+}
+
+/**
+ * 拉取最近发布说明，供应用内「更新日志」动态展示（不再依赖随包内置的静态文件）。
+ * 失败时返回空数组，由前端回退到静态 changelog.md。
+ */
+export async function fetchRecentReleaseNotes() {
+  if (changelogCache && changelogCache.expiresAt > Date.now()) return changelogCache.value;
+  try {
+    if (typeof globalThis.fetch !== 'function') throw new Error('当前 Node.js 环境不支持 fetch');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    try {
+      const safeUrl = await guardGithubUrl(getGithubReleasesListUrl(), { resolveDns: true });
+      if (!safeUrl) throw new Error('GitHub 更新源地址未通过安全校验');
+      const headers = {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'JukeboxRoom-update-checker',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
+      if (String(process.env.UPDATE_GITHUB_TOKEN || '').trim()) headers.Authorization = `Bearer ${process.env.UPDATE_GITHUB_TOKEN}`;
+      const response = await globalThis.fetch(safeUrl, { headers, signal: controller.signal });
+      if (!response.ok) throw new Error(`GitHub 更新源返回 HTTP ${response.status}`);
+      const list = await response.json();
+      const releases = (Array.isArray(list) ? list : [])
+        .filter((item) => item && !item.draft)
+        .map((item) => {
+          const version = String(item.tag_name || '').replace(/^v/, '').trim();
+          const date = String(item.published_at || '').slice(0, 10);
+          const body = String(item.body || '');
+          return {
+            version,
+            name: String(item.name || '').trim(),
+            date,
+            // 首个标题行改写为带日期的统一格式，客户端解析器可直接复用
+            body: body.replace(/^##\s+.*$/m, `## ${version}${date ? ` - ${date}` : ''}`),
+          };
+        })
+        .filter((item) => /^\d+\.\d+\.\d+/.test(item.version) && item.body);
+      changelogCache = { value: releases, expiresAt: Date.now() + CHANGELOG_CACHE_TTL_MS };
+      return releases;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return changelogCache ? changelogCache.value : [];
+  }
+}
+
 export async function resolveChannel() {
   return CHANNEL_GITHUB;
 }

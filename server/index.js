@@ -161,7 +161,7 @@ import {
   isApihzStickerConfigured,
   searchApihzStickers,
 } from './apihzSticker.js';
-import { isAllowedReleaseRedirectUrl, updateService } from './update.js';
+import { fetchRecentReleaseNotes, isAllowedReleaseRedirectUrl, updateService } from './update.js';
 import { getProviderHealth } from './mediaHealth.js';
 import { applySelfUpdate, getSelfUpdateState } from './selfUpdate.js';
 import {
@@ -642,6 +642,16 @@ app.get('/api/health/ready', (_req, res) => {
 app.get('/api/health', (_req, res) => {
   if (!runtime.ready) return res.status(503).json({ ok: false, status: 'starting' });
   res.json({ ok: true, status: 'ready', storage: isRedisEnabled() ? 'redis' : 'memory' });
+});
+
+app.get('/api/update/changelog', async (_req, res) => {
+  try {
+    const releases = await fetchRecentReleaseNotes();
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json({ ok: true, releases });
+  } catch {
+    res.json({ ok: false, releases: [] });
+  }
 });
 
 app.get('/api/update', async (_req, res) => {

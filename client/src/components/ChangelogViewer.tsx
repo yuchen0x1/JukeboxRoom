@@ -13,17 +13,43 @@ export default function ChangelogViewer({ onClose }: Props) {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch('/changelog.md', { signal: controller.signal, cache: 'force-cache' })
-      .then((response) => {
-        if (!response.ok) throw new Error('Changelog unavailable');
-        return response.text();
-      })
-      .then((markdown) => setEntries(parseChangelog(markdown)))
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+    (async () => {
+      // 动态优先：GitHub Releases 的说明永远最新；静态 changelog.md 作为兜底（离线/接口不可用时）
+      let markdown = '';
+      try {
+        const response = await fetch('/api/update/changelog', { signal: controller.signal });
+        if (response.ok) {
+          const data = await response.json() as { releases?: Array<{ body?: string }> };
+          markdown = (data.releases || []).map((item) => item.body || '').filter(Boolean).join('\n\n');
+        }
+      } catch {
+        // 回退静态文件
+      }
+      try {
+        const staticResponse = await fetch('/changelog.md', { signal: controller.signal, cache: 'force-cache' });
+        if (staticResponse.ok) {
+          const staticMarkdown = await staticResponse.text();
+          markdown = markdown ? `${markdown}\n\n${staticMarkdown}` : staticMarkdown;
+        }
+      } catch {
+        // 只用动态内容
+      }
+      if (controller.signal.aborted) return;
+      if (!markdown.trim()) {
         setFailed(true);
-      })
-      .finally(() => setLoading(false));
+        setLoading(false);
+        return;
+      }
+      const parsed = parseChangelog(markdown);
+      const seen = new Set<string>();
+      setEntries(parsed.filter((entry) => (seen.has(entry.version) ? false : (seen.add(entry.version), true))));
+      setLoading(false);
+    })().catch(() => {
+      if (!controller.signal.aborted) {
+        setFailed(true);
+        setLoading(false);
+      }
+    });
     return () => controller.abort();
   }, []);
 
