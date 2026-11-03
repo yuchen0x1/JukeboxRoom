@@ -1,0 +1,4 @@
+# 以下为 Gitleaks 误报基线：网易云音乐 / 酷狗音乐 Web API 的公开签名参数，
+# 属于各开源音乐接口项目通用的公开常量，并非私有凭证。
+24b14c9d568356c5a191fcaa28d664f20fdf8f83:server/sourceResolvers.js:generic-api-key:283
+24b14c9d568356c5a191fcaa28d664f20fdf8f83:server/sourceResolvers.js:generic-api-key:400
