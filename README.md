@@ -1,362 +1,283 @@
 # JukeboxRoom · 多人实时在线点歌系统
 
+[![Release](https://img.shields.io/github/v/release/yuchen0x1/JukeboxRoom?display_name=tag&label=release&color=blue)](https://github.com/yuchen0x1/JukeboxRoom/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-brightgreen.svg)
-![Version](https://img.shields.io/badge/version-0.0.7-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 
-一群人聚在一起听歌，最怕的就是"放什么"争不出结果。JukeboxRoom 把选歌权交还给房间里的每一个人：大家各自搜歌、点歌、排队列，播放进度、歌词、聊天全部实时同步。
+JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在同一个房间里搜索歌曲、提交队列、同步播放进度、看歌词、聊天和管理播放规则。
 
-- 原创作者项目：<https://github.com/qq01-hub/openmusic>（本项目基于 OpenMusic 二次开发）
-- 代码托管：GitHub <https://github.com/yuchen0x1/JukeboxRoom>
+- 当前版本：**v0.0.10**（2026-11-04）
+- 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
+- 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
+- 完整变更记录：[CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
 
 | 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
 |:---:|:---:|:---:|
 | ![房间大厅](docs/screenshots/home.png) | ![房间点歌](docs/screenshots/room.png) | ![音源登录](docs/screenshots/login.png) |
 
-## 项目简介
+## 先选择使用方式
 
-JukeboxRoom 由 **Node.js 服务端**（Express + Socket.IO）和 **React Web 客户端**（Vite + TypeScript）组成，可直接私有部署。用户创建或加入音乐房间后，共享播放队列、播放进度和歌词，并在房间内聊天；服务端同时负责音乐源适配、媒体代理、房间管理、可选持久化和管理类接口。
+| 使用方式 | 适合场景 | 需要什么 |
+|---|---|---|
+| **自托管 Web** | 聚会、社群、办公室或家庭共享房间 | 一台 Node.js 20+ 服务器，或 Docker |
+| **Windows 桌面版** | 单机使用，或在本机运行一个房间服务 | 从 GitHub Release 下载 NSIS 安装包；无需 Node.js |
+| **Android 独立播放器** | 手机本地搜索、播放、收藏和后台播放 | Android 6.0（API 23）及以上，安装 APK 即可 |
+| **iOS / Capacitor** | 将现有站点装进移动端 WebView | 需要自己的 HTTPS 站点和 Capacitor 工具链；当前不等同于 Android 独立播放器 |
 
-典型场景：私人聚会、线上陪伴听歌、小型直播点歌、办公室/宿舍共享歌单、TV 大屏展示。项目处于正常维护与持续更新中。
+> Windows 和 Android 安装包、版本说明及签名状态以 [最新 GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/latest) 为准。当前 Windows 构建未使用商业代码签名证书，Android 发布资产为 debug 签名。
 
-## 核心特性
+## 核心能力
 
-**房间与社交**
+### 房间与社交
 
-- 房间大厅、6 位房间号、房间密码、在线人数、分享链接、断线重连；
-- 房间内聊天：文本、QQ 表情、本地/微信表情包入口、消息回复、@ 提及、消息回应，以及可选的七牛云图片上传。
+- 房间大厅、6 位房间号、密码、锁定、在线人数和分享链接
+- 房间内聊天：文本、表情、回复、@ 提及、消息回应；可选七牛云图片上传
+- 断线重连、房主转移、管理员/贵宾角色、禁言和踢人
 
-**播放与音乐**
+### 播放与音乐
 
-- 基于 Socket.IO 的实时同步播放：播放状态、队列和进度全房同步，支持暂停/播放/拖动进度；
-- 音乐搜索与播放：网易云、QQ音乐、酷狗音乐、汽水音乐四平台聚合搜索，支持音质选择（如 Hi-Res、无损 FLAC）；
-- **音源登录（房主专属）**：房主在「音源登录」面板扫码/授权登录网易云、QQ音乐、酷狗音乐、汽水音乐，全房成员点歌即使用该账号的 VIP / 高品质音源；凭据仅存服务端；
-- 歌单与收藏：网易云热榜、歌单搜索、外部歌单导入、个人收藏；
-- 歌词滚动与逐字高亮（卡拉OK 效果）、封面背景、Mini Player、同源媒体代理；
-- 队列为空时可自动随机推荐（私人漫游）。
+- 基于 Socket.IO 的实时同步播放：播放状态、队列、进度、暂停、拖动和跳歌
+- 聚合搜索网易云音乐、QQ 音乐、酷狗音乐、汽水音乐；音质由上游和账号权限决定
+- 房主可扫码或授权登录音源平台，房间成员共享房主可用的高品质音源；凭据加密保存在服务端，不下发到浏览器
+- 歌词、逐字高亮、封面背景、Mini Player、收藏、热榜、歌单搜索与外部歌单导入
+- 同源媒体代理、音乐源健康检查、失败熔断和播放失败后的降级处理
 
-**房主管理**
+### 房主管理与展示
 
-- 房间改名、锁定、公告、全员禁言、踢人、成员等级、贵宾/管理员角色、点歌规则和 FM 模式。
+- 房间改名、公告、点歌规则、FM 模式、音质和成员权限
+- 多种视觉模式与 TV 大屏页面：`/tv/:roomId`
 
-**视觉与展示**
+### 本地音乐与自动化
 
-- 多种视觉模式：默认背景、唱片、封面、星河、声波地形、沉浸模式和纯净模式；
-- TV 大屏：访问 `/tv/:roomId` 使用大屏播放界面。
+- 本地曲库扫描：读取音频标签，支持配置多个目录和可选文件变化监听
+- AutoDJ：在指定时间段内按低水位自动补歌，并按歌曲/歌手去重
+- 可选 Redis、JSON 数据持久化、Prometheus 指标和任务/审计 API
 
-**平台能力**
-
-- 平台账号登录（`/login`）、个人收藏与共享歌单；
-- 本地曲库：读取音频内嵌标签（失败时回退文件名），可选跨平台目录监听，文件增删改自动刷新索引；
-- AutoDJ：活动时间段内队列低水位自动补歌，按歌曲/歌手去重；
-- 在线更新检测：仅读取 GitHub 最新稳定 Release，Web/PWA/Capacitor 客户端展示更新提示；
-- PWA、SEO 文件（robots.txt / sitemap.xml）、可选 Prometheus 指标（`/metrics`）、音乐源失败熔断与接口限流。
-
-> 说明：服务端已内置认证、管理员、曲库、AutoDJ、任务中心和审计日志 API（按角色鉴权），但当前 Web 客户端仅提供首页、登录页、房间页和 TV 页，没有对应的管理后台界面。
-
-## 技术栈
-
-| 层 | 技术 |
-|---|---|
-| 服务端 | Node.js ≥ 20、Express 5、Socket.IO 4、Redis（可选） |
-| 客户端 | React 19、Vite、TypeScript、Zustand、Tailwind CSS、React Router |
-| 3D / 视觉 | Three.js、@react-three/fiber、MediaPipe Tasks Vision |
-| 移动端 | Capacitor 7（Android / iOS 远程 URL 模式） |
-| 音乐服务 | Meting-API（必需）；迟言 API（可选） |
-| 对象存储 | 七牛云 OSS（可选，用于聊天图片） |
-
-## 🚀 快速部署
-
-### 方式一：AI 一键部署（推荐，复制下面的提示词发给任意 AI 编程助手）
-
-把服务器 SSH 信息交给 AI 工具（如 ZCode / Claude Code / Cursor），粘贴这段提示词即可自动完成部署：
-
-```text
-请帮我在这台服务器上部署 JukeboxRoom 多人在线点歌系统（Node.js ≥ 20）：
-
-1. 安装 Node.js 20（没有的话用 nvm 或系统包管理器安装）
-2. 克隆仓库：git clone https://github.com/yuchen0x1/JukeboxRoom.git 并进入目录
-3. 安装网页服务依赖：npm run install:web（根目录、server、client；桌面版依赖仅在构建桌面版时安装）
-4. 创建 server/.env，内容包含：
-   NODE_ENV=production
-   CLIENT_ID_SECRET=<随机生成一段至少 32 个字符的密钥>
-   AUTH_JWT_SECRET=<再随机生成一段不同的至少 32 个字符的密钥>
-   METING_API_URL=https://api.injahow.cn/meting
-   METING_SEARCH_API_URL=https://api.i-meto.com/meting/api
-   （如绑定域名对外服务，再补 CLIENT_URL=https://你的域名 和 TRUST_PROXY=1）
-5. 构建前端：进入 client 目录执行 npm run build
-6. 启动服务：进入 server 目录用 pm2（npm i -g pm2 && pm2 start index.js --name jukeboxroom）或 systemd 常驻运行 node index.js，默认端口 4000
-7. 自检：curl http://127.0.0.1:4000/api/health 应返回 ok
-8. 最后告诉我访问地址（http://服务器IP:4000）、如何修改端口、如何更新版本（git pull 后重新 build + pm2 restart）
-
-遇到报错请自行排查修复后再继续，不要中途停下来问我。
-```
-
-> AI 部署完成后记得：为 `CLIENT_ID_SECRET` 和 `AUTH_JWT_SECRET` 分别设置不同的、至少 32 个字符的随机值；在「音源登录」面板登录各平台音源。
-
-### 方式二：Docker 一条命令
-
-```bash
-docker compose up -d --build
-```
-
-访问 `http://服务器IP:4000`。房间数据持久化在 `./data`，生产请修改 compose 里的 `CLIENT_ID_SECRET` 和 `AUTH_JWT_SECRET`。详细说明见 [docs/DEPLOY.md](docs/DEPLOY.md)。
-
-### 方式三：Windows 桌面版（开箱即用）
-
-从 GitHub [发布页](https://github.com/yuchen0x1/JukeboxRoom/releases) 下载 Windows 正式安装程序（`jukeboxroom-desktop-setup-*.exe`），运行安装向导后即可从桌面或开始菜单启动 JukeboxRoom。桌面版是独立 App，内置本地服务端和完整页面，无需另行安装 Node.js。首次运行若出现 Windows SmartScreen 提示，请核对下载来源为本项目 GitHub Release；当前构建未使用商业代码签名证书。
-
-### 本地开发
-
-```bash
-git clone https://github.com/yuchen0x1/JukeboxRoom.git
-cd JukeboxRoom
-npm run install:web   # 网页服务：根目录、server、client；桌面版另行安装 desktop 依赖
-npm run dev           # 同时启动服务端(4000)和前端(5173)
-```
-
-更详细的手动部署、Nginx 反代、Redis 持久化和故障排查见 **[docs/DEPLOY.md](docs/DEPLOY.md)**。
-
-## 系统要求
-
-- Node.js 20 或更高版本（服务端 `engines` 要求 `>=20`），npm；
-- Docker / Docker Compose（可选，用于运行仓库提供的 Meting-API 示例）；
-- Redis（生产环境推荐；不配置时使用内存 + 本地 JSON 存储）；
-- 构建移动端需要 Android Studio / Xcode 及 Capacitor 工具链。
+> 服务端已包含认证、管理员、曲库、AutoDJ、共享歌单、任务中心和审计日志 API；当前 Web 客户端主要提供首页、房间页和 TV 页，**没有配套的管理后台 UI**。
 
 ## 快速开始
 
-以下 4 步可以在本机跑起完整开发环境。
+### 方式一：Docker（推荐）
 
-### 第 1 步：克隆并安装依赖
+仓库根目录提供主服务的多阶段 `Dockerfile` 和 `docker-compose.yml`，会同时构建 React 前端并启动 Node.js 服务端。
 
 ```bash
 git clone https://github.com/yuchen0x1/JukeboxRoom.git
 cd JukeboxRoom
-npm run install:web   # 网页服务：根目录、server、client；桌面版另行安装 desktop 依赖
+docker compose up -d --build
 ```
 
-### 第 2 步：启动 Meting-API
+打开 `http://服务器IP:4000`。Compose 示例默认使用公开的第三方音乐源；音乐搜索和播放是否可用取决于上游服务，请按实际情况替换为自建或可信的 Meting 服务。
 
-网易云和 QQ 的播放、歌词、封面、歌单搜索与导入都依赖 Meting-API。仓库自带自托管示例（把容器 3000 端口映射到宿主机 **3300**）：
+生产环境至少要做这些事：
+
+1. 将 `CLIENT_ID_SECRET` 和 `AUTH_JWT_SECRET` 换成**两段不同的、至少 32 个字符的随机值**。
+2. 保留宿主机 `./data` 数据目录，升级时不要删除它。
+3. 对外提供服务时使用 HTTPS、正确的 `CLIENT_URL` 和 WebSocket 反向代理。
+4. 如需 Redis，启用 Compose 中的 Redis 服务并配置 `REDIS_URL`；多实例部署仍需额外设计共享状态和一致性方案。
+
+### 方式二：源码开发
+
+要求 Node.js 20+ 和 npm。首次安装网页端依赖：
+
+```bash
+git clone https://github.com/yuchen0x1/JukeboxRoom.git
+cd JukeboxRoom
+npm run install:web
+```
+
+复制服务端配置模板：
+
+```bash
+# macOS / Linux
+cp server/.env.example server/.env
+
+# Windows PowerShell
+Copy-Item server/.env.example server/.env
+```
+
+开发环境可以使用如下最小配置（非生产环境的空密钥会由服务端生成并保存到被忽略的 `server/data/.secrets.json`）：
+
+```env
+PORT=4000
+CLIENT_URL=http://localhost:5173
+CLIENT_ID_SECRET=
+AUTH_JWT_SECRET=
+METING_API_URL=http://127.0.0.1:3300
+ALLOW_PRIVATE_UPSTREAMS=1
+```
+
+如果没有可用的 Meting 上游，可以启动仓库提供的示例：
 
 ```bash
 docker compose -f deploy/docker-compose.meting.yml up -d
 ```
 
-服务端地址填 `http://127.0.0.1:3300`。需要配置平台 Cookie 时，按 `deploy/docker-compose.meting.yml` 中的注释补充环境变量。
-
-> 服务端默认拒绝访问本机、私有和保留地址，本机自托管 Meting 必须设置 `ALLOW_PRIVATE_UPSTREAMS=1`（见下一步）。生产环境优先使用可校验证书的 HTTPS 上游。
-
-### 第 3 步：写好服务端配置
-
-Linux / macOS：
-
-```bash
-cp server/.env.example server/.env
-```
-
-Windows PowerShell：
-
-```powershell
-Copy-Item server/.env.example server/.env
-```
-
-开发环境最小配置示例：
-
-```env
-PORT=4000
-CLIENT_URL=http://localhost:5173
-# 非生产环境可留空：服务端会在 server/data/.secrets.json 持久化随机回退值
-CLIENT_ID_SECRET=
-AUTH_JWT_SECRET=
-METING_API_URL=http://127.0.0.1:3300
-ALLOW_PRIVATE_UPSTREAMS=1
-METING_API_AUTH=
-```
-
-### 第 4 步：启动开发环境
+然后启动前端和服务端：
 
 ```bash
 npm run dev
 ```
 
-- 服务端：<http://localhost:4000>
-- Vite 前端：<http://localhost:5173>（已配置代理转发 `/api` 和 `/socket.io` 到 4000 端口）
+- Vite 前端：<http://localhost:5173>
+- Node.js 服务端：<http://localhost:4000>
+- 健康检查：<http://localhost:4000/api/health>
 
-打开前端地址，创建房间、搜索歌曲并把歌加入队列，即可开始使用。
+本机自托管 Meting 只应在开发环境使用 `ALLOW_PRIVATE_UPSTREAMS=1`；公网部署优先使用 HTTPS 上游，并遵守相关服务条款和版权要求。
+
+### 方式三：下载安装包
+
+从 [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases/latest) 下载：
+
+- **Windows**：`jukeboxroom-desktop-setup-<版本>-x64.exe`。内置本地服务端和完整页面，无需安装 Node.js。
+- **Android**：`jukeboxroom-android-<版本>-debug.apk`。独立个人音乐播放器，不需要填写 JukeboxRoom 服务器地址。
+
+Windows 首次运行若出现 SmartScreen，请先核对文件确实来自本项目 GitHub Release。桌面版关闭主窗口默认进入系统托盘；卸载安装程序会删除本机应用数据目录，升级或卸载前请按需备份。
 
 ## 生产部署
 
-### 单 Node 进程
+### Node.js / PM2
 
-生产环境由同一个 Node 进程提供 API、WebSocket 和 `client/dist` 静态资源：
+生产环境由同一个 Node.js 进程提供 API、Socket.IO 和 `client/dist` 静态资源：
 
 ```bash
 npm run install:web
 npm run build
 cp server/.env.example server/.env
-# 编辑 server/.env：设置 NODE_ENV=production 及生产必填项
-npm run start
+# 编辑 server/.env，设置生产密钥、CLIENT_URL 和音乐源
+npm start
 ```
 
-使用 PM2 时可直接引用仓库配置（单实例，内存超限自动重启）：
+使用 PM2 时可直接使用仓库配置：
 
 ```bash
 pm2 start deploy/ecosystem.config.cjs
 ```
 
-更多细节（宝塔面板部署等）见 [`deploy/DEPLOY-BAOTA.md`](deploy/DEPLOY-BAOTA.md) 和 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
+完整的手动部署、宝塔、Redis 和故障排查说明见 [docs/DEPLOY.md](docs/DEPLOY.md) 与 [deploy/DEPLOY-BAOTA.md](deploy/DEPLOY-BAOTA.md)。
 
-### Nginx 反向代理
+### Nginx / WebSocket
 
-必须为 `/socket.io/` 配置 WebSocket 升级，否则房间无法实时同步。可直接参考 [`deploy/nginx.conf.example`](deploy/nginx.conf.example)；使用反向代理时按实际情况设置 `TRUST_PROXY=1`，并确保 Nginx 正确覆盖 `X-Forwarded-For`。
+必须为 `/socket.io/` 配置 WebSocket 升级，否则房间无法实时同步。可参考 [deploy/nginx.conf.example](deploy/nginx.conf.example)。反向代理正确覆盖 `X-Forwarded-For` / `X-Real-IP` 后，才设置 `TRUST_PROXY=1`。
 
-### Redis 与数据持久化
+### 数据与 Redis 边界
 
-- 未配置 Redis 时，房间等状态保存在进程内存和本地 JSON 文件中（默认目录 `server/data`，可用 `OPENMUSIC_DATA_DIR` 指到独立数据盘），**重启会丢失易变状态**；
-- 生产环境建议配置 `REDIS_URL`（或分项变量），同时保持**单实例运行**——在没有共享状态方案前，多进程会导致房间状态不一致；
-- 升级或备份时只覆盖代码目录，不要删除数据目录。
-
-### 关于 Docker
-
-仓库仅提供 Meting-API 的 Docker Compose 示例，**不包含** JukeboxRoom 主服务的 Dockerfile 或完整应用 Compose 文件。主服务请使用 Node/PM2、宝塔或自行制作容器镜像部署。
+- 未配置 Redis 时，服务使用进程内存和本地 JSON；重启会丢失易变的房间状态。
+- `OPENMUSIC_DATA_DIR` 可把 JSON 数据目录放到独立磁盘；升级、备份时不要删除该目录。
+- Redis 可用于持久化部分房间/收藏/热榜状态，但当前部署仍建议单实例运行；多实例需要共享状态、连接适配器和一致性方案。
 
 ## 环境变量参考
 
-所有服务端配置从 `server/.env` 读取，完整变量模板见 [`server/.env.example`](server/.env.example)。生产环境必须设置 `NODE_ENV=production`，并使用稳定且足够长的随机密钥。
+完整模板见 [`server/.env.example`](server/.env.example)。下面只列常用公开配置；内部诊断、构建和健康检查变量不在此重复维护。
 
-**基础与安全**
+### 基础与安全
 
-| 变量 | 默认 | 说明 |
+| 变量 | 默认/要求 | 说明 |
 |---|---|---|
-| `PORT` | `4000` | 服务端口（HTTP 与 WebSocket 同端口） |
+| `PORT` | `4000` | HTTP 与 WebSocket 端口 |
 | `NODE_ENV` | — | 生产环境设为 `production` |
-| `CLIENT_URL` | — | 生产必填。允许的前端 Origin，多个用英文逗号分隔，不带末尾斜杠 |
-| `CLIENT_ID_SECRET` | 非生产自动生成 | 生产必填；至少 32 个字符、不能是占位符，浏览器会话 ID 签名密钥，重启后不要变化 |
-| `AUTH_JWT_SECRET` | 非生产自动生成 | 生产必填；至少 32 个字符、不能是占位符，平台账号 JWT 签名密钥，重启后不要变化；非生产回退值保存在被忽略的 `server/data/.secrets.json` |
-| `AUTH_ACCESS_TTL` | `86400000` | 访问令牌有效期（毫秒） |
-| `AUTH_REFRESH_TTL` | `2592000000` | 刷新令牌有效期（毫秒，默认 30 天）；刷新令牌轮换且只能使用一次 |
-| `MAX_CONCURRENT_SOCKETS_PER_IP` | `50` | 单 IP 同时在线 Socket 数上限（进程内） |
-| `TRUST_PROXY` | 关闭 | Nginx 正确覆盖转发头时设为 `1`，用于获取真实客户端 IP |
-| `OPENMUSIC_DATA_DIR` | `server/data` | JSON 持久化目录，可指向独立数据盘 |
+| `CLIENT_URL` | 生产必填 | 允许的前端 Origin，多个值用英文逗号分隔 |
+| `CLIENT_ID_SECRET` | 生产必填 | 浏览器会话签名密钥；至少 32 字符，重启后保持不变 |
+| `AUTH_JWT_SECRET` | 生产必填 | 平台账号 JWT 密钥；至少 32 字符，必须与上一项不同且保持不变 |
+| `AUTH_ACCESS_TTL` / `AUTH_REFRESH_TTL` | 访问令牌 24 小时 / 刷新令牌 30 天 | 单位为毫秒 |
+| `TRUST_PROXY` | 关闭 | 仅在可信反代正确覆盖转发头时设为 `1` |
+| `MAX_CONCURRENT_SOCKETS_PER_IP` | `50` | 单 IP 进程内 Socket 连接上限 |
+| `OPENMUSIC_DATA_DIR` | `server/data` | JSON 数据目录；变量名保留 OpenMusic 兼容前缀 |
 
-**音乐源**
-
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `METING_API_URL` | — | 推荐配置。Meting-API 地址，公网优先 HTTPS；仓库 Compose 示例为 `http://127.0.0.1:3300` |
-| `METING_API_AUTH` | — | 推荐配置。Meting-API 鉴权令牌 |
-| `ALLOW_PRIVATE_UPSTREAMS` | 关闭 | 设为 `1` 仅允许配置的 Meting 主机访问私有地址（仅限本机/内网自托管，不会放宽媒体代理或用户可控 URL） |
-| `CYAPI_BASE` | `https://cyapi.top/API` | 迟言 API 根地址 |
-| `CYAPI_KEY` | — | 可选：迟言 API（酷狗第三方源）；酷狗搜索现已默认走官方网页接口，无需此项 |
-| `VMY_LRC_URL` | `https://api.52vmy.cn/api/music/lrc` | 按歌名的歌词备用接口 |
-
-**Redis（可选）**
+### 音乐源
 
 | 变量 | 说明 |
 |---|---|
-| `REDIS_URL` | 连接串方式，如 `redis://127.0.0.1:6379/0` |
-| `REDIS_HOST` / `REDIS_PORT` / `REDIS_USERNAME` / `REDIS_PASSWORD` / `REDIS_DB` | 分项配置方式，与 `REDIS_URL` 二选一 |
+| `METING_API_URL` | Meting-API 地址；网易云/QQ 音乐的播放、歌词、封面和歌单能力依赖上游 |
+| `METING_SEARCH_API_URL` | 主 Meting 不支持搜索时使用的备用搜索端点 |
+| `METING_API_AUTH` | Meting 鉴权令牌（如上游启用鉴权） |
+| `ALLOW_PRIVATE_UPSTREAMS` | 仅为本机自托管 Meting 放行私有地址；不要用于放宽用户可控媒体代理 |
+| `CYAPI_BASE` / `CYAPI_KEY` | 可选的迟言 API 配置，用于部分酷狗能力和推荐 |
+| `VMY_LRC_URL` | 按歌名获取歌词的备用接口 |
 
-**本地曲库**
-
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `MUSIC_LIBRARY_PATHS` | — | 曲库目录，多个用分号分隔 |
-| `LIBRARY_WATCH_ENABLED` | 关闭 | 设为 `1` 监听曲库文件变化并自动刷新索引 |
-
-**AutoDJ**
-
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `AUTODJ_ENABLED` | 关闭 | 设为 `1` 开启 |
-| `AUTODJ_ACTIVE_HOURS` | — | 活动时间段，如 `9-23` |
-| `AUTODJ_AVOID_SAME_SONG` | `3` | 同歌曲去重窗口（首） |
-| `AUTODJ_AVOID_SAME_ARTIST` | `2` | 同歌手去重窗口（首） |
-| `AUTODJ_LOW_WATER` | `5` | 队列低水位阈值（首） |
-
-**媒体熔断**
-
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `MEDIA_HEALTH_FAILURE_THRESHOLD` | `5` | 连续失败阈值，触发短时熔断 |
-| `MEDIA_HEALTH_FAILURE_WINDOW_MS` | `60000` | 失败统计窗口（毫秒） |
-| `MEDIA_HEALTH_COOLDOWN_MS` | `30000` | 熔断冷却时长（毫秒），冷却后自动恢复探测 |
-
-**七牛云（聊天图片，可选）**
+### Redis、本地曲库与 AutoDJ
 
 | 变量 | 说明 |
 |---|---|
-| `QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` | 上传凭据 |
-| `QINIU_BUCKET` / `QINIU_DOMAIN` / `QINIU_ZONE` | 存储桶、访问域名、区域（`z0` 华东、`z1` 华北、`z2` 华南、`na0` 北美、`as0` 东南亚） |
+| `REDIS_URL` | Redis 连接串；也可使用 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_DB` |
+| `MUSIC_LIBRARY_PATHS` | 本地曲库目录，多个目录用分号分隔 |
+| `LIBRARY_WATCH_ENABLED` | 设为 `1` 后监听曲库变更并自动刷新索引 |
+| `AUTODJ_ENABLED` | 设为 `1` 开启 AutoDJ |
+| `AUTODJ_ACTIVE_HOURS` | AutoDJ 活动时段，例如 `9-23` |
+| `AUTODJ_AVOID_SAME_SONG` / `AUTODJ_AVOID_SAME_ARTIST` | 歌曲/歌手去重窗口 |
+| `AUTODJ_LOW_WATER` | 队列低水位阈值 |
 
-**其他**
+### 可选服务、更新与监控
 
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `APIHZ_IMG_ID` / `APIHZ_IMG_KEY` | — | 接口盒子表情包搜索凭据（不配置则隐藏搜索入口） |
-| `METRICS_ENABLED` | 关闭 | 设为 `1` 开启 `/metrics` |
-| `METRICS_TOKEN` | — | `/metrics` 访问令牌，生产环境不要开放无保护指标 |
-| `UPDATE_REPOSITORY` | `yuchen0x1/JukeboxRoom` | 在线更新检查的 GitHub 仓库 |
-| `UPDATE_GITHUB_TOKEN` | — | GitHub API 限流时填写只读令牌 |
-| `TASK_AUDIT_RETENTION_DAYS` | `90` | 任务审计保留天数 |
-| `TASK_RUNS_KEEP` | `500` | 任务运行记录数量上限 |
+| 变量 | 说明 |
+|---|---|
+| `QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` / `QINIU_BUCKET` / `QINIU_DOMAIN` / `QINIU_ZONE` | 七牛云聊天图片上传 |
+| `APIHZ_IMG_ID` / `APIHZ_IMG_KEY` | 接口盒子表情包搜索；不配置则隐藏入口 |
+| `UPDATE_REPOSITORY` | 在线更新仓库，默认 `yuchen0x1/JukeboxRoom` |
+| `UPDATE_GITHUB_TOKEN` | GitHub 只读令牌；降低更新检查和应用内更新日志同步的匿名限流影响 |
+| `METRICS_ENABLED` / `METRICS_TOKEN` | 开启并保护 `/metrics` |
+| `MEDIA_HEALTH_FAILURE_THRESHOLD` / `MEDIA_HEALTH_FAILURE_WINDOW_MS` / `MEDIA_HEALTH_COOLDOWN_MS` | 音乐源失败统计与熔断参数 |
+| `TASK_AUDIT_RETENTION_DAYS` / `TASK_RUNS_KEEP` | 任务审计保留时间和运行记录上限 |
 
 ## 使用指南
 
-### 网页端
+### Web 房间
 
-1. 打开首页点击"创建房间"，可填写房间名和密码；
-2. 把 6 位房间号或分享链接发给其他成员；
-3. 搜索歌曲或歌单，点击加入播放队列；
-4. 在聊天室发送文本、表情或图片，可以回复、@ 提及和回应消息；
-5. 房主在房间设置中调整点歌限制、公告、视觉背景、成员权限、音质和 FM 模式；
-6. 大屏展示访问 `https://你的域名/tv/房间号`。
+1. 打开首页创建房间，可设置名称和密码。
+2. 分享 6 位房间号或房间链接。
+3. 搜索歌曲并加入队列；播放、进度、歌词和队列会同步给房间成员。
+4. 在聊天室发送文本、表情、回复、@ 或消息回应。
+5. 房主在设置中管理公告、点歌限制、成员权限、音质、视觉效果和 FM 模式。
+6. TV 大屏访问 `https://你的域名/tv/房间号`。
 
-### 桌面版（Windows .exe）
+### Windows 桌面版
 
-独立桌面客户端，双击即用：内置本地服务端和完整页面，**无需安装 Node.js**，窗口关闭时本地服务随之退出。
+- 配置文件：`%APPDATA%\JukeboxRoom\jukeboxroom.env`；升级时兼容旧版 `%APPDATA%\openmusic-desktop` / `%APPDATA%\OpenMusic` 目录。
+- 首次启动会生成配置模板和随机安全密钥；搜索/播放仍需要可用的 Meting 或其他音乐源配置。
+- 关闭主窗口会最小化到托盘；托盘菜单可恢复窗口或完全退出。
+- 构建：`npm run desktop:build`，安装程序输出到 `release/desktop/`。
+- 内部包名和 Android applicationId 仍保留 `openmusic` 兼容身份，不代表项目对外品牌已回退。
 
-- 首次启动会在 `%APPDATA%\JukeboxRoom\jukeboxroom.env`（或升级时沿用既有 `%APPDATA%\openmusic-desktop` / `%APPDATA%\OpenMusic`）自动生成配置模板和随机安全密钥；搜歌/播放依赖 Meting-API，按模板注释填写 `METING_API_URL` 后重启生效；
-- 房间、收藏等本地数据保存在上述用户数据目录下的 `data`；卸载安装程序不会删除配置和数据；
-- 构建：`npm run desktop:build`（先构建前端，再只生成 `release/desktop/jukeboxroom-desktop-setup-<版本>-x64.exe` 正式安装程序）；
-- 当前 Windows 构建未使用商业代码签名证书，首次运行可能显示 SmartScreen 提示；发布前请确认文件来自项目 GitHub Release。
+### Android 独立播放器
 
-### 手机 App（Android）
-
-Android 版是独立的个人音乐播放器，不需要填写 JukeboxRoom 服务器地址，也不依赖多人房间服务。应用直接通过互联网搜索和播放网易云音乐、QQ 音乐等平台的可用曲目，并在设备本地保存收藏、歌单、播放历史和队列；可使用系统媒体通知、锁屏控制和耳机按键继续播放。音乐平台的接口与音源可用性仍由对应服务提供方决定。
-
-构建 Android 调试 APK：
+Android 版不依赖多人房间服务，支持搜索、播放、歌词、收藏、播放队列、最近播放、本地歌单，以及系统媒体通知、锁屏和耳机控制。音源可用性由对应服务提供方决定。
 
 ```bash
-# Android debug（开发安装）
-npm run cap:run:android     # 或分步执行 cap:sync:android + cap:open:android
+npm run cap:run:android
 npm run cap:build:apk
 
-# Android release（本地签名）
+# 本地签名 release APK（在 client 下执行）
 npm run cap:build:apk:release --prefix client
 ```
 
-Release 构建前需在 `client/android/keystore.properties` 配置本机 keystore（文件已忽略，不要提交），或设置 `ANDROID_KEYSTORE_FILE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 环境变量。`com.openmusic.app` applicationId 保持不变以便沿用安装身份；若本机没有旧版签名证书，新 APK 无法覆盖安装在其他证书下签名的旧版，必须先卸载旧版（本地数据可能被删除）。iOS 本次仍使用现有客户端，不包含独立音乐播放器改版。
+Release 构建前需配置 `client/android/keystore.properties`，或设置 `ANDROID_KEYSTORE_FILE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。`com.openmusic.app` applicationId 目前保持不变，以便沿用已有安装身份；没有旧签名证书时可能需要先卸载旧版。
 
-## 接口概览
+### Capacitor / iOS 现状
 
-常用 HTTP 接口（完整路由以 `server/index.js` 及各路由模块为准）：
+复制 `client/.env.capacitor.example` 为 `client/.env.capacitor`，填入可访问的 HTTPS 站点：
 
-| 模块 | 接口 |
+```env
+CAPACITOR_SERVER_URL=https://your-domain.com
+```
+
+当前 Android 是独立播放器；iOS 工程仍是现有远程 URL 客户端，不应按 Android 的独立播放器功能对外宣传。
+
+## API 与 WebSocket 入口
+
+以下是常用入口，完整路由请以 [server/index.js](server/index.js) 和 `server/` 下的模块为准：
+
+| 模块 | 代表性入口 |
 |---|---|
-| 健康检查 | `GET /api/health`、`GET /api/health/live`、`GET /api/health/ready` |
-| 版本更新 | `GET /api/update`（读取 GitHub 最新稳定版，含桌面/Android/iOS 资产） |
-| 房间 | `GET / POST /api/rooms`、`GET /api/rooms/:id` |
-| 音乐 | `GET /api/music/sources`、`GET /api/music/health`、`GET /api/music/hot`、`GET /api/music/toplist/netease`、`GET /api/music/netease/playlists/search`、`POST /api/music/playlist/import` |
-| 媒体 | `GET /api/media-proxy?url=...`（同源媒体代理） |
-| 聊天 | `GET /api/chat/sticker-search`、`POST /api/chat/upload-token`（需对应凭据） |
-| 扩展模块 | `/api/auth/...`、`/api/admin/...`、`/api/library/...`、`/api/autodj/...`、`/api/playlists/...`（均需角色鉴权） |
-| 客户端分发 | `GET /downloads/openmusic.apk`、`/downloads/openmusic.ipa`、`/downloads/jukeboxroom-desktop.exe` |
+| 健康检查 | `GET /api/health`、`/api/health/live`、`/api/health/ready` |
+| 更新 | `GET /api/update`、`GET /api/update/changelog` |
+| 房间 | `GET /api/rooms`、`POST /api/rooms`、`GET /api/rooms/:id` |
+| 音乐 | `/api/music/sources`、`/api/music/health`、`/api/music/hot`、`/api/music/toplist/netease` |
+| 歌单 | `POST /api/music/playlist/import` |
+| 媒体 | `GET /api/media-proxy?url=...` |
+| 扩展 API | `/api/auth/...`、`/api/admin/...`、`/api/library/...`、`/api/autodj/...`、`/api/playlists/...`（按角色鉴权） |
 
-WebSocket 与 HTTP 使用同一端口，连接路径 `/socket.io`。常用事件：
+HTTP 与 WebSocket 使用同一端口，Socket.IO 路径为 `/socket.io`。常见事件包括：
 
 - 客户端 → 服务端：`join_room`、`add_song`、`toggle_play`、`seek`、`send_chat`、`toggle_chat_reaction`
 - 服务端 → 客户端：`room_update`、`playback_state`、`chat_message`
@@ -368,114 +289,93 @@ curl http://localhost:4000/api/health
 curl http://localhost:4000/api/music/sources
 ```
 
+## 开发、测试与构建
+
+| 命令 | 用途 |
+|---|---|
+| `npm run install:web` | 安装根目录、服务端和客户端依赖 |
+| `npm run install:all` | 额外安装桌面端依赖 |
+| `npm run dev` | 同时启动服务端（4000）和 Vite（5173） |
+| `npm test` | 运行服务端和客户端测试 |
+| `npm test --prefix server` | 仅服务端 Node test runner |
+| `npm test --prefix client` | 仅客户端 Vitest |
+| `npm run build` | TypeScript 检查并构建 `client/dist` |
+| `npm run check` | 测试、构建和生产依赖审计 |
+| `npm run check:health` | 对已启动实例执行健康/更新接口冒烟检查 |
+| `npm run desktop:build` | 构建 Windows NSIS 安装包 |
+
+`check:health` 默认检查 `http://127.0.0.1:4000`；可用 `OPENMUSIC_URL` 指定地址，或用 `OPENMUSIC_SKIP_UPDATE=1` 跳过外部更新检查。
+
 ## 项目结构
 
 ```text
 .
-├── client/                 # React + Vite + TypeScript 前端
-│   ├── src/pages/          # Home / Login / Room / TvDisplay 四个路由页面
-│   ├── src/components/     # 播放器、聊天、队列、galaxy/topography/immersive 视觉、tv 等组件
-│   ├── src/stores/         # Zustand 状态（房间、聊天、音频、纯净/沉浸模式等）
-│   ├── public/             # PWA manifest、Service Worker、表情资源
-│   ├── android/  ios/      # Capacitor 原生工程
-│   └── scripts/            # Capacitor 同步与 APK 打包脚本
+├── client/                 # React + Vite + TypeScript；Web、Capacitor Android/iOS
+│   ├── src/pages/          # Home / Room / TvDisplay
+│   ├── src/components/     # 播放器、聊天、队列和视觉组件
+│   ├── src/stores/         # Zustand 状态
+│   └── scripts/            # Capacitor 同步与 APK 构建脚本
 ├── server/                 # Express + Socket.IO 服务端
-│   ├── auth/  admin/       # 认证与管理接口
-│   ├── library/  autodj/   # 本地曲库与 AutoDJ
-│   ├── playlists/  tasks/  # 共享歌单与任务中心
-│   ├── audit/  db/  data/  # 审计日志、存储适配、本地 JSON 数据目录
-│   └── *.test.js           # Node 内置测试运行器的测试文件
-├── deploy/                 # Meting Compose、PM2、Nginx 示例与宝塔部署文档
-├── desktop/                # Electron 桌面壳（Windows 独立 .exe，内置本地服务端）
-├── docs/                   # 部署文档与项目截图
-├── scripts/                # 健康检查、打包与视觉资源脚本
-├── .github/workflows/      # CI 工作流
+│   ├── auth/ admin/        # 认证与管理接口
+│   ├── library/ autodj/    # 本地曲库与 AutoDJ
+│   ├── playlists/ tasks/   # 歌单与任务中心
+│   └── *.test.js           # 服务端测试
+├── desktop/                # Electron Windows 桌面壳
+├── deploy/                 # Meting Compose、PM2、Nginx 和宝塔示例
+├── docs/                   # 部署、审计和规划文档
+├── scripts/                # 健康检查、打包等脚本
+├── Dockerfile              # 主服务多阶段镜像
+├── docker-compose.yml      # 主服务 Compose（Redis 可选）
 ├── CHANGELOG.md            # 版本变更记录
-└── LICENSE                 # MIT License
+├── RELEASE_CHECKLIST.md    # GitHub 发布检查清单
+└── SECURITY.md             # 安全漏洞私下披露流程
 ```
 
-## 测试与质量检查
+## 常见问题
 
-```bash
-npm test            # 运行全部测试（服务端 + 客户端）
-npm test --prefix server   # 仅服务端（Node 内置 test runner）
-npm test --prefix client   # 仅客户端（Vitest）
-npm run build       # TypeScript 类型检查 + 生成 client/dist
-npm run check       # 全量检查：测试 + 构建 + 生产依赖安全审计
-npm run check:health       # 对已启动实例做存活/就绪/更新接口冒烟检查
-```
+**页面能打开，但进不了房间？**  检查 Nginx 是否为 `/socket.io/` 配置 WebSocket 升级，并确认 `CLIENT_URL` 与浏览器访问 Origin 一致。
 
-`check:health` 默认检查 `http://127.0.0.1:4000`，可用 `OPENMUSIC_URL` 指向其他实例，`OPENMUSIC_SKIP_UPDATE=1` 跳过外部更新源检查。
+**搜不到歌或无法播放？**  检查 `METING_API_URL`、备用搜索地址、鉴权令牌和上游服务状态。第三方音乐源可能限流、失效或受地区/账号权限影响。
 
-### Windows 桌面版构建
+**服务重启后房间消失？**  未配置 Redis 时，易变房间状态重启丢失是预期行为；同时检查 `OPENMUSIC_DATA_DIR` 是否指向可写并已备份的目录。
 
-在 Windows 环境安装网页依赖和桌面端依赖后构建：
+**生产环境跨域失败？**  `NODE_ENV=production` 时设置正确的 `CLIENT_URL`，多个 Origin 使用英文逗号分隔，不要带末尾斜杠。
 
-```bash
-npm run install:web
-npm install --prefix desktop
-npm run desktop:build
-```
+**桌面版提示“本地服务已退出”？**  检查 `%APPDATA%\JukeboxRoom\jukeboxroom.env` 是否有无效配置，以及端口和数据目录是否可用。
 
-NSIS 安装程序输出到 `release/desktop/`。Android 与 iOS 安装包需分别在对应平台工具链中构建；当前 GitHub Release 提供的安装资产以实际发布页为准。
+**Android / Capacitor 打不开线上页面？**  检查 `CAPACITOR_SERVER_URL` 是否为可访问的 HTTPS 地址，并与服务端允许的 `CLIENT_URL` 对应。
 
-## 常见问题排查
+**聊天无法发送图片？**  配置七牛云相关变量；未配置时图片上传入口会被禁用。
 
-**页面能打开，但进不了房间**
-检查 Nginx 是否配置了 `/socket.io/` 的 WebSocket 升级，并确认 `CLIENT_URL` 与访问域名一致。
+## 安全与第三方服务
 
-**搜不到歌或无法播放**
-检查 `METING_API_URL`、Meting 服务状态及 `METING_API_AUTH`；酷狗无需额外配置（房主登录酷狗后可用 VIP 音源）。
+- 生产环境使用 HTTPS，并为 `CLIENT_ID_SECRET`、`AUTH_JWT_SECRET` 设置稳定、随机、互不相同的值。
+- 不要提交 `.env`、Redis 凭据、七牛云密钥、音乐源令牌或其他 API Key。
+- 媒体代理仅接受受限的 HTTP/HTTPS 目标；不要把它当作任意内网访问代理。
+- 反向代理必须正确传递客户端 IP，否则限流和审计信息可能不准确。
+- 当前部署边界是单实例；多实例上线前先设计共享状态和会话一致性。
+- Meting、迟言、七牛云及各音乐平台均是第三方服务，请遵守其服务条款、版权和内容使用要求。
 
-**酷狗音乐播放卡顿**
-为 `/api/media-proxy` 关闭 Nginx 缓冲，见 `deploy/nginx.conf.example`。
+安全漏洞请不要通过公开 Issue 提交，请按 [SECURITY.md](SECURITY.md) 的私下披露流程联系维护者。
 
-**生产启动后跨域失败**
-`NODE_ENV=production` 时必须配置正确的 `CLIENT_URL`，多个 Origin 用英文逗号分隔。
+## 版本、贡献与反馈
 
-**出现 502 或服务不可用**
-检查 `npm run start` / PM2 是否运行、端口是否与 Nginx 反代端口一致。
+应用内更新日志会优先读取 `GET /api/update/changelog` 的 GitHub Releases 内容；网络不可用或上游失败时，会回退到随包日志并按版本号去重。完整历史见 [CHANGELOG.md](CHANGELOG.md)。
 
-**服务重启后房间消失**
-未配置 Redis 时属于预期行为；生产环境配置 `REDIS_URL` 或 Redis 分项变量。
-
-**聊天发不了图片**
-配置七牛云相关变量；未配置时图片上传能力会被禁用。
-
-**移动端打不开线上页面**
-检查 `client/.env.capacitor` 中的 `CAPACITOR_SERVER_URL` 是否为可访问的 HTTPS 地址。
-
-## 安全注意事项
-
-- 生产环境必须使用 HTTPS，并设置稳定、随机的 `CLIENT_ID_SECRET` 和 `AUTH_JWT_SECRET`；
-- 不要将 `.env`、Redis 凭据、七牛云密钥或第三方 API Key 提交到公开仓库；
-- 媒体代理只允许 `http`/`https` URL，并拒绝本机、环回、私有和保留地址，不要把它当作任意内网访问代理；
-- Nginx 必须正确转发 `X-Forwarded-For` / `X-Real-IP`，否则限流和 IP 识别可能不准确；
-- 多实例部署需要先设计共享状态和一致性方案，当前请保持单实例；
-- Meting-API、迟言 API 和七牛云均为第三方服务，请遵守其服务条款、版权和内容使用要求。
-
-## 版本
-
-当前版本 `0.0.7`，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。服务端启动后会读取 GitHub 最新稳定 Release 提供更新检测（`GET /api/update`），源码、Release 与 Issue 统一托管在 [github.com/yuchen0x1/JukeboxRoom](https://github.com/yuchen0x1/JukeboxRoom)。
-
-## 参与贡献
-
-欢迎通过 GitHub 的 Issue 或 Pull Request 提交 Bug、改进建议和代码。提交前请至少运行：
+欢迎通过 GitHub [Issue](https://github.com/yuchen0x1/JukeboxRoom/issues) 或 Pull Request 反馈问题和提交改进。提交前至少运行：
 
 ```bash
 npm test
 npm run build
 ```
 
-涉及服务端请求 URL、媒体代理或第三方接口的改动，请同时检查 URL 协议、主机校验、超时和错误处理。
+涉及 URL、媒体代理、鉴权或第三方接口的改动，请同时检查协议、主机校验、超时、错误处理和回归测试。发布流程见 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)。
 
 ## License
 
 本项目基于 [MIT License](LICENSE) 开源。
 
-## 交流与反馈
+## 交流
 
 - QQ 交流群：`1016190748`
 - Telegram：<https://t.me/lenmoC>
-
-反馈问题时请说明使用的版本、运行平台、部署方式和具体错误信息，以便更快定位。
