@@ -229,7 +229,11 @@ export default memo(function PlayerPage({ onClose }: Props) {
             <button
               onClick={canControlPlayback ? handlePlayPause : undefined}
               disabled={trackLoading || !canControlPlayback}
-              className={`w-14 h-14 sm:w-16 sm:h-16 2xl:w-24 2xl:h-24 flex items-center justify-center rounded-full transition-all shadow-lg shadow-black/30 disabled:opacity-80 ${canControlPlayback ? 'bg-white text-black hover:scale-105' : 'bg-white/10 text-white/70 cursor-not-allowed'}`}
+              className={`w-14 h-14 sm:w-16 sm:h-16 2xl:w-24 2xl:h-24 flex items-center justify-center rounded-full transition-all shadow-lg shadow-black/30 disabled:opacity-80 ${
+                canControlPlayback
+                  ? 'bg-gradient-to-tr from-[var(--om-accent)] to-cyan-300 text-black hover:scale-110 shadow-[0_0_25px_rgba(var(--om-accent-rgb),0.4)]'
+                  : 'bg-white/10 text-white/70 cursor-not-allowed'
+              }`}
               aria-label="播放控制"
             >
               {trackLoading ? (

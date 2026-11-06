@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { measureCoverLuminance, tuneCoverBackdrop, type CoverBackdropTuning } from '../lib/coverBackdrop';
+import { extractCoverPalette, measureCoverLuminance, tuneCoverBackdrop, type CoverBackdropTuning } from '../lib/coverBackdrop';
 import { toProxiedMediaUrl } from '../lib/mediaProxyUrl';
 
 interface Props {
@@ -10,6 +10,10 @@ interface Props {
 export default function AmbientCoverLayers({ coverUrl, className = 'absolute inset-0' }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [tuning, setTuning] = useState<CoverBackdropTuning>(() => tuneCoverBackdrop(null));
+  const [palette, setPalette] = useState(() => ({
+    primary: 'rgba(30, 41, 59, 0.55)',
+    secondary: 'rgba(15, 23, 42, 0.65)',
+  }));
   const displayUrl = useMemo(() => toProxiedMediaUrl(coverUrl), [coverUrl]);
 
   useEffect(() => {
@@ -20,6 +24,7 @@ export default function AmbientCoverLayers({ coverUrl, className = 'absolute ins
     probe.crossOrigin = 'anonymous';
     probe.onload = () => {
       setTuning(tuneCoverBackdrop(measureCoverLuminance(probe)));
+      setPalette(extractCoverPalette(probe));
     };
     probe.onerror = () => {
       setTuning(tuneCoverBackdrop(null));
@@ -36,15 +41,23 @@ export default function AmbientCoverLayers({ coverUrl, className = 'absolute ins
     <div className={`${className} overflow-hidden`} aria-hidden>
       <div className="absolute inset-0 bg-[var(--color-bg-elevated)]" />
 
+      {/* 渐变流光色彩底衬 */}
+      <div
+        className="absolute -inset-10 opacity-70 blur-3xl transition-all duration-1000"
+        style={{
+          background: `radial-gradient(circle at 20% 30%, ${palette.primary}, transparent 65%), radial-gradient(circle at 80% 70%, ${palette.secondary}, transparent 65%)`,
+        }}
+      />
+
       <img
         src={displayUrl}
         alt=""
         crossOrigin="anonymous"
-        className="absolute inset-0 h-full w-full object-cover saturate-110 transition-[opacity,filter] duration-700"
+        className="absolute inset-0 h-full w-full object-cover saturate-125 transition-[opacity,filter] duration-700"
         style={{
           opacity: loaded ? tuning.coverOpacity : 0,
-          filter: `blur(28px) brightness(${tuning.imgBrightness})`,
-          transform: 'scale(1.05)',
+          filter: `blur(32px) brightness(${tuning.imgBrightness})`,
+          transform: 'scale(1.08)',
         }}
         onLoad={() => setLoaded(true)}
       />

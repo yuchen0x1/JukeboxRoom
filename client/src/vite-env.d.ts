@@ -10,6 +10,9 @@ interface Window {
     isMaximized: () => Promise<boolean>;
     loadMusicState: () => Promise<unknown | null>;
     saveMusicState: (state: unknown) => Promise<boolean>;
+    setTrayTrack?: (title: string) => Promise<boolean>;
+    onTrayTogglePlay?: (listener: () => void) => () => void;
+    onTrayNextTrack?: (listener: () => void) => () => void;
     onMaximizedChanged: (listener: (maximized: boolean) => void) => () => void;
     openMusicConfig: () => Promise<boolean>;
     restartApp: () => Promise<void>;

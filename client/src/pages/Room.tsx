@@ -126,7 +126,9 @@ import {
   patchRoomVisualFx,
   roomVisualFxLive,
 } from '../lib/roomVisualFxLive';
-import { resetSharedAudioElement } from '../lib/audioElement';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { applyAudioVolume, resetSharedAudioElement } from '../lib/audioElement';
+import { exportSongsToJsonFile } from '../lib/playlistExport';
 import { ensureGalaxyAudioOutput } from '../components/galaxy/lib/galaxyAudio';
 import { useAudioStore } from '../stores/audioStore';
 import {
@@ -284,7 +286,7 @@ export default function Room() {
     noindex: true,
   });
 
-  const { joinRoom, addSong, leaveRoom, listFavorites, setFavorite, importFavorites, renameRoomName, setRoomLock, setRoomFmMode, setRoomAnnouncement, setSongRequestEnabled, unbanRoomSong, setRoomMemberTier, removeRoomMemberTier, setRoomMemberSettings, setRoomSourceCredential, loadSongHistory, clearQueue, requestJump, skipSong } = useSocket();
+  const { joinRoom, addSong, leaveRoom, listFavorites, setFavorite, importFavorites, renameRoomName, setRoomLock, setRoomFmMode, setRoomAnnouncement, setSongRequestEnabled, unbanRoomSong, setRoomMemberTier, removeRoomMemberTier, setRoomMemberSettings, setRoomSourceCredential, loadSongHistory, clearQueue, requestJump, skipSong, togglePlay, requestSkip } = useSocket();
   const { applyFavorites } = useFavorites();
 
 
@@ -1608,6 +1610,52 @@ export default function Room() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [pureMode]);
 
+  useKeyboardShortcuts({
+    enabled: Boolean(room),
+    onTogglePlay: () => {
+      if (!room) return;
+      if (canControlPlayback) {
+        void togglePlay(!room.isPlaying);
+      } else {
+        showToast(room.isPlaying ? '正在播放中（仅房主或管理员可暂停）' : '已暂停（仅房主或管理员可播放）', 'error');
+      }
+    },
+    onNextTrack: () => {
+      if (!room?.current) return;
+      if (canControlPlayback) {
+        void skipSong();
+      } else {
+        void requestSkip();
+      }
+    },
+    onPreviousTrack: () => {
+      if (canControlPlayback) {
+        void handlePreviousTrack();
+      }
+    },
+    onVolumeUp: () => {
+      const cur = useAudioStore.getState().volume;
+      const next = Math.min(1, Math.round((cur + 0.05) * 100) / 100);
+      useAudioStore.getState().setVolume(next);
+      applyAudioVolume(next);
+      showToast(`音量: ${Math.round(next * 100)}%`, 'success');
+    },
+    onVolumeDown: () => {
+      const cur = useAudioStore.getState().volume;
+      const next = Math.max(0, Math.round((cur - 0.05) * 100) / 100);
+      useAudioStore.getState().setVolume(next);
+      applyAudioVolume(next);
+      showToast(`音量: ${Math.round(next * 100)}%`, 'success');
+    },
+    onFocusSearch: () => {
+      const input = document.querySelector<HTMLInputElement>('input[placeholder*="搜索"]');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    },
+  });
+
   const handleVisualModeChange = (mode: RoomVisualMode) => {
     applyVisualMode(mode, { notifyProxyChange: true });
   };
@@ -1800,18 +1848,35 @@ export default function Room() {
             </p>
           </div>
         </div>
-        {canControlPlayback && room.queue.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setClearQueueConfirmOpen(true)}
-            disabled={clearingQueue}
-            className="room-icon-button flex-shrink-0"
-            aria-label="清空待播队列"
-            title="清空待播队列"
-          >
-            {clearingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {queueCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const songs = [room.current, ...room.queue].filter(Boolean) as Song[];
+                exportSongsToJsonFile(songs, `${room.name || '房间'}-播放队列.json`);
+                showToast(`已导出 ${songs.length} 首歌曲到 JSON 文件`, 'success');
+              }}
+              className="room-icon-button flex-shrink-0"
+              aria-label="导出播放队列"
+              title="导出播放队列为 JSON"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          )}
+          {canControlPlayback && room.queue.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setClearQueueConfirmOpen(true)}
+              disabled={clearingQueue}
+              className="room-icon-button flex-shrink-0"
+              aria-label="清空待播队列"
+              title="清空待播队列"
+            >
+              {clearingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
       </div>
       <div className={`p-2 ${fillHeight ? 'flex-1 min-h-0 overflow-hidden flex flex-col' : ''}`}>
         <QueuePanel fillHeight={fillHeight} />
@@ -2385,10 +2450,10 @@ export default function Room() {
 
               </div>
 
-              <p className="text-xs text-netease-muted mt-0.5">
-                房间号 <span className="text-[var(--om-accent)]">{room.id}</span>
+              <p className="text-xs text-netease-muted mt-0.5 flex items-center gap-2 font-mono">
+                ROOM-ID <span className="cyber-badge">#{room.id}</span>
                 {pureMode && (
-                  <span className="ml-2 text-[10px] text-white/35">Esc 隐藏/显示播放器</span>
+                  <span className="text-[10px] text-white/40">[ESC] 切换极简模式</span>
                 )}
               </p>
 

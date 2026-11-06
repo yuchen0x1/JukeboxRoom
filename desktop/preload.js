@@ -10,8 +10,19 @@ contextBridge.exposeInMainWorld('jukeboxWindow', Object.freeze({
   isMaximized: () => safeInvoke('jukebox:window-is-maximized'),
   loadMusicState: () => safeInvoke('jukebox:load-music-state'),
   saveMusicState: (state) => safeInvoke('jukebox:save-music-state', state),
+  setTrayTrack: (title) => safeInvoke('jukebox:set-tray-track', title),
   openMusicConfig: () => safeInvoke('jukebox:open-music-config'),
   restartApp: () => safeInvoke('jukebox:restart-app'),
+  onTrayTogglePlay: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('jukebox:tray-toggle-play', handler);
+    return () => ipcRenderer.removeListener('jukebox:tray-toggle-play', handler);
+  },
+  onTrayNextTrack: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('jukebox:tray-next-track', handler);
+    return () => ipcRenderer.removeListener('jukebox:tray-next-track', handler);
+  },
   onMaximizedChanged: (listener) => {
     const handler = (_event, maximized) => listener(Boolean(maximized));
     ipcRenderer.on('jukebox:window-maximized', handler);

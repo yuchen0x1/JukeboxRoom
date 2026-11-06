@@ -84,6 +84,39 @@ export function getPlayableSources(): MusicSource[] {
 export { interleaveSearchResults, mergeSearchResults, songKey, artistGroupKey, trackTitleKey } from './merge';
 export type { InterleaveOptions } from './merge';
 
+export async function findAlternativeSourceSongs(
+  song: Pick<Song, 'name' | 'artist' | 'source'>,
+): Promise<SearchResult[]> {
+  const currentSource = song.source || 'netease';
+  const query = `${song.name} ${song.artist}`.trim();
+  if (!query) return [];
+
+  const candidateSources: MusicSource[] = (['netease', 'tencent', 'kugou', 'qishui'] as MusicSource[])
+    .filter((s) => s !== currentSource);
+
+  const batches = await Promise.allSettled(
+    candidateSources.map((source) => searchSongs(source, query)),
+  );
+
+  const alternatives: SearchResult[] = [];
+  const normalizedTargetName = song.name.toLowerCase().replace(/\s+/g, '');
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    if (batch.status === 'fulfilled') {
+      for (const item of batch.value) {
+        const itemNorm = item.name.toLowerCase().replace(/\s+/g, '');
+        // 匹配主歌名相符或互相包含的条目
+        if (itemNorm.includes(normalizedTargetName) || normalizedTargetName.includes(itemNorm)) {
+          alternatives.push(item);
+        }
+      }
+    }
+  }
+
+  return alternatives;
+}
+
 export async function getSongById(source: MusicSource, id: string): Promise<SearchResult | null> {
   return getProvider(source).getSongById(id);
 }
@@ -178,7 +211,7 @@ export function getSourceLabel(source?: MusicSource): string {
   return getSourceShortLabel(source);
 }
 
-export function parseLrc(lrc: string): import('../../types').LyricLine[] {
+export function parseLrc(lrc: string, translationLrc?: string): import('../../types').LyricLine[] {
   const lines: import('../../types').LyricLine[] = [];
   const regex = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
   /** 部分音源常用 99:xx 存放页脚推广，非真实歌词时间 */
@@ -198,6 +231,17 @@ export function parseLrc(lrc: string): import('../../types').LyricLine[] {
       const fraction = match[3] ? Number(`0.${match[3].padEnd(3, '0').slice(0, 3)}`) : 0;
       const time = minutes * 60 + seconds + fraction;
       if (Number.isFinite(time)) lines.push({ time, text });
+    }
+  }
+
+  // 若提供了翻译歌词，按相近时间戳（误差小于 0.6 秒）进行关联
+  if (translationLrc) {
+    const transLines = parseLrc(translationLrc);
+    for (const trans of transLines) {
+      const target = lines.find((l) => Math.abs(l.time - trans.time) <= 0.6);
+      if (target && !target.translation) {
+        target.translation = trans.text;
+      }
     }
   }
 

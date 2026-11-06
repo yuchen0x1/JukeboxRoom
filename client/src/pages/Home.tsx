@@ -30,14 +30,14 @@ const repoLinkCls = 'flex h-9 w-9 items-center justify-center rounded-lg border 
 function PlayingBars() {
   return (
     <span className="inline-flex items-end gap-[3px] h-3.5">
-      {[0, 1, 2].map((i) => (
+      {[0, 1, 2, 3].map((i) => (
         <span
           key={i}
-          className="w-[3px] rounded-full bg-[var(--om-accent)] animate-pulse"
+          className="w-[2.5px] rounded-full bg-[var(--om-accent)] shadow-[0_0_8px_var(--om-accent)] animate-pulse"
           style={{
-            height: `${8 + (i % 2) * 6}px`,
+            height: `${6 + ((i * 3) % 4) * 3}px`,
             animationDelay: `${i * 0.15}s`,
-            animationDuration: '0.8s',
+            animationDuration: '0.7s',
           }}
         />
       ))}
@@ -60,63 +60,75 @@ const RoomCard = memo(function RoomCard({
     <button
       type="button"
       onClick={() => onJoin(room)}
-      className={`group relative w-full overflow-hidden rounded-2xl border bg-[var(--om-glass-panel)] p-4 text-left transition-[background,border-color,transform] duration-150 hover:-translate-y-px hover:bg-[var(--om-glass-elevated)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--om-accent-rgb),0.5)] sm:p-5 ${
+      className={`group relative w-full overflow-hidden rounded-2xl border bg-[var(--om-glass-panel)] p-4 text-left transition-all duration-200 hover:-translate-y-1 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--om-accent-rgb),0.5)] sm:p-5 cyber-hud-corner ${
         isActive
-          ? 'border-[rgba(var(--om-accent-rgb),0.3)]'
-          : 'border-[var(--om-glass-border)] hover:border-[var(--om-glass-border-strong)]'
+          ? 'border-[rgba(var(--om-accent-rgb),0.45)] shadow-[0_4px_24px_rgba(var(--om-accent-rgb),0.12)]'
+          : 'border-[var(--om-glass-border)] hover:border-[rgba(var(--om-accent-rgb),0.3)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.35)]'
       }`}
     >
-      {isActive && <span className="absolute inset-y-4 left-0 w-0.5 rounded-r-full bg-[var(--om-accent)]" />}
-      <div className="flex items-start gap-3">
-        <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border ${isActive ? 'border-[rgba(var(--om-accent-rgb),0.2)] bg-[rgba(var(--om-accent-rgb),0.08)] text-[var(--om-accent)]' : 'border-white/[0.07] bg-white/[0.035] text-white/40'}`}>
-          <Disc3 className="h-5 w-5" />
+      {isActive && (
+        <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[var(--om-accent)] shadow-[0_0_12px_var(--om-accent)]" />
+      )}
+      <div className="flex items-start gap-3.5">
+        <span
+          className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border transition-all duration-300 ${
+            isActive
+              ? 'border-[rgba(var(--om-accent-rgb),0.4)] bg-[rgba(var(--om-accent-rgb),0.12)] text-[var(--om-accent)] shadow-[0_0_16px_rgba(var(--om-accent-rgb),0.25)] group-hover:rotate-180'
+              : 'border-white/[0.08] bg-white/[0.035] text-white/40 group-hover:border-white/20'
+          }`}
+        >
+          <Disc3 className="h-6 w-6" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            {isRecent && <History className="h-3.5 w-3.5 flex-shrink-0 text-sky-300" aria-label="最近访问" />}
-            <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white transition-colors group-hover:text-[var(--om-accent)]">
+            {isRecent && <History className="h-3.5 w-3.5 flex-shrink-0 text-sky-400" aria-label="最近访问" />}
+            <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white tracking-wide transition-colors group-hover:text-[var(--om-accent)]">
               {room.name}
             </h3>
             {(room.hasPassword || room.isLocked) && (
               <Tooltip content={room.hasPassword ? '需要密码' : '房间已上锁'}>
-                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-amber-400/[0.08] text-amber-300">
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-amber-400/[0.12] text-amber-300 border border-amber-400/20">
                   <Lock className="h-3.5 w-3.5" />
                 </span>
               </Tooltip>
             )}
           </div>
-          <div className="mt-1 flex items-center gap-2 text-[11px] text-white/40">
-            <span className="font-mono">#{room.id}</span>
+          <div className="mt-1.5 flex items-center gap-2.5 text-[11px] text-white/40">
+            <span className="cyber-badge">#{room.id}</span>
             <span className="h-1 w-1 rounded-full bg-white/25" />
-            <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{room.userCount} 人</span>
+            <span className="inline-flex items-center gap-1 font-medium text-white/60">
+              <Users className="h-3 w-3 text-white/40" />{room.userCount} 人在线
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 min-h-[3.25rem] border-t border-white/[0.06] pt-3">
+      <div className="mt-4 min-h-[3.25rem] rounded-xl border border-white/[0.05] bg-black/20 p-2.5 transition-colors group-hover:border-[rgba(var(--om-accent-rgb),0.15)]">
         {room.currentSong ? (
           <div className="flex min-w-0 items-center gap-2.5">
-            {room.isPlaying ? <PlayingBars /> : <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-white/30" />}
+            {room.isPlaying ? <PlayingBars /> : <span className="h-2 w-2 flex-shrink-0 rounded-full bg-white/30" />}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium leading-5 text-white/90">{room.currentSong.name}</p>
               <p className="mt-0.5 truncate text-xs text-white/45">{room.currentSong.artist}</p>
             </div>
-            <span className={`flex-shrink-0 text-[11px] ${room.isPlaying ? 'text-[var(--om-accent)]' : 'text-white/40'}`}>
-              {room.isPlaying ? '正在播放' : '已暂停'}
+            <span className={`cyber-badge ${room.isPlaying ? 'bg-[rgba(var(--om-accent-rgb),0.15)] text-[var(--om-accent)]' : 'bg-white/5 text-white/40 border-white/10'}`}>
+              {room.isPlaying ? 'PLAYING' : 'PAUSED'}
             </span>
           </div>
         ) : (
-          <div className="flex h-11 items-center gap-2.5 text-sm text-white/40">
-            <Radio className="h-4 w-4" />
-            <span>等待点播</span>
+          <div className="flex h-9 items-center gap-2.5 text-xs text-white/40 px-1">
+            <Radio className="h-3.5 w-3.5" />
+            <span>空闲 · 等待点播</span>
           </div>
         )}
       </div>
 
       <div className="mt-3 flex items-center justify-between text-xs">
-        <span className="flex items-center gap-1.5 text-white/45"><ListMusic className="h-3.5 w-3.5" />队列 {room.queueLength} 首</span>
-        <span className="flex items-center gap-1 font-medium text-[var(--om-accent)]">
-          进入房间<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        <span className="flex items-center gap-1.5 text-white/45 font-mono text-[11px]">
+          <ListMusic className="h-3.5 w-3.5 text-white/35" />QUEUE: {room.queueLength}
+        </span>
+        <span className="flex items-center gap-1 font-semibold text-[var(--om-accent)] transition-transform group-hover:translate-x-1">
+          接入同步<ArrowRight className="h-3.5 w-3.5" />
         </span>
       </div>
     </button>
@@ -411,34 +423,35 @@ export default function Home() {
       </header>
 
       {/* 中间：房间列表 */}
-      <main className="relative z-10 flex-1 overflow-y-auto">
+      <main className="relative z-10 flex-1 overflow-y-auto cyber-grid-background">
         <div className="w-full px-5 py-4 sm:px-8 sm:py-6 xl:px-10">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-5 border-b border-white/[0.07] pb-4 xl:mb-7 xl:pb-6">
             <div className="flex min-w-0 items-center gap-4">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-[var(--om-accent)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--om-accent)]" />
-                同步聆听
+              <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold tracking-wider text-[var(--om-accent)] uppercase">
+                <span className="h-2 w-2 rounded-full bg-[var(--om-accent)] shadow-[0_0_8px_var(--om-accent)] animate-ping" />
+                CYBERNETIC AUDIO LOBBY
               </div>
-              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl flex items-center gap-3">
                 <span className="sr-only">JukeboxRoom 在线点歌 - </span>
                 房间大厅
+                <span className="cyber-badge text-xs">V0.0.10 PRO</span>
               </h1>
-              <p className="mt-2 text-sm text-white/45">选择一个房间加入，或创建你自己的音乐空间</p>
+              <p className="mt-2 text-sm text-white/50">选择在线协同空间接入，或初始化你的私人全息音乐矩阵</p>
             </div>
-            <div className="flex h-14 min-w-32 flex-col justify-center rounded-xl border border-white/[0.07] bg-white/[0.025] px-4">
-              <span className="text-lg font-semibold leading-none text-white">{rooms.length}</span>
-              <span className="mt-1 text-[11px] text-white/40">在线房间</span>
+            <div className="flex h-14 min-w-36 flex-col justify-center rounded-xl border border-[rgba(var(--om-accent-rgb),0.25)] bg-[rgba(var(--om-accent-rgb),0.06)] px-4 shadow-[0_0_15px_rgba(var(--om-accent-rgb),0.08)]">
+              <span className="text-xl font-bold leading-none text-white tracking-wider font-mono">{rooms.length}</span>
+              <span className="mt-1 text-[11px] font-medium text-[var(--om-accent)] uppercase tracking-wider">ACTIVE NODES</span>
             </div>
             </div>
             <button
               type="button"
               onClick={() => fetchRooms()}
               disabled={roomsLoading}
-              className="glass-button-secondary flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm disabled:opacity-50"
+              className="glass-button-secondary flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm disabled:opacity-50 transition-all hover:border-[rgba(var(--om-accent-rgb),0.4)] hover:shadow-[0_0_15px_rgba(var(--om-accent-rgb),0.15)]"
             >
               <RefreshCw className={`h-4 w-4 ${roomsLoading ? 'animate-spin' : ''}`} />
-              刷新房间
+              刷新矩阵
             </button>
           </div>
 

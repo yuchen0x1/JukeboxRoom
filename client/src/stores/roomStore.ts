@@ -32,9 +32,27 @@ interface RoomStore {
   resetSession: () => void;
 }
 
+function readStoredNickname(): string {
+  try {
+    return (typeof localStorage !== 'undefined' ? localStorage.getItem('sjb_nickname') : '') || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeStoredNickname(nickname: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('sjb_nickname', nickname);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export const useRoomStore = create<RoomStore>((set, get) => ({
   room: null,
-  nickname: localStorage.getItem('sjb_nickname') || '',
+  nickname: readStoredNickname(),
   mySocketId: null,
   myConnectionId: null,
   isOwner: false,
@@ -46,7 +64,7 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
   isReconnecting: false,
   setRoom: (room) => set({ room }),
   setNickname: (nickname) => {
-    localStorage.setItem('sjb_nickname', nickname);
+    writeStoredNickname(nickname);
     set({ nickname });
   },
   setConnectionInfo: (

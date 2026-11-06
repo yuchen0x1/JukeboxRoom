@@ -2,6 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 赛博科技感全局动效与全息流光 */
+@keyframes neonPulseGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(var(--om-accent-rgb), 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px rgba(var(--om-accent-rgb), 0.85));
+  }
+}
+
+@keyframes holographicShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.neon-glow-active {
+  animation: neonPulseGlow 3.5s ease-in-out infinite;
+}
+
+.holographic-gradient {
+  background: linear-gradient(135deg, rgba(var(--om-accent-rgb), 0.15), rgba(96, 165, 250, 0.12), rgba(168, 85, 247, 0.15));
+  background-size: 200% 200%;
+  animation: holographicShimmer 8s ease infinite;
+}
+
+.cyber-grid-background {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 20s linear infinite;
+}
+
 /* 歌词逐字高亮（F2）——已唱部分用主题强调色，未唱部分保持原色 */
 .karaoke-done {
   color: var(--color-accent, #ec4141);

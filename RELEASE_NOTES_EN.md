@@ -1,72 +1,104 @@
-# JukeboxRoom v0.0.10
+# JukeboxRoom v0.0.11
 
-> 📅 Released: 2026-11-04 ｜ 🏷️ Tag: `v0.0.10` ｜ 📦 Compare: [v0.0.9...v0.0.10](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.9...v0.0.10)
+> 📅 Released: 2026-11-06 ｜ 🏷️ Tag: `v0.0.11` ｜ 📦 Compare: [v0.0.10...v0.0.11](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.10...v0.0.11)
 
-JukeboxRoom is a multiplayer music room system for song requests (Node.js server + React web client, plus Windows desktop and Android apps). This release makes the in-app "What's New" window sync live from GitHub Releases, so future versions no longer need to ship an updated changelog file.
+JukeboxRoom is a multiplayer music room system for song requests (Node.js server + React web client, plus Windows desktop and Android apps). This release is a **major experience release**: a full cyberpunk / sci-fi UI overhaul, plus practical new features (keyboard shortcuts, equalizer, cross-source matching) and a deep security & dependency review.
 
 ---
 
 ## ✨ Highlights
 
-- 🔄 **Live in-app changelog**: the "What's New" window now fetches release notes from GitHub Releases in real time — new entries appear automatically after each release, no more missing or stale logs.
-- 🛟 **Offline fallback**: when the network is unavailable or the API fails, it falls back to the bundled `changelog.md` and de-duplicates entries by version, so the window is never empty or repetitive.
-- 📜 **Backfilled entries**: the bundled changelog now includes the v0.0.8 and v0.0.9 entries for complete history.
+- 🛸 **Full cyberpunk UI overhaul**: neon glows, holographic gradients, scanline sweeps, HUD corner brackets and a glowing matrix backdrop across the lobby, player and desktop app.
+- ⌨️ **Complete keyboard shortcut system**: Space to play/pause, combo keys to skip and adjust volume, `/` to jump to search.
+- 🎚️ **Five-band Web Audio equalizer**: Flat / Bass Boost / Clear Vocal / Treble Boost / V-Shaped — real-time client-side filtering with zero server cost.
+- 🔀 **Cross-source smart matching**: finds a playable same-name version on another platform when the current one can't be played.
+- 🛡️ **Deep security review**: 0 vulnerabilities in both production and dev dependency audits, with node-leak and cross-environment compatibility fixes.
 
 ## 🆕 New Features
 
-### Live changelog sync from GitHub Releases (Desktop / Android / Web)
+### Keyboard shortcuts (web room / desktop)
 
-- New server endpoint `GET /api/update/changelog`: reads the most recent release notes from the GitHub Releases API (up to 15 entries), with a 10-minute server-side cache to reduce upstream requests.
-- Supports the `UPDATE_GITHUB_TOKEN` (read-only token) to raise the GitHub anonymous rate limit, preventing log loading failures caused by throttling.
-- GitHub requests reuse the existing validation chain (URL allowlist + DNS validation), keeping the same SSRF protection boundary as the update checker.
-
-## 🔧 Improvements
-
-- Rewritten changelog viewer logic: prefers live API content, merges in the bundled `changelog.md` as a fallback, and de-duplicates entries by version.
-- Client requests use an AbortController, cancelling in-flight requests as soon as the dialog is closed.
-
-## 🧹 Bug Fixes
-
-- Backfilled the bundled changelog with the v0.0.8 and v0.0.9 entries, so those versions are no longer missing inside the app.
-
-## 📥 Downloads
-
-| Platform | File | Arch | Size | Notes |
-|---|---|---|---|---|
-| 🪟 Windows Desktop | [jukeboxroom-desktop-setup-0.0.10-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.10/jukeboxroom-desktop-setup-0.0.10-x64.exe) | x64 | ≈149 MB | NSIS installer with a built-in local server — no Node.js required |
-| 🤖 Android | [jukeboxroom-android-0.0.10-debug.apk](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.10/jukeboxroom-android-0.0.10-debug.apk) | Universal (incl. arm64) | ≈38 MB | Standalone music player, no server address needed |
-
-> 💡 Web / self-hosted users don't need the installers — pull the source or deploy with Docker, see the [README](https://github.com/yuchen0x1/JukeboxRoom#readme) and the [deployment guide](docs/DEPLOY.md).
-
-## ⬆️ Installation & Upgrade
-
-- **Windows Desktop**: run the installer to upgrade in place — user data and music-source account credentials are preserved. If Windows SmartScreen appears on first launch, verify the download comes from this project's GitHub Release and choose "Run anyway" (this build is not signed with a commercial code-signing certificate).
-- **Android**: install the downloaded APK; if the system warns about "unknown sources", allow the installation. Upgrading over a previous install keeps favorites and local playlists.
-- **Self-hosted (source / Docker)**: pull the latest code and restart the service as usual; if the one-click updater is configured, you can upgrade directly in the app.
-
-## 🖥️ System Requirements
-
-| Component | Requirements |
+| Shortcut | Action |
 |---|---|
-| Server deployment | Node.js ≥ 20 and npm; Redis optional (falls back to the built-in JSON store, best for small single-instance deployments) |
-| Windows Desktop | Windows 10/11 (x64); server is bundled — no Node.js needed |
-| Android | Android 6.0 (API 23) or later (targetSdk 35) |
-| Network | The in-app changelog needs access to `api.github.com`; self-hosted servers need access to the music source APIs |
+| `Space` | Play / pause |
+| `Ctrl / Cmd + →` | Next track (regular members file a skip vote) |
+| `Ctrl / Cmd + ←` | Previous track / replay |
+| `Ctrl / Cmd + ↑ / ↓` | Volume up / down (5% steps, with live feedback) |
+| `/` or `Ctrl / Cmd + F` | Focus the search box |
+
+> Automatically suppressed while typing in inputs, chat boxes or editable regions.
+
+### Five-band audio equalizer (EQ)
+
+- Real-time `BiquadFilterNode` chain built on the Web Audio API with 5 presets: **Flat / Bass Boost / Clear Vocal / Treble Boost / V-Shaped**.
+- Cascades with the room's 3D spectrum visual pipeline; the selected preset is remembered locally.
+
+### Cross-source smart matching
+
+- Matches a same-name, same-artist playable version across the other music platforms when the current source is unavailable (VIP / no license).
+
+### Playlist import & export
+
+- Stronger external playlist link parsing: NetEase mobile short links (`163cn.tv`) and multiple QQ Music path formats (`taoge` / `details` / `tid`) can now be pasted directly.
+- The room queue panel gains an **Export** button that writes a JSON backup for easy migration or sharing.
+
+### Desktop tray enhancements
+
+- The tray menu now shows the current track title and offers **Play / Pause** and **Next Track** controls, so you can control playback without restoring the window.
+
+## 🎨 UI Overhaul Details
+
+- **Lobby**: room cards are now "dynamic nodes" — HUD targeting corners, hover lift, glowing borders, an energy rail plus a 4-band animated spectrum for active rooms; the header became an instrument-panel style HUD (`ACTIVE NODES` counter, pulsing status light, glowing matrix backdrop).
+- **Room page**: the room id became a monospace terminal badge (`ROOM-ID #xxxxxx`); workspace tabs gained neon backlight and glowing outlines; the search status bar got a side plasma light bar.
+- **Full-screen player**: the vinyl now carries a slowly rotating holographic radar ring and a playback-state outer glow; the main play button became a cyan-gradient glowing control core.
+- **Desktop app**: sidebar active items get neon inner glow and the status dot pulses.
+
+## 🧹 Bug Fixes & Security
+
+- Fixed `roomStore` throwing `localStorage is not defined` when loaded in non-browser contexts (Node / test runners) — now uses guarded reads/writes with fallbacks.
+- Fixed an **audio node leak** where stale `BiquadFilterNode` instances were not disconnected when the equalizer chain was re-attached.
+- Added filename sanitization for playlist exports so Windows-reserved characters can't break the download.
+- Removed a duplicated comment in `coverBackdrop`; cover palette extraction keeps its tainted-canvas fallback so rendering never crashes.
+- Dependency hygiene: cleared the known `glob` / `minimatch` advisories from client dev dependencies — `npm run audit:prod` and the full dev audit both report **0 vulnerabilities**.
+- Expanded regression coverage: 5 new client cases for EQ presets, playlist export parsing and bilingual lyric merging (client tests 17 → 22; server stays at 92).
+
+## 📥 Download & Install
+
+| Platform | File | Architecture | Size | Notes |
+|---|---|---|---|---|
+| 🪟 Windows desktop | [jukeboxroom-desktop-setup-0.0.11-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.11/jukeboxroom-desktop-setup-0.0.11-x64.exe) | x64 | ≈149 MB | NSIS installer with an embedded local server — no Node.js required |
+| 🤖 Android | [jukeboxroom-android-0.0.11-debug.apk](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.11/jukeboxroom-android-0.0.11-debug.apk) | universal (arm64 etc.) | ≈38 MB | Standalone music player — no server address needed |
+
+> 💡 Web / self-hosted users don't need an installer: pull the source or deploy with Docker. See the [README](https://github.com/yuchen0x1/JukeboxRoom#readme) and [deployment guide](docs/DEPLOY.md).
+
+## ⬆️ Upgrade Notes
+
+- **Windows desktop**: run the installer to upgrade in place — user data and music-source credentials are preserved. If Windows SmartScreen appears, verify the download came from this project's GitHub Release before choosing "Run anyway" (builds are not code-signed with a commercial certificate).
+- **Android**: install the APK and allow installation from unknown sources if prompted. Installing over an existing version keeps favorites and local playlists.
+- **Self-hosted (source / Docker)**: pull the latest code and restart the service as usual; if one-click update is configured, use it inside the app.
+
+## 🖥️ Requirements
+
+| Target | Requirements |
+|---|---|
+| Server deployment | Node.js ≥ 20, npm; Redis optional (built-in JSON store otherwise — best for small single-instance deployments) |
+| Windows desktop | Windows 10/11 (x64); server bundled, no Node.js needed |
+| Android | Android 6.0 (API 23) or newer (targetSdk 35) |
+| Network | In-app changelog needs `api.github.com`; self-hosted servers need access to the music-source APIs |
 
 ## ⚠️ Known Issues
 
-- **Unsigned artifacts**: the Windows installer is not signed with a commercial code-signing certificate (SmartScreen may warn on first run); the Android package is a debug-signed APK.
-- **GitHub rate limits**: without `UPDATE_GITHUB_TOKEN` configured, the in-app changelog relies on anonymous GitHub API requests; when throttled it falls back to the bundled changelog (which may be slightly older).
-- **Bundle size**: the Three.js vendor chunk is large and Vite reports a size warning at build time (no functional impact).
+- **Unsigned artifacts**: the Windows installer isn't signed with a commercial code-signing certificate, so SmartScreen may warn on first run; the Android APK is debug-signed.
+- **Equalizer conditions**: the EQ rides on the Web Audio chain and works best with a 3D spectrum background (Galaxy / Topography / Vinyl). In plain cover-background mode the browser may skip spectrum wiring due to cross-origin restrictions.
+- **Bundle size**: the Three.js vendor chunk is large and triggers a Vite size warning (no functional impact).
 
 ## 📋 Changelog
 
-- v0.0.9 → v0.0.10: <https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.9...v0.0.10>
-- Notable commit: `0c35771` feat: sync the in-app changelog with GitHub Releases and backfill 0.0.8/0.0.9 entries
+- v0.0.10 → v0.0.11: <https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.10...v0.0.11>
 - Full history: [CHANGELOG.md](CHANGELOG.md) and the [Releases page](https://github.com/yuchen0x1/JukeboxRoom/releases).
 
-## 🙏 Acknowledgements
+## 🙏 Thanks
 
-- Thanks to the open-source projects powering this app: [Node.js](https://nodejs.org), [Express](https://expressjs.com), [Socket.IO](https://socket.io), [React](https://react.dev), [Vite](https://vite.dev), [Electron](https://www.electronjs.org), [Capacitor](https://capacitorjs.com), and more.
-- Thanks to the Meting music-source aggregation API and its upstream music platforms.
-- Thanks to the GitHub community and users reporting feedback in [Issues](https://github.com/yuchen0x1/JukeboxRoom/issues) and the QQ group.
+- Built on [Node.js](https://nodejs.org), [Express](https://expressjs.com), [Socket.IO](https://socket.io), [React](https://react.dev), [Vite](https://vite.dev), [Electron](https://www.electronjs.org), [Capacitor](https://capacitorjs.com) and more.
+- Thanks to the Meting aggregation API and the upstream music platforms.
+- Thanks to the community for [Issues](https://github.com/yuchen0x1/JukeboxRoom/issues) and feedback in the QQ group.

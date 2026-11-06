@@ -91,9 +91,11 @@
 }
 
 .desktop-nav-item.is-active {
-  border-color: rgba(69, 203, 176, 0.18);
-  background: rgba(69, 203, 176, 0.105);
+  border-color: rgba(69, 203, 176, 0.45);
+  background: rgba(69, 203, 176, 0.12);
   color: #71ddc7;
+  box-shadow: 0 0 15px rgba(69, 203, 176, 0.18), inset 0 0 8px rgba(69, 203, 176, 0.08);
+  text-shadow: 0 0 8px rgba(69, 203, 176, 0.3);
 }
 
 .desktop-sidebar-playlists {
@@ -128,6 +130,7 @@
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--desktop-accent);
+  box-shadow: 0 0 8px var(--desktop-accent);
 }
 
 .desktop-status-dot.is-muted {

@@ -749,6 +749,39 @@ export default function DesktopMusicApp() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!window.jukeboxWindow) return;
+    if (current) {
+      void window.jukeboxWindow.setTrayTrack?.(`${current.name} - ${current.artist}`);
+    } else {
+      void window.jukeboxWindow.setTrayTrack?.('');
+    }
+  }, [current]);
+
+  useEffect(() => {
+    if (!window.jukeboxWindow) return;
+    const cleanToggle = window.jukeboxWindow.onTrayTogglePlay?.(() => {
+      const state = useDesktopMusicStore.getState();
+      if (!state.current || state.trackLoading) return;
+      const audio = getSharedAudio();
+      if (state.isPlaying) {
+        audio.pause();
+        state.setPlaying(false);
+      } else {
+        void audio.play().then(() => state.setPlaying(true)).catch(() => {
+          state.setPlaying(false);
+        });
+      }
+    });
+    const cleanNext = window.jukeboxWindow.onTrayNextTrack?.(() => {
+      useDesktopMusicStore.getState().playNextTrack();
+    });
+    return () => {
+      cleanToggle?.();
+      cleanNext?.();
+    };
+  }, []);
+
   return (
     <div className="desktop-music-app">
       <DesktopAudioEngine />

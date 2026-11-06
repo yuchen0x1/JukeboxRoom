@@ -235,6 +235,38 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
+let currentTrackTitle = '';
+
+function updateTrayMenu() {
+  if (!tray || tray.isDestroyed()) return;
+  const title = currentTrackTitle ? `正在播放: ${currentTrackTitle}` : 'JukeboxRoom · 音乐就绪';
+  tray.setToolTip(title.slice(0, 127));
+  const items = [
+    { label: currentTrackTitle ? `🎵 ${currentTrackTitle}` : '🎵 暂无播放曲目', enabled: false },
+    { type: 'separator' },
+    { label: '显示主界面', click: () => showMainWindow() },
+    {
+      label: '播放 / 暂停',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('jukebox:tray-toggle-play');
+        }
+      },
+    },
+    {
+      label: '下一首',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('jukebox:tray-next-track');
+        }
+      },
+    },
+    { type: 'separator' },
+    { label: '退出 JukeboxRoom', click: () => { app.isQuitting = true; app.quit(); } },
+  ];
+  tray.setContextMenu(Menu.buildFromTemplate(items));
+}
+
 function createTray() {
   const icon = resolveTrayIcon();
   if (!icon) {
@@ -243,12 +275,7 @@ function createTray() {
     return;
   }
   tray = new Tray(icon);
-  tray.setToolTip('JukeboxRoom');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示主界面', click: () => showMainWindow() },
-    { type: 'separator' },
-    { label: '退出 JukeboxRoom', click: () => { app.isQuitting = true; app.quit(); } },
-  ]));
+  updateTrayMenu();
   tray.on('click', () => showMainWindow());
   tray.on('double-click', () => showMainWindow());
 }
@@ -413,6 +440,12 @@ async function createWindow() {
       await fs.promises.mkdir(path.dirname(configPath), { recursive: true });
       if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, CONFIG_TEMPLATE, 'utf8');
       return (await shell.openPath(configPath)) === '';
+    },
+    'jukebox:set-tray-track': (event, title) => {
+      assertTrustedWindowRequest(event);
+      currentTrackTitle = typeof title === 'string' ? title.slice(0, 60) : '';
+      updateTrayMenu();
+      return true;
     },
     'jukebox:restart-app': (event) => {
       assertTrustedWindowRequest(event);

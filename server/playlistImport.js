@@ -41,9 +41,9 @@ export function parseNeteasePlaylistId(input) {
   if (/^\d{4,}$/.test(text)) return text;
 
   const url = extractUrlFromText(text);
-  if (!/music\.163\.com|y\.music\.163\.com/i.test(url)) return null;
+  if (!/163\.com|163cn\.tv/i.test(url)) return null;
 
-  const idMatch = url.match(/[?&]id=(\d+)/i) || url.match(/playlist\/(\d+)/i);
+  const idMatch = url.match(/[?&]id=(\d+)/i) || url.match(/playlist\/(\d+)/i) || url.match(/\/playlist\?id=(\d+)/i);
   return idMatch ? idMatch[1] : null;
 }
 
@@ -53,12 +53,14 @@ export function parseQqPlaylistId(input) {
   if (/^\d{4,}$/.test(text)) return text;
 
   const url = extractUrlFromText(text);
-  if (!/\.qq\.com/i.test(url)) return null;
-  if (!/playlist|songlist|details/i.test(url) && !/[?&]id=\d+/i.test(url)) return null;
+  if (!/qq\.com|y\.qq\.com|c6\.y\.qq\.com/i.test(url)) return null;
 
   const idMatch = url.match(/[?&]id=(\d+)/i)
+    || url.match(/[?&]tid=(\d+)/i)
     || url.match(/\/playlist\/(\d+)/i)
-    || url.match(/\/songlist\/(\d+)/i);
+    || url.match(/\/songlist\/(\d+)/i)
+    || url.match(/\/taoge\/(\d+)/i)
+    || url.match(/\/details\/(\d+)/i);
   return idMatch ? idMatch[1] : null;
 }
 

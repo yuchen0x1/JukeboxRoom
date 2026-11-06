@@ -2,6 +2,7 @@ import { getSharedAudio } from '../../../lib/audioElement';
 import { isProxiedMediaUrl, isSameOriginMediaUrl } from '../../../lib/mediaProxyUrl';
 import type { RoomVisualPresetId } from '../../../lib/roomVisualPreset';
 import { shouldProxySongPlaybackUrl } from '../../../lib/roomVisualPreset';
+import { globalAudioEqualizer } from '../../../lib/audioEqualizer';
 import {
   resetGalaxyCinema,
   scheduleLiveBeatCamera,
@@ -194,7 +195,7 @@ function connectSourceToAnalysers(source: AudioNode): void {
   if (!analyser || !beatAnalyser || !audioCtx) return;
   source.connect(analyser);
   source.connect(beatAnalyser);
-  analyser.connect(audioCtx.destination);
+  globalAudioEqualizer.attachToContext(audioCtx, analyser, audioCtx.destination);
 }
 
 function wireAnalyser(audio: HTMLAudioElement): boolean {

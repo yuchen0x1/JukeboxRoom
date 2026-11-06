@@ -57,3 +57,47 @@ export function tuneCoverBackdrop(luminance: number | null): CoverBackdropTuning
     imgBrightness: 1 - factor * 0.1,
   };
 }
+
+export function extractCoverPalette(img: HTMLImageElement): { primary: string; secondary: string } {
+  try {
+    const size = 16;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return { primary: 'rgba(30, 41, 59, 0.7)', secondary: 'rgba(15, 23, 42, 0.8)' };
+
+    ctx.drawImage(img, 0, 0, size, size);
+    const { data } = ctx.getImageData(0, 0, size, size);
+
+    let rTop = 0, gTop = 0, bTop = 0, countTop = 0;
+    let rBot = 0, gBot = 0, bBot = 0, countBot = 0;
+    const half = (size * size) / 2;
+
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 32) continue;
+      const pixelIndex = i / 4;
+      if (pixelIndex < half) {
+        rTop += data[i];
+        gTop += data[i + 1];
+        bTop += data[i + 2];
+        countTop++;
+      } else {
+        rBot += data[i];
+        gBot += data[i + 1];
+        bBot += data[i + 2];
+        countBot++;
+      }
+    }
+
+    const c1 = countTop ? [Math.round(rTop / countTop), Math.round(gTop / countTop), Math.round(bTop / countTop)] : [30, 41, 59];
+    const c2 = countBot ? [Math.round(rBot / countBot), Math.round(gBot / countBot), Math.round(bBot / countBot)] : [15, 23, 42];
+
+    return {
+      primary: `rgba(${c1[0]}, ${c1[1]}, ${c1[2]}, 0.55)`,
+      secondary: `rgba(${c2[0]}, ${c2[1]}, ${c2[2]}, 0.65)`,
+    };
+  } catch {
+    return { primary: 'rgba(30, 41, 59, 0.7)', secondary: 'rgba(15, 23, 42, 0.8)' };
+  }
+}

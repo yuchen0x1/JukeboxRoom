@@ -95,27 +95,32 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  color: rgba(213, 222, 232, 0.68);
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  color: rgba(213, 222, 232, 0.75);
   font-size: 12px;
   white-space: nowrap;
-  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+  background: rgba(255, 255, 255, 0.025);
+  transition: all 160ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .room-library-tab:hover,
 .room-library-tab:focus-visible {
   outline: none;
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(var(--om-accent-rgb), 0.08);
+  border-color: rgba(var(--om-accent-rgb), 0.25);
   color: #f1f5f9;
+  box-shadow: 0 0 10px rgba(var(--om-accent-rgb), 0.12);
 }
 
 .room-library-tab.is-active,
 .room-library-tab.is-selected {
-  border-color: rgba(var(--om-accent-rgb), 0.16);
-  background: rgba(var(--om-accent-rgb), 0.09);
+  border-color: rgba(var(--om-accent-rgb), 0.45);
+  background: rgba(var(--om-accent-rgb), 0.14);
   color: var(--om-accent);
+  box-shadow: 0 0 12px rgba(var(--om-accent-rgb), 0.2), inset 0 0 6px rgba(var(--om-accent-rgb), 0.1);
+  text-shadow: 0 0 8px rgba(var(--om-accent-rgb), 0.35);
 }
 
 .room-library-tab--utility {
@@ -130,8 +135,9 @@
   gap: 8px;
   margin: 0 2px 8px;
   padding: 0 9px;
-  border-left: 2px solid rgba(var(--om-accent-rgb), 0.68);
-  color: rgba(213, 222, 232, 0.7);
+  border-left: 2px solid var(--om-accent);
+  box-shadow: -4px 0 12px -2px rgba(var(--om-accent-rgb), 0.5);
+  color: rgba(213, 222, 232, 0.85);
   font-size: 12px;
 }
 

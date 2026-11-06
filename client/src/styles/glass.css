@@ -268,6 +268,99 @@ textarea:disabled {
   }
 }
 
+/* Cyberpunk & Futuristic Sci-Fi Extensions */
+.cyber-glow-accent {
+  box-shadow: 0 0 15px rgba(var(--om-accent-rgb), 0.25), inset 0 0 15px rgba(var(--om-accent-rgb), 0.1);
+}
+
+.cyber-border-gradient {
+  position: relative;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.cyber-border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(var(--om-accent-rgb), 0.6) 0%, rgba(96, 165, 250, 0.2) 50%, rgba(168, 85, 247, 0.4) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.cyber-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  background: rgba(var(--om-accent-rgb), 0.12);
+  color: var(--om-accent);
+  border: 1px solid rgba(var(--om-accent-rgb), 0.3);
+  text-shadow: 0 0 8px rgba(var(--om-accent-rgb), 0.4);
+}
+
+.cyber-hud-corner {
+  position: relative;
+}
+
+.cyber-hud-corner::before,
+.cyber-hud-corner::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  pointer-events: none;
+  border-color: var(--om-accent);
+  opacity: 0.65;
+}
+
+.cyber-hud-corner::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1.5px solid;
+  border-left: 1.5px solid;
+}
+
+.cyber-hud-corner::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1.5px solid;
+  border-right: 1.5px solid;
+}
+
+@keyframes cyberScanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(1000%); }
+}
+
+.cyber-scanline {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.05;
+}
+
+.cyber-scanline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--om-accent), transparent);
+  animation: cyberScanline 8s linear infinite;
+}
+
 @media (update: slow) {
   .glass-surface, .glass-surface--panel, .glass-surface--elevated, .glass-surface--modal {
     -webkit-backdrop-filter: blur(6px);

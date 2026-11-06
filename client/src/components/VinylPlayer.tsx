@@ -53,8 +53,17 @@ function VinylPlayer({ coverUrl, isPlaying, className = '', size = 'default' }: 
 
       {/* 黑胶唱片 */}
       <div className={`relative ${SIZE_CLASS[size]}`}>
+        {/* 全息科技感发光外环 */}
         <div
-          className={`vinyl-disc w-full h-full rounded-full relative shadow-[0_8px_40px_rgba(0,0,0,0.6)]${isPlaying ? ' vinyl-disc--playing' : ''}`}
+          className={`absolute -inset-3 rounded-full border border-dashed border-[rgba(var(--om-accent-rgb),0.2)] transition-all duration-1000 ${
+            isPlaying ? 'opacity-80 rotate-180 scale-105 shadow-[0_0_30px_rgba(var(--om-accent-rgb),0.15)] animate-spin-slow' : 'opacity-20 scale-100'
+          }`}
+        />
+
+        <div
+          className={`vinyl-disc w-full h-full rounded-full relative shadow-[0_12px_50px_rgba(0,0,0,0.7)] transition-shadow duration-700 ${
+            isPlaying ? 'vinyl-disc--playing shadow-[0_0_60px_rgba(var(--om-accent-rgb),0.25)]' : ''
+          }`}
           style={{
             background: `
               radial-gradient(circle at 50% 50%, var(--color-surface) 0%, var(--color-bg-elevated) 100%),
@@ -65,7 +74,7 @@ function VinylPlayer({ coverUrl, isPlaying, className = '', size = 'default' }: 
           <div className="absolute inset-[2%] rounded-full border border-white/[0.04]" />
           <div className="absolute inset-[5%] rounded-full border border-white/[0.03]" />
           <div className="absolute inset-[9%] rounded-full border border-white/[0.02]" />
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/[0.06] via-transparent to-transparent pointer-events-none" />
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/[0.08] via-transparent to-transparent pointer-events-none" />
 
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-[62%] h-[62%] rounded-full overflow-hidden ring-2 ring-black/50 shadow-inner">
