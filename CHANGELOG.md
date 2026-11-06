@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.12 - 2026-11-06
+
+### 热修复
+
+- 修复首页版本徽章仍显示 `V0.0.10 PRO` 的硬编码问题，改为使用构建期注入的实际版本号。
+- 同步根目录、服务端、客户端和桌面端 package lock 的版本元数据，避免 `package.json` 与 lockfile 版本不一致。
+- 更新服务端 `.env.example` 中过期的 `APP_VERSION` 示例，并将 Android `versionCode` / `versionName` 递增到 12 / 0.0.12。
+
 ## 0.0.11 - 2026-11-06
 
 ### UI 全面升级：赛博科技感重构

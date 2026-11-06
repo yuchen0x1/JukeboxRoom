@@ -435,7 +435,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl flex items-center gap-3">
                 <span className="sr-only">JukeboxRoom 在线点歌 - </span>
                 房间大厅
-                <span className="cyber-badge text-xs">V0.0.10 PRO</span>
+                <span className="cyber-badge text-xs">V{__APP_VERSION__} PRO</span>
               </h1>
               <p className="mt-2 text-sm text-white/50">选择在线协同空间接入，或初始化你的私人全息音乐矩阵</p>
             </div>

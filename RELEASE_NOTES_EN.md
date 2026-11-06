@@ -1,8 +1,8 @@
-# JukeboxRoom v0.0.11
+# JukeboxRoom v0.0.12
 
-> 📅 Released: 2026-11-06 ｜ 🏷️ Tag: `v0.0.11` ｜ 📦 Compare: [v0.0.10...v0.0.11](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.10...v0.0.11)
+> 📅 Released: 2026-11-06 ｜ 🏷️ Tag: `v0.0.12` ｜ 📦 Compare: [v0.0.11...v0.0.12](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.11...v0.0.12)
 
-JukeboxRoom is a multiplayer music room system for song requests (Node.js server + React web client, plus Windows desktop and Android apps). This release is a **major experience release**: a full cyberpunk / sci-fi UI overhaul, plus practical new features (keyboard shortcuts, equalizer, cross-source matching) and a deep security & dependency review.
+JukeboxRoom v0.0.12 is a hotfix release after the v0.0.11 cyberpunk experience release. It fixes the hard-coded home version badge, synchronizes package metadata across all workspaces, and republishes the Windows and Android artifacts. The full v0.0.11 baseline remains included: cyberpunk UI, keyboard shortcuts, equalizer, cross-source matching, and the security/dependency review.
 
 ---
 
@@ -66,8 +66,8 @@ JukeboxRoom is a multiplayer music room system for song requests (Node.js server
 
 | Platform | File | Architecture | Size | Notes |
 |---|---|---|---|---|
-| 🪟 Windows desktop | [jukeboxroom-desktop-setup-0.0.11-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.11/jukeboxroom-desktop-setup-0.0.11-x64.exe) | x64 | ≈149 MB | NSIS installer with an embedded local server — no Node.js required |
-| 🤖 Android | [jukeboxroom-android-0.0.11-debug.apk](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.11/jukeboxroom-android-0.0.11-debug.apk) | universal (arm64 etc.) | ≈38 MB | Standalone music player — no server address needed |
+| 🪟 Windows desktop | [jukeboxroom-desktop-setup-0.0.12-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.12/jukeboxroom-desktop-setup-0.0.12-x64.exe) | x64 | ≈149 MB | NSIS installer with an embedded local server — no Node.js required |
+| 🤖 Android | [jukeboxroom-android-0.0.12-debug.apk](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.12/jukeboxroom-android-0.0.12-debug.apk) | universal (arm64 etc.) | ≈38 MB | Standalone music player — no server address needed |
 
 > 💡 Web / self-hosted users don't need an installer: pull the source or deploy with Docker. See the [README](https://github.com/yuchen0x1/JukeboxRoom#readme) and [deployment guide](docs/DEPLOY.md).
 
@@ -94,7 +94,7 @@ JukeboxRoom is a multiplayer music room system for song requests (Node.js server
 
 ## 📋 Changelog
 
-- v0.0.10 → v0.0.11: <https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.10...v0.0.11>
+- v0.0.11 → v0.0.12: <https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.11...v0.0.12>
 - Full history: [CHANGELOG.md](CHANGELOG.md) and the [Releases page](https://github.com/yuchen0x1/JukeboxRoom/releases).
 
 ## 🙏 Thanks

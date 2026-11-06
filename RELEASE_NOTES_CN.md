@@ -1,8 +1,8 @@
-# JukeboxRoom v0.0.11
+# JukeboxRoom v0.0.12
 
-> 📅 发布日期：2026-11-06 ｜ 🏷️ Tag：`v0.0.11` ｜ 📦 对比上一版本：[v0.0.10...v0.0.11](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.10...v0.0.11)
+> 📅 发布日期：2026-11-06 ｜ 🏷️ Tag：`v0.0.12` ｜ 📦 对比上一版本：[v0.0.11...v0.0.12](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.11...v0.0.12)
 
-JukeboxRoom 是支持多人房间点歌的音乐播放系统（Node.js 服务端 + React 网页端，另有 Windows 桌面版与 Android 版）。本次版本是一次**体验大版本**：全站 UI 赛博科技感重构，并新增快捷键、均衡器、跨源换源等实用功能，同时完成一轮深度安全与依赖体检。
+JukeboxRoom v0.0.12 是 v0.0.11 赛博科技感体验大版本后的热修复版本：修正首页版本徽章、同步各端版本元数据，并重新构建 Windows 与 Android 发布产物。v0.0.11 的完整功能基线仍包含全站 UI 重构、快捷键、均衡器、跨源换源与安全依赖体检。
 
 ---
 
@@ -66,8 +66,8 @@ JukeboxRoom 是支持多人房间点歌的音乐播放系统（Node.js 服务端
 
 | 平台 | 文件名称 | 架构 | 大小 | 说明 |
 |---|---|---|---|---|
-| 🪟 Windows 桌面版 | [jukeboxroom-desktop-setup-0.0.11-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.11/jukeboxroom-desktop-setup-0.0.11-x64.exe) | x64 | ≈149 MB | NSIS 安装程序，内置本地服务端，无需安装 Node.js |
-| 🤖 Android | [jukeboxroom-android-0.0.11-debug.apk](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.11/jukeboxroom-android-0.0.11-debug.apk) | 通用（arm64 等） | ≈38 MB | 独立音乐播放器，无需配置服务器地址 |
+| 🪟 Windows 桌面版 | [jukeboxroom-desktop-setup-0.0.12-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.12/jukeboxroom-desktop-setup-0.0.12-x64.exe) | x64 | ≈149 MB | NSIS 安装程序，内置本地服务端，无需安装 Node.js |
+| 🤖 Android | [jukeboxroom-android-0.0.12-debug.apk](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.12/jukeboxroom-android-0.0.12-debug.apk) | 通用（arm64 等） | ≈38 MB | 独立音乐播放器，无需配置服务器地址 |
 
 > 💡 网页版 / 自部署用户无需下载安装包，直接拉取源码或 Docker 部署即可，参见 [README](https://github.com/yuchen0x1/JukeboxRoom#readme) 与 [部署文档](docs/DEPLOY.md)。
 
@@ -94,7 +94,7 @@ JukeboxRoom 是支持多人房间点歌的音乐播放系统（Node.js 服务端
 
 ## 📋 更新日志
 
-- v0.0.10 → v0.0.11：<https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.10...v0.0.11>
+- v0.0.11 → v0.0.12：<https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.11...v0.0.12>
 - 完整历史见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases 页面](https://github.com/yuchen0x1/JukeboxRoom/releases)。
 
 ## 🙏 致谢
