@@ -156,6 +156,62 @@ test('super admin can ban an admin', async () => {
   }
 });
 
+test('only super admin can change roles and the last super admin is protected', async () => {
+  const superAdmin = insert('users', {
+    username: `security-role-super-${Date.now()}`,
+    passwordHash: 'test',
+    role: 'super_admin',
+    status: 'active',
+  });
+  const target = insert('users', {
+    username: `security-role-target-${Date.now()}`,
+    passwordHash: 'test',
+    role: 'user',
+    status: 'active',
+  });
+  const admin = insert('users', {
+    username: `security-role-admin-${Date.now()}`,
+    passwordHash: 'test',
+    role: 'admin',
+    status: 'active',
+  });
+  const server = await start(adminApp({ id: admin.id, username: admin.username, role: admin.role }));
+  try {
+    const denied = await request(server, {
+      path: `/api/admin/users/${target.id}/role`,
+      body: { role: 'admin' },
+    });
+    assert.equal(denied.status, 403);
+  } finally {
+    await close(server);
+  }
+
+  const superServer = await start(adminApp({ id: superAdmin.id, username: superAdmin.username, role: superAdmin.role }));
+  try {
+    const promoted = await request(superServer, {
+      path: `/api/admin/users/${target.id}/role`,
+      body: { role: 'admin' },
+    });
+    assert.equal(promoted.status, 200);
+    assert.equal(promoted.body.role, 'admin');
+
+    const selfDemotion = await request(superServer, {
+      path: `/api/admin/users/${superAdmin.id}/role`,
+      body: { role: 'admin' },
+    });
+    assert.equal(selfDemotion.status, 403);
+
+    const lastDemotion = await request(superServer, {
+      path: `/api/admin/users/${superAdmin.id}/role`,
+      body: { role: 'user' },
+    });
+    assert.equal(lastDemotion.status, 403);
+  } finally {
+    await close(superServer);
+    remove('users', (entry) => entry.id === superAdmin.id || entry.id === target.id || entry.id === admin.id);
+  }
+});
+
 test('room passwords enforce bounds at creation and lock changes', () => {
   const tooShort = createRoom({ name: 'short-password', password: '1234567', creatorId: 'room-owner-1' });
   assert.equal(tooShort.error, `房间密码长度需在 ${ROOM_PASSWORD_MIN_LENGTH}-${ROOM_PASSWORD_MAX_LENGTH} 个字符之间`);

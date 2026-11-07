@@ -525,6 +525,13 @@ export default function Home() {
               <Music className="w-3.5 h-3.5" />
               四平台曲库
             </span>
+            <button
+              onClick={() => navigate('/admin')}
+              className="flex items-center gap-1.5 transition-colors hover:text-white/60"
+              title="管理后台"
+            >
+              管理后台
+            </button>
           </div>
           <VersionStatus />
           {/* <p className="flex flex-wrap items-center justify-center gap-1 text-xs text-white/35">

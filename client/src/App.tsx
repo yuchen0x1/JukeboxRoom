@@ -7,6 +7,8 @@ import { isAndroidRuntime } from './lib/mobileApi';
 const Home = lazy(() => import('./pages/Home'));
 const Room = lazy(() => import('./pages/Room'));
 const TvDisplay = lazy(() => import('./pages/TvDisplay'));
+const Admin = lazy(() => import('./pages/Admin'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const DesktopMusicApp = lazy(() => import('./components/DesktopMusicApp'));
 const AndroidMusicApp = lazy(() => import('./components/AndroidMusicApp'));
 
@@ -51,6 +53,8 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/room/:roomId" element={<Room />} />
               <Route path="/tv/:roomId" element={<TvDisplay />} />
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/login" element={<AdminLogin />} />
             </Routes>
           )}
         </Suspense>

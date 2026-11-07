@@ -16,7 +16,7 @@
 import { Router } from 'express';
 import { all, findOne, update, find } from '../db/store.js';
 import { queryAudit } from '../audit/index.js';
-import { getRoomPublic, listRoomIds } from '../roomManager.js';
+import { getRoomPublic, listRoomIds, adminAnnounceRoom, adminCloseRoom } from '../roomManager.js';
 import { revokeRefreshSessionsForUser } from '../auth/index.js';
 
 const router = Router();
@@ -59,12 +59,60 @@ router.post('/users/:id/ban', (req, res) => {
   res.json({ id, status: newStatus });
 });
 
+/* 角色管理：只有超级管理员可以调整角色。 */
+router.post('/users/:id/role', (req, res) => {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'forbidden', message: '仅超级管理员可调整角色' });
+  }
+
+  const { id } = req.params;
+  const nextRole = String(req.body?.role || '').trim();
+  const validRoles = new Set(['super_admin', 'admin', 'moderator', 'user']);
+  if (!validRoles.has(nextRole)) {
+    return res.status(400).json({ error: 'invalid_role', message: '角色无效' });
+  }
+
+  const user = findOne('users', (entry) => entry.id === id);
+  if (!user) return res.status(404).json({ error: 'user_not_found' });
+  if (user.id === req.user.id && nextRole !== 'super_admin') {
+    return res.status(403).json({ error: 'cannot_demote_self', message: '不能降低自己的超级管理员权限' });
+  }
+
+  if (user.role === 'super_admin' && nextRole !== 'super_admin') {
+    const superAdminCount = all('users').filter((entry) => entry.role === 'super_admin').length;
+    if (superAdminCount <= 1) {
+      return res.status(403).json({ error: 'last_super_admin', message: '不能降级最后一个超级管理员' });
+    }
+  }
+
+  update('users', (entry) => entry.id === id, { role: nextRole });
+  revokeRefreshSessionsForUser(id);
+  res.json({ id, role: nextRole });
+});
+
 /* Room management */
 router.get('/rooms', (_req, res) => {
   const rooms = listRoomIds()
     .map((roomId) => getRoomPublic(roomId))
     .filter(Boolean);
   res.json({ rooms, total: rooms.length });
+});
+
+/* 后台：向房间发布公告（绕过房主权限） */
+router.post('/rooms/:id/announce', (req, res) => {
+  const { id } = req.params;
+  const { enabled, text } = req.body || {};
+  const result = adminAnnounceRoom(id, { enabled, text });
+  if (result.error) return res.status(404).json(result);
+  res.json(result);
+});
+
+/* 后台：强制关闭房间 */
+router.post('/rooms/:id/close', (req, res) => {
+  const { id } = req.params;
+  const result = adminCloseRoom(id);
+  if (result.error) return res.status(400).json(result);
+  res.json(result);
 });
 
 /* Audit log */

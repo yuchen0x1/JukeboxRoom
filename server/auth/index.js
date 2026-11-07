@@ -218,6 +218,31 @@ async function registerUser(username, password, role = 'user') {
   return { id: user.id, username: user.username, role: user.role };
 }
 
+/* 首个管理员引导：只有同时配置两项环境变量时才创建，避免固定默认凭据。 */
+async function ensureInitialAdmin() {
+  if (findOne('users', (u) => u.role === 'super_admin')) return { created: false, skipped: 'already_exists' };
+
+  const configuredUsername = String(process.env.ADMIN_INIT_USERNAME || '').trim();
+  const configuredPassword = String(process.env.ADMIN_INIT_PASSWORD || '');
+  if (!configuredUsername && !configuredPassword) return { created: false, skipped: 'not_configured' };
+  if (!configuredUsername || !configuredPassword) {
+    return { created: false, error: 'ADMIN_INIT_USERNAME 和 ADMIN_INIT_PASSWORD 必须同时配置' };
+  }
+  if (configuredUsername.length < 2 || configuredUsername.length > 32) {
+    return { created: false, error: 'ADMIN_INIT_USERNAME 长度需在 2-32 个字符之间' };
+  }
+  if (configuredPassword.length < PASSWORD_MIN_LENGTH || configuredPassword.length > PASSWORD_MAX_LENGTH) {
+    return { created: false, error: `ADMIN_INIT_PASSWORD 长度需在 ${PASSWORD_MIN_LENGTH}-${PASSWORD_MAX_LENGTH} 个字符之间` };
+  }
+  if (findOne('users', (u) => u.username === configuredUsername)) {
+    return { created: false, error: 'ADMIN_INIT_USERNAME 已存在，请换一个用户名或在后台调整角色' };
+  }
+
+  const result = await registerUser(configuredUsername, configuredPassword, 'super_admin');
+  if (result.error) return { created: false, error: result.error };
+  return { created: true, username: configuredUsername, role: 'super_admin' };
+}
+
 async function loginUser(username, password) {
   const normalizedUsername = String(username || '').trim();
   const user = findOne('users', (u) => u.username === normalizedUsername && u.status === 'active');
@@ -340,5 +365,6 @@ export {
   rotateRefreshSession,
   revokeRefreshSession,
   revokeRefreshSessionsForUser,
+  ensureInitialAdmin,
   authRouter,
 };

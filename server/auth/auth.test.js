@@ -6,6 +6,7 @@ import { remove, findOne } from '../db/store.js';
 import {
   authRouter,
   loginUser,
+  ensureInitialAdmin,
   signToken,
   verifyToken,
   PASSWORD_MIN_LENGTH,
@@ -64,6 +65,31 @@ test('registration enforces password length bounds', async () => {
     assert.ok(PASSWORD_MIN_LENGTH >= 8);
   } finally {
     await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('initial admin is created only from explicit environment credentials', async () => {
+  const username = `initial-admin-${Date.now()}`;
+  const previousUsername = process.env.ADMIN_INIT_USERNAME;
+  const previousPassword = process.env.ADMIN_INIT_PASSWORD;
+  try {
+    delete process.env.ADMIN_INIT_USERNAME;
+    delete process.env.ADMIN_INIT_PASSWORD;
+    const skipped = await ensureInitialAdmin();
+    assert.equal(skipped.created, false);
+    assert.equal(skipped.skipped, 'not_configured');
+
+    process.env.ADMIN_INIT_USERNAME = username;
+    process.env.ADMIN_INIT_PASSWORD = 'initial-admin-password';
+    const created = await ensureInitialAdmin();
+    assert.equal(created.created, true);
+    assert.equal(findOne('users', (user) => user.username === username).role, 'super_admin');
+  } finally {
+    if (previousUsername === undefined) delete process.env.ADMIN_INIT_USERNAME;
+    else process.env.ADMIN_INIT_USERNAME = previousUsername;
+    if (previousPassword === undefined) delete process.env.ADMIN_INIT_PASSWORD;
+    else process.env.ADMIN_INIT_PASSWORD = previousPassword;
+    remove('users', (user) => user.username === username);
   }
 });
 

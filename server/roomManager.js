@@ -1534,6 +1534,36 @@ export function setRoomAnnouncement(roomId, actorId, options = {}, connectionId 
   return { room: serializeRoom(room) };
 }
 
+/* 管理后台专用：绕过房主权限直接设置公告 */
+export function adminAnnounceRoom(roomId, options = {}) {
+  const room = rooms.get(roomId?.toUpperCase());
+  if (!room) return { error: '房间不存在' };
+  if (options.enabled !== undefined) {
+    room.announcementEnabled = Boolean(options.enabled);
+  }
+  if (options.text !== undefined) {
+    room.announcementText = String(options.text || '').trim().slice(0, MAX_ANNOUNCEMENT_LENGTH);
+  }
+  persistRoom(room);
+  return { room: serializeRoom(room) };
+}
+
+/* 管理后台专用：强制关闭房间（解散并移除，含持久化与聊天图片清理） */
+export function adminCloseRoom(roomId) {
+  const target = roomId?.toUpperCase();
+  if (target === SEED_ROOM_ID) return { error: '种子房间不可关闭' };
+  const room = rooms.get(target);
+  if (!room) return { error: '房间不存在' };
+  cancelRoomDestroy(room);
+  clearAllPendingLeaveClears(room);
+  rooms.delete(target);
+  invalidateRoomsListCache();
+  void deleteRoomChatImages(target).finally(() => {
+    void deleteRoomFromStorage(target);
+  });
+  return { closed: true, roomId: target };
+}
+
 export function setSongRequestEnabled(roomId, actorId, options = {}, connectionId = null) {
   const room = rooms.get(roomId);
   if (!room) return { error: '房间不存在' };

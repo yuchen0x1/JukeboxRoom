@@ -7,7 +7,7 @@
 
 JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在同一个房间里搜索歌曲、提交队列、同步播放进度、看歌词、聊天和管理播放规则。
 
-- 当前版本：**v0.0.12**（2026-11-06）
+- 当前版本：**v0.0.13**（2026-11-08）
 - 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
 - 完整变更记录：[CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
@@ -73,9 +73,12 @@ docker compose up -d --build
 生产环境至少要做这些事：
 
 1. 将 `CLIENT_ID_SECRET` 和 `AUTH_JWT_SECRET` 换成**两段不同的、至少 32 个字符的随机值**。
-2. 保留宿主机 `./data` 数据目录，升级时不要删除它。
-3. 对外提供服务时使用 HTTPS、正确的 `CLIENT_URL` 和 WebSocket 反向代理。
-4. 如需 Redis，启用 Compose 中的 Redis 服务并配置 `REDIS_URL`；多实例部署仍需额外设计共享状态和一致性方案。
+2. 首次启动前配置 `ADMIN_INIT_USERNAME` 和 `ADMIN_INIT_PASSWORD`，服务端会创建一个超级管理员；两项必须同时设置，密码长度需为 8-128 位。创建成功后可移除这两项配置。
+3. 保留宿主机 `./data` 数据目录，升级时不要删除它。
+4. 对外提供服务时使用 HTTPS、正确的 `CLIENT_URL` 和 WebSocket 反向代理。
+5. 如需 Redis，启用 Compose 中的 Redis 服务并配置 `REDIS_URL`；多实例部署仍需额外设计共享状态和一致性方案。
+
+启动后从首页底栏进入「管理后台」，管理员可使用 `/admin` 完成用户封禁/角色调整、房间公告/关闭、任务、审计、曲库和 AutoDJ 管理。普通账号可以注册和登录，但没有管理后台权限。
 
 ### 方式二：源码开发
 

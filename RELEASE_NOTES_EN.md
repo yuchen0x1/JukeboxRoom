@@ -1,73 +1,75 @@
-# JukeboxRoom v0.0.12
+# JukeboxRoom v0.0.13
 
-> 📅 Released: 2026-11-06 ｜ 🏷️ Tag: `v0.0.12` ｜ 📦 Compare: [v0.0.11...v0.0.12](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.11...v0.0.12)
+> 📅 Released: 2026-11-08 ｜ 🏷️ Tag: `v0.0.13` ｜ 📦 Compare: [v0.0.12...v0.0.13](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.12...v0.0.13)
 
-JukeboxRoom v0.0.12 is a hotfix release after the v0.0.11 cyberpunk experience release. It fixes the hard-coded home version badge, synchronizes package metadata across all workspaces, and republishes the Windows and Android artifacts. The full v0.0.11 baseline remains included: cyberpunk UI, keyboard shortcuts, equalizer, cross-source matching, and the security/dependency review.
+JukeboxRoom v0.0.13 is the "Admin Console" release: a standalone admin dashboard with its own login page, public self-service registration, environment-driven bootstrap of the first super admin, and a role system with hard safety boundaries. The previous baselines — cyberpunk UI, keyboard shortcuts, equalizer, cross-source matching — all remain included.
 
 ---
 
 ## ✨ Highlights
 
-- 🛸 **Full cyberpunk UI overhaul**: neon glows, holographic gradients, scanline sweeps, HUD corner brackets and a glowing matrix backdrop across the lobby, player and desktop app.
-- ⌨️ **Complete keyboard shortcut system**: Space to play/pause, combo keys to skip and adjust volume, `/` to jump to search.
-- 🎚️ **Five-band Web Audio equalizer**: Flat / Bass Boost / Clear Vocal / Treble Boost / V-Shaped — real-time client-side filtering with zero server cost.
-- 🔀 **Cross-source smart matching**: finds a playable same-name version on another platform when the current one can't be played.
-- 🛡️ **Deep security review**: 0 vulnerabilities in both production and dev dependency audits, with node-leak and cross-environment compatibility fixes.
+- 🛡️ **Full admin console**: Overview, Users, Rooms, Tasks, Audit, Library and AutoDJ — seven tabs for day-to-day operations.
+- 👤 **Closed-loop accounts**: the console login page supports public self-service registration, and regular users can never reach the console.
+- 👑 **Safe role management**: only super admins can change roles — no self-demotion, and the last super admin can never be demoted.
+- 🔑 **No default password**: the first super admin is only created from explicit environment variables; no fixed credentials exist anywhere in the repo or logs.
+- 🏠 **Stronger room management**: admins can broadcast room announcements and force-close rooms.
 
 ## 🆕 New Features
 
-### Keyboard shortcuts (web room / desktop)
+### Standalone admin console (`/admin`)
 
-| Shortcut | Action |
-|---|---|
-| `Space` | Play / pause |
-| `Ctrl / Cmd + →` | Next track (regular members file a skip vote) |
-| `Ctrl / Cmd + ←` | Previous track / replay |
-| `Ctrl / Cmd + ↑ / ↓` | Volume up / down (5% steps, with live feedback) |
-| `/` or `Ctrl / Cmd + F` | Focus the search box |
+- Seven tabs: **Overview** (system health and stats), **Users** (search / ban / role changes), **Rooms** (list / announce / force-close), **Tasks** (definitions / runs / history), **Audit** (operation logs), **Library** (local songs and scanning), **AutoDJ** (status and toggle).
+- A "Admin Console" entry was added to the home footer; the route is lazily loaded so the first screen stays lean.
 
-> Automatically suppressed while typing in inputs, chat boxes or editable regions.
+### Login & registration
 
-### Five-band audio equalizer (EQ)
+- Standalone login page at `/admin/login` with a one-click login/register mode switch.
+- Admin sessions are stored as access/refresh tokens; requests carry `Authorization: Bearer` automatically and a 401 clears the local session.
+- Regular accounts that try to open the console are rejected explicitly: "this account is not an administrator".
+- Public registration always creates a `user` role — the server ignores any privilege fields sent in the request.
 
-- Real-time `BiquadFilterNode` chain built on the Web Audio API with 5 presets: **Flat / Bass Boost / Clear Vocal / Treble Boost / V-Shaped**.
-- Cascades with the room's 3D spectrum visual pipeline; the selected preset is remembered locally.
+### First super-admin bootstrap
 
-### Cross-source smart matching
+```env
+ADMIN_INIT_USERNAME=admin
+ADMIN_INIT_PASSWORD=replace-with-random-8-plus-chars
+```
 
-- Matches a same-name, same-artist playable version across the other music platforms when the current source is unavailable (VIP / no license).
+- Both variables must be set together; configuring only one logs a warning and skips creation.
+- Username length 2-32, password length 8-128, and the username must not already exist.
+- Logs print only the username — **never the password** — and the variables can be removed after creation.
+- Desktop builds skip this bootstrap (the web console targets self-hosted deployments).
 
-### Playlist import & export
+### Role management with safety boundaries
 
-- Stronger external playlist link parsing: NetEase mobile short links (`163cn.tv`) and multiple QQ Music path formats (`taoge` / `details` / `tid`) can now be pasted directly.
-- The room queue panel gains an **Export** button that writes a JSON backup for easy migration or sharing.
+- Super admins can change roles directly in the Users tab: `super_admin / admin / moderator / user`.
+- Regular admins cannot change any role; a super admin cannot demote themselves; the last super admin cannot be demoted.
+- Any role change revokes the target's refresh session so it takes effect immediately; banning an admin also revokes their session.
 
-### Desktop tray enhancements
+### Room management
 
-- The tray menu now shows the current track title and offers **Play / Pause** and **Next Track** controls, so you can control playback without restoring the window.
+- `POST /api/admin/rooms/:id/announce` — admins broadcast an announcement into a room.
+- `POST /api/admin/rooms/:id/close` — admins force-close a room and clean up in-memory plus persisted data (the seed test room is exempt).
 
-## 🎨 UI Overhaul Details
+## 🎨 UI & Experience
 
-- **Lobby**: room cards are now "dynamic nodes" — HUD targeting corners, hover lift, glowing borders, an energy rail plus a 4-band animated spectrum for active rooms; the header became an instrument-panel style HUD (`ACTIVE NODES` counter, pulsing status light, glowing matrix backdrop).
-- **Room page**: the room id became a monospace terminal badge (`ROOM-ID #xxxxxx`); workspace tabs gained neon backlight and glowing outlines; the search status bar got a side plasma light bar.
-- **Full-screen player**: the vinyl now carries a slowly rotating holographic radar ring and a playback-state outer glow; the main play button became a cyan-gradient glowing control core.
-- **Desktop app**: sidebar active items get neon inner glow and the status dot pulses.
+- The console follows the site-wide cyber HUD language: terminal badges, neon outlines, glassmorphism cards.
+- User role badges are color-coded: gold (super admin), cyan (admin / moderator), slate (regular user).
+- Visiting `/admin` while logged out redirects to the login page and returns to the console after a successful login.
 
 ## 🧹 Bug Fixes & Security
 
-- Fixed `roomStore` throwing `localStorage is not defined` when loaded in non-browser contexts (Node / test runners) — now uses guarded reads/writes with fallbacks.
-- Fixed an **audio node leak** where stale `BiquadFilterNode` instances were not disconnected when the equalizer chain was re-attached.
-- Added filename sanitization for playlist exports so Windows-reserved characters can't break the download.
-- Removed a duplicated comment in `coverBackdrop`; cover palette extraction keeps its tainted-canvas fallback so rendering never crashes.
-- Dependency hygiene: cleared the known `glob` / `minimatch` advisories from client dev dependencies — `npm run audit:prod` and the full dev audit both report **0 vulnerabilities**.
-- Expanded regression coverage: 5 new client cases for EQ presets, playlist export parsing and bilingual lyric merging (client tests 17 → 22; server stays at 92).
+- Added the missing `.role-badge-user` style definition for regular-user role badges.
+- The initial-admin bootstrap removes the fixed-default-password design, eliminating the "compromised out of the box" risk.
+- Role and ban actions are written to the audit log for traceability.
+- Expanded regression coverage: new cases for initial-admin bootstrap, registration privilege escalation and role safety boundaries (server tests 92 → **94**, client 22 — all passing).
 
 ## 📥 Download & Install
 
 | Platform | File | Architecture | Size | Notes |
 |---|---|---|---|---|
-| 🪟 Windows desktop | [jukeboxroom-desktop-setup-0.0.12-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.12/jukeboxroom-desktop-setup-0.0.12-x64.exe) | x64 | ≈149 MB | NSIS installer with an embedded local server — no Node.js required |
-| 🤖 Android | [jukeboxroom-android-0.0.12-debug.apk](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.12/jukeboxroom-android-0.0.12-debug.apk) | universal (arm64 etc.) | ≈38 MB | Standalone music player — no server address needed |
+| 🪟 Windows desktop | [jukeboxroom-desktop-setup-0.0.13-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.13/jukeboxroom-desktop-setup-0.0.13-x64.exe) | x64 | ≈149 MB | NSIS installer with an embedded local server — no Node.js required |
+| 🤖 Android | [jukeboxroom-android-0.0.13-debug.apk](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.13/jukeboxroom-android-0.0.13-debug.apk) | universal (arm64 etc.) | ≈38 MB | Standalone music player — no server address needed |
 
 > 💡 Web / self-hosted users don't need an installer: pull the source or deploy with Docker. See the [README](https://github.com/yuchen0x1/JukeboxRoom#readme) and [deployment guide](docs/DEPLOY.md).
 
@@ -75,7 +77,7 @@ JukeboxRoom v0.0.12 is a hotfix release after the v0.0.11 cyberpunk experience r
 
 - **Windows desktop**: run the installer to upgrade in place — user data and music-source credentials are preserved. If Windows SmartScreen appears, verify the download came from this project's GitHub Release before choosing "Run anyway" (builds are not code-signed with a commercial certificate).
 - **Android**: install the APK and allow installation from unknown sources if prompted. Installing over an existing version keeps favorites and local playlists.
-- **Self-hosted (source / Docker)**: pull the latest code and restart the service as usual; if one-click update is configured, use it inside the app.
+- **Self-hosted (source / Docker)**: pull the latest code and restart the service as usual; **configure `ADMIN_INIT_USERNAME` / `ADMIN_INIT_PASSWORD` before enabling the console**, and remove them after the first super admin exists.
 
 ## 🖥️ Requirements
 
@@ -94,7 +96,7 @@ JukeboxRoom v0.0.12 is a hotfix release after the v0.0.11 cyberpunk experience r
 
 ## 📋 Changelog
 
-- v0.0.11 → v0.0.12: <https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.11...v0.0.12>
+- v0.0.12 → v0.0.13: <https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.12...v0.0.13>
 - Full history: [CHANGELOG.md](CHANGELOG.md) and the [Releases page](https://github.com/yuchen0x1/JukeboxRoom/releases).
 
 ## 🙏 Thanks

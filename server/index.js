@@ -56,7 +56,7 @@ import {
   slidingCount,
 } from './rateLimiter.js';
 import { initRedisAdapter, closeRedis } from './redisAdapter.js';
-import { registerUser, loginUser, authMiddleware, requireRole, authRouter } from './auth/index.js';
+import { registerUser, loginUser, authMiddleware, requireRole, ensureInitialAdmin, authRouter } from './auth/index.js';
 import { taskRouter, startTaskScheduler, stopTaskScheduler } from './tasks/index.js';
 import { adminRouter } from './admin/index.js';
 import { recordAudit } from './audit/index.js';
@@ -3003,6 +3003,14 @@ const autoAdvanceTimer = DESKTOP_MODE ? null : setInterval(() => {
 autoAdvanceTimer?.unref?.();
 
 if (!DESKTOP_MODE) await initRooms();
+if (!DESKTOP_MODE) {
+  const initialAdmin = await ensureInitialAdmin();
+  if (initialAdmin.created) {
+    console.info(`[auth] 已创建初始超级管理员：${initialAdmin.username}`);
+  } else if (initialAdmin.error) {
+    console.warn(`[auth] 初始管理员未创建：${initialAdmin.error}`);
+  }
+}
 runtime.setReady(true);
 if (!DESKTOP_MODE) ensureSeedRoom(); // 测试房仅在非生产环境创建
 
