@@ -66,6 +66,8 @@ function validateRoomPassword(password, { allowEmpty = true } = {}) {
 let onRoomPrefetchReady = null;
 /** @type {((roomId: string) => void) | null} */
 let onRoomStructureChanged = null;
+/** @type {((roomId: string) => void) | null} */
+let onRoomDestroyed = null;
 
 export function setOnRoomPrefetchReady(handler) {
   onRoomPrefetchReady = handler;
@@ -73,6 +75,23 @@ export function setOnRoomPrefetchReady(handler) {
 
 export function setOnRoomStructureChanged(handler) {
   onRoomStructureChanged = handler;
+}
+
+/**
+ * 房间被真正删除时的清理钩子。
+ * 用回调而不是直接 import，避免 roomManager ⇄ sourceResolvers 的循环依赖。
+ */
+export function setOnRoomDestroyed(handler) {
+  onRoomDestroyed = handler;
+}
+
+function notifyRoomDestroyed(roomId) {
+  if (!onRoomDestroyed) return;
+  try {
+    onRoomDestroyed(roomId);
+  } catch (error) {
+    console.error('room destroy hook failed:', error?.message || error);
+  }
 }
 
 function notifyRoomPrefetchReady(room) {
@@ -162,14 +181,18 @@ function scheduleRoomDestroy(roomId) {
   cancelRoomDestroy(room);
   room.destroyTimer = setTimeout(() => {
     const current = rooms.get(roomId);
-    if (current && current.users.size === 0) {
-      clearAllPendingLeaveClears(current);
-      void deleteRoomChatImages(roomId).finally(() => {
-        rooms.delete(roomId);
-        invalidateRoomsListCache();
-        void deleteRoomFromStorage(roomId);
-      });
-    }
+    if (!current || current.users.size > 0) return;
+    clearAllPendingLeaveClears(current);
+    void deleteRoomChatImages(roomId).finally(() => {
+      // deleteRoomChatImages 是异步 I/O，等待期间可能有用户重新加入房间；
+      // 原实现无条件删除，会把刚进来的人踢进一个「房间不存在」的死状态。
+      const latest = rooms.get(roomId);
+      if (!latest || latest.users.size > 0) return;
+      rooms.delete(roomId);
+      invalidateRoomsListCache();
+      notifyRoomDestroyed(roomId);
+      void deleteRoomFromStorage(roomId);
+    });
   }, ROOM_EMPTY_TTL_MS);
 }
 
@@ -536,6 +559,27 @@ function createEmptyRoom(roomId, name, passwordHash = null) {
 
 const MAX_ADMINS = 3;
 
+/**
+ * 每房间跟踪型 Map 的容量上限。
+ *
+ * 只读观众（TV/大屏）每次连接都会拿到一个新的随机 userId，而
+ * `userNicknames` / `chatVisibleSinceByUserId` 从不清理。长时间运行的大屏
+ * 会持续把新条目写进这两个 Map，并被序列化进每次 Redis 快照。
+ * 这里按插入顺序做 LRU 淘汰；被淘汰的历史用户重新进房时按「从当前时间起可见」
+ * 处理（更严格而非更宽松），不会泄漏更早的聊天记录。
+ */
+const MAX_TRACKED_USERS_PER_ROOM = 500;
+
+function setBoundedUserEntry(map, key, value, max = MAX_TRACKED_USERS_PER_ROOM) {
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  while (map.size > max) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
+
 function getNextOwnerId(room) {
   return Array.from(room.users.values())
     .filter((user) => !user.readOnly)
@@ -576,7 +620,7 @@ function rememberUserNickname(room, userId, nickname) {
   const nick = normalizeNickname(nickname);
   if (!userId || !nick) return;
   if (!room.userNicknames) room.userNicknames = new Map();
-  room.userNicknames.set(userId, nick);
+  setBoundedUserEntry(room.userNicknames, userId, nick);
 }
 
 function resolveStoredNickname(room, userId) {
@@ -934,6 +978,9 @@ export function createRoom({ name, password, creatorId } = {}) {
   rooms.set(roomId, room);
   persistRoom(room);
   invalidateRoomsListCache();
+  // 创建者未加入前房间对大厅不可见；若不排定销毁，它会永久留在内存/Redis 中，
+  // 而自动播放检查每 500ms 遍历所有房间 id。给全新空房一个销毁倒计时。
+  scheduleRoomDestroy(roomId);
   return serializeRoom(room);
 }
 
@@ -1004,11 +1051,11 @@ function resolveChatVisibleSince(room, userId, existingUser) {
   const stored = room.chatVisibleSinceByUserId.get(userId);
   if (Number.isFinite(stored) && stored > 0) return stored;
   if (Number.isFinite(existingUser?.chatVisibleSince) && existingUser.chatVisibleSince > 0) {
-    room.chatVisibleSinceByUserId.set(userId, existingUser.chatVisibleSince);
+    setBoundedUserEntry(room.chatVisibleSinceByUserId, userId, existingUser.chatVisibleSince);
     return existingUser.chatVisibleSince;
   }
   const since = Date.now();
-  room.chatVisibleSinceByUserId.set(userId, since);
+  setBoundedUserEntry(room.chatVisibleSinceByUserId, userId, since);
   return since;
 }
 
@@ -1026,8 +1073,20 @@ export function addUser(roomId, userId, nickname, options = {}) {
 
   const existing = room.users.get(userId);
   const connectionIds = normalizeConnectionIds(existing, options.connectionId || null);
-  if (!room.knownUserIds) room.knownUserIds = new Set();
-  room.knownUserIds.add(userId);
+  const readOnly = Boolean(options.readOnly);
+  // 只读观众（TV 大屏）每次连接都是新的临时身份，没有长期跟踪价值；
+  // 记进去只会让房间快照无限膨胀。
+  if (!readOnly) {
+    if (!room.knownUserIds) room.knownUserIds = new Set();
+    if (!room.knownUserIds.has(userId)) {
+      room.knownUserIds.add(userId);
+      while (room.knownUserIds.size > MAX_TRACKED_USERS_PER_ROOM) {
+        const oldest = room.knownUserIds.values().next().value;
+        if (oldest === undefined) break;
+        room.knownUserIds.delete(oldest);
+      }
+    }
+  }
 
   const resolvedNickname = ensureUniqueNickname(
     room,
@@ -1035,7 +1094,6 @@ export function addUser(roomId, userId, nickname, options = {}) {
     normalizeNickname(nickname) || existing?.nickname || getDefaultNickname(room),
   );
 
-  const readOnly = Boolean(options.readOnly);
   const chatVisibleSince = resolveChatVisibleSince(room, userId, existing);
 
   room.users.set(userId, {
@@ -1048,7 +1106,8 @@ export function addUser(roomId, userId, nickname, options = {}) {
     location: String(options.location || existing?.location || '').trim().slice(0, 12),
     chatVisibleSince,
   });
-  rememberUserNickname(room, userId, resolvedNickname);
+  // 只读观众的昵称不进入长期跟踪表（每次连接都是临时身份）
+  if (!readOnly) rememberUserNickname(room, userId, resolvedNickname);
 
   reassignOrphanQueueOwnership(room, userId, resolvedNickname);
 
@@ -1558,6 +1617,7 @@ export function adminCloseRoom(roomId) {
   clearAllPendingLeaveClears(room);
   rooms.delete(target);
   invalidateRoomsListCache();
+  notifyRoomDestroyed(target);
   void deleteRoomChatImages(target).finally(() => {
     void deleteRoomFromStorage(target);
   });
@@ -2045,12 +2105,20 @@ export async function toggleCurrentDislike(roomId, userId) {
   let skipped = false;
   let systemMessage = null;
   if (dislikeCount >= threshold) {
-    await playNext(room, { allowFetchRandom: false });
-    skipped = true;
-    systemMessage = appendSystemChatMessage(
-      room,
-      `${formatActorName(user)} 踩歌达到人数，已切掉 ${songTitle}`,
-    );
+    // 与 skipSong 同样的去重：多人同时踩到阈值时只切一次。
+    const expectedQueueId = room.current.queueId || null;
+    const advanced = await withPlaybackLock(room, async () => {
+      if (expectedQueueId && room.current?.queueId !== expectedQueueId) return false;
+      await playNextUnlocked(room, { allowFetchRandom: false });
+      return true;
+    });
+    skipped = advanced;
+    if (advanced) {
+      systemMessage = appendSystemChatMessage(
+        room,
+        `${formatActorName(user)} 踩歌达到人数，已切掉 ${songTitle}`,
+      );
+    }
   }
 
   persistRoom(room);
@@ -2377,9 +2445,23 @@ export async function skipSong(roomId, socketId, connectionId = null) {
   if (!room) return { error: '房间不存在' };
   if (!isControllerConnection(room, socketId)) return { error: '仅房主或管理员可切歌' };
 
+  // 去重：同一轮事件循环内的两次 skip（房主+管理员同时点、或客户端连发两包）
+  // 都会通过所有权检查并排队进入 playback 锁。锁只保证串行，不保证幂等，
+  // 第二次会把切歌后的新曲目再切掉一次，吞掉队列里的一首歌。
+  const expectedQueueId = room.current?.queueId || null;
   const user = room.users.get(socketId);
   const songTitle = room.current ? formatSongTitle(room.current) : '';
-  await playNext(room, { allowFetchRandom: false });
+
+  const result = await withPlaybackLock(room, async () => {
+    if (expectedQueueId && room.current?.queueId !== expectedQueueId) {
+      return { unchanged: true };
+    }
+    await playNextUnlocked(room, { allowFetchRandom: false });
+    return { advanced: true };
+  });
+
+  if (result.unchanged) return { room: serializeRoom(room) };
+
   const systemMessage = songTitle
     ? appendSystemChatMessage(room, `${formatActorName(user)} 切了 ${songTitle}`)
     : null;
@@ -2457,6 +2539,9 @@ export function setPlaying(roomId, socketId, isPlaying, connectionId = null) {
   if (!room || !room.current) return null;
   if (!isControllerConnection(room, socketId)) return null;
 
+  // 客户端可能传来 "false" 字符串。注意 Boolean("false") === true，任何强制
+  // 转换都会把它当作「播放」，所以这里只接受真正的布尔值，其余直接拒绝。
+  if (typeof isPlaying !== 'boolean') return null;
   room.isPlaying = isPlaying;
   if (isPlaying) {
     const now = Date.now();
@@ -2481,7 +2566,12 @@ export function seekTo(roomId, socketId, time, connectionId = null) {
   const nextTime = Number(time);
   if (!Number.isFinite(nextTime) || nextTime < 0) return null;
 
-  room.currentTime = nextTime;
+  // 越界 seek 会在下一次自动播放检查时被判定为「已播完」，等于隐式跳歌；
+  // 同时客户端会收到 positionSec > durationSec 的非法状态。
+  const durationSec = getSongDurationSeconds(room.current);
+  const clampedTime = durationSec > 0 ? Math.min(nextTime, durationSec) : nextTime;
+
+  room.currentTime = clampedTime;
   room.startedAt = room.isPlaying ? Date.now() - room.currentTime * 1000 : null;
   bumpPlaybackState(room);
   persistRoom(room);

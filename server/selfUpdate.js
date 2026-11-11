@@ -1,12 +1,12 @@
 /**
  * 服务端自更新（面向 git clone + pm2/systemd/Docker 部署方式）。
  *
- * 流程：检测到 GitHub 有更新版本 → git fetch/reset 到最新 main →
+ * 流程：检测到 GitHub 有更新版本 → 检查干净工作区 → git fetch/快进合并到 main →
  * 重装依赖 → 重建前端 → 在进程管理器（pm2/Docker）下自动重启进程。
  *
  * 安全边界：
  * - 仅当仓库来自 git 工作副本时可用（桌面版等无 git 环境自动跳过）；
- * - .env、data/ 等被 .gitignore 忽略的文件不会被 git reset 触碰；
+ * - .env、data/ 等被 .gitignore 忽略的文件不会被更新流程触碰；
  * - 未检测到进程管理器时不自动退出进程（避免裸 node 部署直接下线），
  *   标记为 restart-required 并记录日志，由部署者手动重启；
  * - 每次更新全局单飞，重复调用直接返回当前进度。
@@ -22,7 +22,7 @@ const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UPDATE_LOG_MAX = 200;
 
 const state = {
-  phase: 'idle', // idle | running | restarting | restart-required | failed
+  phase: 'idle', // idle | checking | running | restarting | restart-required | failed
   startedAt: null,
   finishedAt: null,
   log: [],
@@ -63,6 +63,29 @@ export function isUpdateSupported() {
   return existsSync(path.join(repoRoot, '.git'));
 }
 
+const EXPECTED_GITHUB_REMOTE = 'https://github.com/yuchen0x1/JukeboxRoom.git';
+
+function normalizeRemoteUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '').replace(/\.git$/, '').toLowerCase();
+}
+
+export function isExpectedGithubRemote(value) {
+  return normalizeRemoteUrl(value) === normalizeRemoteUrl(EXPECTED_GITHUB_REMOTE);
+}
+
+export function isExpectedUpdateBranch(value) {
+  return String(value || '').trim() === 'main';
+}
+
+function parseRemoteUrl(output) {
+  const line = String(output || '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find((item) => item.startsWith('origin\t') || item.startsWith('origin '));
+  if (!line) return '';
+  return line.replace(/^origin\s+/, '').split(/\s+/)[0] || '';
+}
+
 export function getSelfUpdateState() {
   return {
     phase: state.phase,
@@ -76,12 +99,37 @@ export function getSelfUpdateState() {
 }
 
 /** 执行一次完整的自更新；同一时间只允许一个更新任务 */
-export function applySelfUpdate() {
-  if (state.phase === 'running' || state.phase === 'restarting') {
+export async function applySelfUpdate() {
+  if (state.phase === 'checking' || state.phase === 'running' || state.phase === 'restarting') {
     return { started: false, already: true, phase: state.phase };
   }
   if (!isUpdateSupported()) {
     return { started: false, error: '当前部署方式不含 git 仓库（如桌面版），请从发布页下载新版本' };
+  }
+
+  // 自更新会改写工作副本；任何本地修改或未跟踪文件都必须由部署者先处理。
+  // 这条检查放在异步任务启动前，避免请求返回成功后才发现会覆盖本地工作。
+  state.phase = 'checking';
+  const [dirtyResult, remoteResult, branchResult] = await Promise.all([
+    run('git status --porcelain --untracked-files=all'),
+    run('git remote -v'),
+    run('git branch --show-current'),
+  ]);
+  if (!dirtyResult.ok) {
+    state.phase = 'idle';
+    return { started: false, error: '无法检查 Git 工作区状态，已拒绝自动更新' };
+  }
+  if (String(dirtyResult.output || '').trim()) {
+    state.phase = 'idle';
+    return { started: false, error: 'Git 工作区存在未提交或未跟踪文件，请先手动处理后再更新' };
+  }
+  if (!remoteResult.ok || !isExpectedGithubRemote(parseRemoteUrl(remoteResult.output))) {
+    state.phase = 'idle';
+    return { started: false, error: '自动更新仅允许使用确认的 GitHub 仓库 yuchen0x1/JukeboxRoom' };
+  }
+  if (!branchResult.ok || !isExpectedUpdateBranch(branchResult.output)) {
+    state.phase = 'idle';
+    return { started: false, error: '自动更新仅允许在 main 分支执行' };
   }
 
   state.phase = 'running';
@@ -93,11 +141,11 @@ export function applySelfUpdate() {
 
   void (async () => {
     try {
-      // 1. 同步到远端最新 main
+      // 1. 同步到远端最新 main。工作区已确认干净，快进合并仍会保留本地提交。
       let step = await run('git fetch origin main');
       if (!step.ok) throw new Error('git fetch 失败');
-      step = await run('git reset --hard origin/main');
-      if (!step.ok) throw new Error('git reset 失败');
+      step = await run('git merge --ff-only origin/main');
+      if (!step.ok) throw new Error('git 快进合并失败，请手动处理本地分支后再更新');
 
       // 2. 重装服务端依赖
       step = await run('npm ci --omit=dev', { cwd: path.join(repoRoot, 'server') });

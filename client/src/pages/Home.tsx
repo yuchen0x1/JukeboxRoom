@@ -5,6 +5,7 @@ import {
   Loader2, RefreshCw, Plus, Hash, X, Disc3, Sparkles, History, ScrollText,
 } from 'lucide-react';
 import { createRoom, checkRoom, listRooms } from '../api/meting';
+import { ApiError } from '../api/http';
 import { useRoomStore } from '../stores/roomStore';
 import { useSocket } from '../hooks/useSocket';
 import type { RoomSummary } from '../types';
@@ -183,6 +184,7 @@ export default function Home() {
 
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
+  const [roomsLoadFailed, setRoomsLoadFailed] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -201,8 +203,10 @@ export default function Home() {
     try {
       const data = await listRooms();
       setRooms((prev) => (areRoomListsEqual(prev, data) ? prev : data));
+      setRoomsLoadFailed(false);
       setError((prev) => (prev === '加载房间列表失败' ? '' : prev));
     } catch {
+      setRoomsLoadFailed(true);
       if (!silent) setError('加载房间列表失败');
     } finally {
       if (!silent) setRoomsLoading(false);
@@ -217,8 +221,34 @@ export default function Home() {
 
   useEffect(() => {
     fetchRooms();
-    const timer = setInterval(() => fetchRooms(true), 5000);
-    return () => clearInterval(timer);
+    // 页面隐藏时（切到后台标签页/锁屏）暂停轮询，避免空转耗电与流量；
+    // 恢复可见时立即补一次，保证回来看到的是最新房间列表。
+    let timer: number | undefined;
+    const startPolling = () => {
+      if (timer !== undefined) return;
+      timer = window.setInterval(() => {
+        if (!document.hidden) void fetchRooms(true);
+      }, 5000);
+    };
+    const stopPolling = () => {
+      if (timer === undefined) return;
+      window.clearInterval(timer);
+      timer = undefined;
+    };
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        void fetchRooms(true);
+        startPolling();
+      }
+    };
+    if (!document.hidden) startPolling();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [fetchRooms]);
 
   const ensureNickname = () => {
@@ -243,8 +273,10 @@ export default function Home() {
       setCreateRoomName('');
       setCreatePassword('');
       goToRoom(room.id, createPassword.trim() || undefined);
-    } catch {
-      setError('创建房间失败，请重试');
+    } catch (err) {
+      // 服务端返回了具体原因（如房间名不可用、创建过于频繁）时优先展示，
+      // 否则用通用文案，避免把机器码或浏览器原始错误暴露给用户。
+      setError(err instanceof ApiError ? err.userMessage : '创建房间失败，请重试');
     } finally {
       setActionLoading(false);
     }
@@ -275,8 +307,8 @@ export default function Home() {
       }
       setShowJoin(false);
       goToRoom(code, joinPassword.trim() || undefined);
-    } catch {
-      setError('加入房间失败，请重试');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.userMessage : '加入房间失败，请重试');
     } finally {
       setActionLoading(false);
     }
@@ -463,8 +495,19 @@ export default function Home() {
 
           {roomsLoading && rooms.length === 0 ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),26rem))] gap-4" aria-label="正在加载房间" aria-busy="true">
-              {[0, 1, 2, 3].map((item) => <div key={item} className="h-[10.75rem] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5"><div className="h-4 w-2/5 rounded bg-white/[0.08]" /><div className="mt-8 h-3 w-1/3 rounded bg-white/[0.06]" /><div className="mt-3 h-3 w-3/5 rounded bg-white/[0.06]" /><div className="mt-7 border-t border-white/[0.06] pt-3"><div className="h-3 w-1/4 rounded bg-white/[0.06]" /></div></div>)}
+              {[0, 1, 2, 3].map((item) => <div key={item} className="h-[10.75rem] motion-safe:animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5"><div className="h-4 w-2/5 rounded bg-white/[0.08]" /><div className="mt-8 h-3 w-1/3 rounded bg-white/[0.06]" /><div className="mt-3 h-3 w-3/5 rounded bg-white/[0.06]" /><div className="mt-7 border-t border-white/[0.06] pt-3"><div className="h-3 w-1/4 rounded bg-white/[0.06]" /></div></div>)}
             </div>
+          ) : roomsLoadFailed && rooms.length === 0 ? (
+            <section role="status" className="mx-auto flex max-w-lg flex-col items-center px-5 py-12 text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-300/15 bg-amber-300/[0.06] text-amber-200/70">
+                <Radio className="h-7 w-7" aria-hidden="true" />
+              </div>
+              <h2 className="text-lg font-semibold text-white/80">暂时无法连接房间服务</h2>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-white/45">房间列表还没有加载成功。请检查网络连接，或稍后重试。</p>
+              <button type="button" onClick={() => fetchRooms()} disabled={roomsLoading} className="glass-button-secondary mt-6 flex h-10 items-center gap-2 rounded-lg px-4 text-sm disabled:opacity-50">
+                <RefreshCw className={`h-4 w-4 ${roomsLoading ? 'motion-safe:animate-spin' : ''}`} />重新加载
+              </button>
+            </section>
           ) : rooms.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-[clamp(1rem,5vh,4rem)]">
               <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">

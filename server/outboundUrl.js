@@ -2,9 +2,13 @@ import dns from 'node:dns/promises';
 import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
+import { Readable } from 'node:stream';
 
 const HTTP_PROTOCOLS = new Set(['http:', 'https:']);
 const PRIVATE_UPSTREAMS_ALLOWED = process.env.ALLOW_PRIVATE_UPSTREAMS === '1';
+
+/** 缓冲模式下的默认上限：JSON/文本响应不应超过 8MB，超出即中止，避免单请求打爆内存。 */
+const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 function normalizeIp(value) {
   return String(value || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
@@ -191,7 +195,7 @@ function normalizeHeaders(headers = {}) {
   return output;
 }
 
-function responseFromIncoming(statusCode, headers, body) {
+function responseFromIncoming(statusCode, headers, body, nodeStream = null) {
   return {
     ok: statusCode >= 200 && statusCode < 300,
     status: statusCode,
@@ -202,15 +206,42 @@ function responseFromIncoming(statusCode, headers, body) {
         for (const [key, value] of Object.entries(headers)) callback(value, key);
       },
     },
-    body: null,
-    text: async () => body.toString('utf8'),
-    json: async () => JSON.parse(body.toString('utf8')),
-    arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength),
+    // 流式模式下 body 为 web ReadableStream，正文不会被整体读入内存。
+    body: nodeStream ? Readable.toWeb(nodeStream) : null,
+    nodeStream,
+    text: async () => {
+      if (nodeStream) throw new Error('流式响应不支持 text()，请使用 nodeStream 或 body');
+      return body.toString('utf8');
+    },
+    json: async () => {
+      if (nodeStream) throw new Error('流式响应不支持 json()，请使用 nodeStream 或 body');
+      return JSON.parse(body.toString('utf8'));
+    },
+    arrayBuffer: async () => {
+      if (nodeStream) throw new Error('流式响应不支持 arrayBuffer()，请使用 nodeStream 或 body');
+      return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+    },
   };
 }
 
+/**
+ * 带 SSRF 校验与资源上限的外部请求。
+ *
+ * @param {string} rawUrl
+ * @param {object} [options]
+ * @param {boolean} [options.stream] 为 true 时返回 `nodeStream`/web `body`，不缓冲响应体。
+ *   媒体代理必须走这个模式：音频文件可能有几十 MB，缓冲会直接把进程内存打满。
+ * @param {number} [options.maxBytes] 缓冲模式下的响应体上限，默认 8MB。
+ */
 export async function safeFetch(rawUrl, options = {}, timeoutMs = 10000) {
-  const { allowPrivate = false, lookup, requestFactory, ...fetchOptions } = options;
+  const {
+    allowPrivate = false,
+    lookup,
+    requestFactory,
+    stream = false,
+    maxBytes = DEFAULT_MAX_RESPONSE_BYTES,
+    ...fetchOptions
+  } = options;
   const validated = await resolveValidatedHttpUrl(rawUrl, { allowPrivate, lookup });
   if (!validated) throw new Error('拒绝访问不安全的外部 URL');
 
@@ -220,6 +251,17 @@ export async function safeFetch(rawUrl, options = {}, timeoutMs = 10000) {
   const request = requestFactory || transport.request.bind(transport);
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    // 绝对超时：socket 超时只检测「空闲」，上游慢速滴流可以无限期占用连接。
+    const deadline = setTimeout(() => {
+      req.destroy(new Error('外部请求超时'));
+    }, timeoutMs);
+
     const req = request({
       protocol: parsed.protocol,
       hostname: parsed.hostname,
@@ -230,12 +272,46 @@ export async function safeFetch(rawUrl, options = {}, timeoutMs = 10000) {
       lookup: makePinnedLookup(validated),
       servername: parsed.hostname,
     }, (res) => {
+      if (stream) {
+        // 重定向时正文无用：立刻销毁，避免占用上游连接。
+        if (res.statusCode >= 300 && res.statusCode < 400) {
+          res.resume();
+          res.destroy();
+        }
+        if (settled) {
+          res.destroy();
+          return;
+        }
+        settled = true;
+        clearTimeout(deadline);
+        resolve(responseFromIncoming(res.statusCode || 0, res.headers, null, res));
+        return;
+      }
+
       const chunks = [];
-      res.on('data', chunk => chunks.push(chunk));
-      res.on('end', () => resolve(responseFromIncoming(res.statusCode || 0, res.headers, Buffer.concat(chunks))));
+      let total = 0;
+      res.on('data', (chunk) => {
+        total += chunk.length;
+        if (total > maxBytes) {
+          res.destroy();
+          fail(new Error('外部响应超过大小上限'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on('end', () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        resolve(responseFromIncoming(res.statusCode || 0, res.headers, Buffer.concat(chunks)));
+      });
+      res.on('error', fail);
     });
 
-    req.on('error', reject);
+    req.on('error', (error) => {
+      clearTimeout(deadline);
+      fail(error);
+    });
     req.setTimeout(timeoutMs, () => req.destroy(new Error('外部请求超时')));
     if (fetchOptions.body) req.write(fetchOptions.body);
     req.end();

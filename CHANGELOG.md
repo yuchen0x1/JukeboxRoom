@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.0.14 - 2026-11-10
+
+### 可用性修复
+
+- 修复全站 HTTP 限流误伤静态资源的问题。此前限流中间件挂在 `express.static` 之前，首页、`/assets/*.js`、`/qface/*.apng` 全都计入同一个 IP 桶（默认 60 次/分钟）：进入房间一次就要拉 20+ 个 chunk，正常用户几分钟内会被整站返回 429；反向代理后未开启 `TRUST_PROXY` 时所有用户共用一个桶，会直接演变成整站不可用。
+  - 限流范围收窄到 `/api/*`，默认阈值提升到 240 次/分钟，可用 `HTTP_API_RATE_LIMIT_PER_MIN` 调整。
+  - `/api/health`、`/api/health/live`、`/api/health/ready` 豁免限流，避免监控探针被误判为实例故障。
+  - 新增 5 项回归测试覆盖「静态资源不限流 / API 超限返回 429 / 健康检查豁免」。
+
+### 性能
+
+- 修复首屏被迫加载 900KB Three.js 的分包问题。`manualChunks` 原用 `id.includes('three')` 匹配，把 zustand 依赖的 `use-sync-external-store`、`react-use-measure` 等包名含 "three" 的间接依赖一起并进了 `three-vendor`，形成 `Home → roomStore → react.js → three-vendor` 的静态闭环。
+  - 改为按 npm 包边界匹配，并把 `zustand`、`use-sync-external-store`、`react-use-measure`、`suspend-react`、`its-fine` 显式归入 `react-vendor`。
+  - 首页静态闭包 gzip 380KB → 153KB（-60%），房间页 440KB → 213KB，TV 页 387KB → 160KB；Three.js 仅在进入 3D 视觉模式时按需加载。
+  - 新增 `scripts/check-bundle.mjs` 与 `npm run check:bundle`：断言首屏入口的静态闭包不含 `three-vendor`、各入口体积不超预算，并已接入 `npm run check`。
+- 启用响应压缩。此前 `/assets/*` 全部按原始体积传输（Room.js 197KB），现在 gzip 后为 52KB；音频与 APNG 等已压缩内容自动跳过。
+- 静态资源缓存分级：`/assets/*` 改为 `max-age=300, must-revalidate`（避免每次导航产生 20+ 次条件请求），`/qface/*` 与 `/icons/*` 改为 7 天缓存，`index.html` 与 `sw.js` 保持 `no-cache`。
+
+### 桌面版数据安全
+
+- 卸载桌面版不再删除用户数据。原先 `deleteAppDataOnUninstall: true` 会在卸载时清空 `userData` 下的房间数据、曲库索引、收藏、歌单与音源配置，且不可恢复；现已改为保留。
+- 设置页「本机数据」新增「打开数据目录」与「清空本地数据（带二次确认并重启）」入口，需要清理时不必手动翻目录。
+
+### 安全
+
+- `/metrics` 在设置 `METRICS_ENABLED=1` 但未配置 `METRICS_TOKEN` 时会直接返回 404，不再无鉴权公开运行指标；令牌比较改为恒定时间比较。
+- 未捕获异常后 readiness 立即置为不健康（`/api/health/ready` 返回 503），避免负载均衡继续向状态可能已损坏的实例分发流量。
+- 媒体代理默认只允许已知音乐 CDN 域名，并对每次重定向重新执行域名白名单、DNS 和私网地址校验；自建音源可通过 `MEDIA_PROXY_ALLOWED_HOSTS` 显式加入。
+
+### 稳定性与安全（本轮）
+
+- **修复媒体代理整包缓冲导致的 OOM 风险**：`safeFetch` 原先把所有响应块拼接成 Buffer，且返回值 `body: null`，使媒体代理的流式分支成为死代码。现在支持 `stream: true` 直接返回上游流；缓冲模式增加 8MB 上限与绝对超时（原 `req.setTimeout` 只检测空闲，慢速滴流可无限占用）。图片缓冲上限 12MB，音频流上限 256MB。
+- **修复恶意 Socket.IO payload 可导致实例永久不健康**：`join_room` 等处理器直接解构 payload，客户端发送 `null`/字符串即抛 TypeError；Socket.IO 在 `nextTick` 中派发，异常会升级为 `uncaughtException`，而进程会因此把 `/api/health/ready` 永久置为 503。新增统一 `socketGuard`：payload 归一化、同步异常与异步 rejection 均回失败 ack，并注册 `socket.on('error')`。
+- **`/api` 错误边界**：未匹配路径返回 JSON 404，路由异常统一 JSON 500（不回显内部错误），并带 `X-Request-Id`；`/api` 响应默认 `Cache-Control: no-store`。
+- **修复空房间泄漏**：`createRoom` 现在为新空房排定销毁计时器；销毁回调在异步清理后重新检查占用，避免把期间重新加入的用户踢进「房间不存在」状态。
+- **修复并发切歌吞歌**：同一事件循环内的两次 `skip_song` 会连续切两首；现在用 `expectedQueueId` 去重。踩歌达到阈值时同样只切一次。
+- **播放参数类型校验**：`setPlaying` 只接受布尔值（`Boolean("false") === true` 曾导致无法暂停）；`seekTo` 将位置夹到曲目时长内，避免隐式跳歌。
+- **内存上限**：内存热榜补 200 条上限；汽水房间上下文在房间销毁时释放；房间跟踪表（昵称/聊天可见时间）改为 500 条 LRU，且只读大屏身份不再写入。
+- **`finish_song` 补限流**，与 `skip_song` 对齐。
+
+### 客户端可靠性
+
+- **PWA Service Worker 版本化缓存**：缓存名由构建注入 `<版本>-<assets 内容指纹>`，导航与静态资源改为 network-first，只缓存 2xx 同源响应，跳过 `/api`、`/socket.io`、`/downloads` 与 Range 请求。修复发版后离线用户可能拿到「新 index.html + 旧 chunk」的问题。`check-bundle` 增加对应断言。
+- **请求层错误分类**：新增 `ApiError`（http/timeout/network/invalid_response/aborted）、`readJsonResponse`、`fetchJson`；兼容外部 `AbortSignal`，不再把网络错误/HTML 错误页暴露成 `TypeError` 或 `SyntaxError`。
+- **首页轮询**：页面隐藏时停止 5 秒轮询，恢复可见时立即刷新一次。
+- README 更正「没有管理后台 UI」的过期描述。
+
+### 测试（本轮）
+
+- 服务端 101 → 127 项通过；客户端 22 → 32 项通过。
+- 新增：`httpErrors.test.js`、`socketGuard.test.js`、`outboundUrl.stream.test.js`、`songHotRank.test.js`、`roomManager.state.test.js`、`client/src/api/http.test.ts`。
+
+### 其他
+
+- PWA manifest 名称由 `OpenMusic` 更正为 `JukeboxRoom`；Service Worker 缓存改为按构建版本命名。
+- npm 生产依赖审计固定使用官方 registry，避免镜像未实现 audit endpoint 造成误报。
+- `deploy/nginx.conf.example` 补充 gzip 配置与 `TRUST_PROXY` 对限流影响的说明。
+
 ## 0.0.13 - 2026-11-08
 
 ### 管理后台

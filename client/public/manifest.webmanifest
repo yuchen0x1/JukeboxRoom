@@ -1,6 +1,6 @@
 {
-  "name": "OpenMusic 一起听歌",
-  "short_name": "OpenMusic",
+  "name": "JukeboxRoom 一起听歌",
+  "short_name": "JukeboxRoom",
   "description": "和好友一起听歌、多人同步播放的在线点歌房间。",
   "lang": "zh-CN",
   "start_url": "/",

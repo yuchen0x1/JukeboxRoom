@@ -441,6 +441,43 @@ async function createWindow() {
       if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, CONFIG_TEMPLATE, 'utf8');
       return (await shell.openPath(configPath)) === '';
     },
+    // 卸载时不再自动删除 userData（见 package.json 的 deleteAppDataOnUninstall），
+    // 这里提供显式入口：用户可以自行查看或清理，避免"想清干净却找不到位置"。
+    'jukebox:open-data-dir': async (event) => {
+      assertTrustedWindowRequest(event);
+      const dataPath = app.getPath('userData');
+      await fs.promises.mkdir(dataPath, { recursive: true });
+      return (await shell.openPath(dataPath)) === '';
+    },
+    'jukebox:clear-local-data': async (event) => {
+      assertTrustedWindowRequest(event);
+      if (!mainWindow || mainWindow.isDestroyed()) return false;
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        buttons: ['取消', '清空并重启'],
+        defaultId: 0,
+        cancelId: 0,
+        title: '清空本地数据',
+        message: '确定要清空本机全部本地数据吗？',
+        detail: '将删除本地曲库索引、播放队列、收藏、歌单、房间数据和配置。此操作不可撤销，建议先备份。',
+        noLink: true,
+      });
+      if (response !== 1) return false;
+      const userDataPath = app.getPath('userData');
+      const removable = [
+        'data',
+        'music-library.json',
+        'music-library-a.json',
+        'music-library-b.json',
+        'jukeboxroom.env',
+      ];
+      for (const name of removable) {
+        await fs.promises.rm(path.join(userDataPath, name), { recursive: true, force: true });
+      }
+      app.relaunch();
+      app.quit();
+      return true;
+    },
     'jukebox:set-tray-track': (event, title) => {
       assertTrustedWindowRequest(event);
       currentTrackTitle = typeof title === 'string' ? title.slice(0, 60) : '';

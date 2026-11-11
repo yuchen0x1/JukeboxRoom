@@ -706,6 +706,15 @@ export default function DesktopMusicApp() {
     await window.jukeboxWindow?.restartApp();
   };
 
+  const openDataDir = async () => {
+    await window.jukeboxWindow?.openDataDir?.();
+  };
+
+  const clearLocalData = async () => {
+    // 主进程会弹二次确认；取消时返回 false，不做任何改动
+    await window.jukeboxWindow?.clearLocalData?.();
+  };
+
   const searchCurrentVersion = () => {
     if (!current) return;
     setSourceFilter('all');
@@ -1018,7 +1027,12 @@ export default function DesktopMusicApp() {
                     </section>
                     <section className="desktop-settings-section">
                       <h2>本机数据</h2>
-                      <p>收藏、最近播放、歌单、音量、音质、播放队列和最近搜索保存在当前 Windows 用户配置中。</p>
+                      <p>收藏、最近播放、歌单、音量、音质、播放队列、最近搜索和房间数据保存在当前 Windows 用户配置中。卸载应用不会自动删除，需要时可从这里手动清理。</p>
+                      <div className="desktop-config-callout">
+                        <p>清理前请先备份需要保留的歌单或收藏。</p>
+                        <button type="button" className="desktop-secondary-button" onClick={() => void openDataDir()}>打开数据目录</button>
+                        <button type="button" className="desktop-text-button" onClick={() => void clearLocalData()}>清空本地数据</button>
+                      </div>
                     </section>
                   </div>
                 )}

@@ -1,5 +1,12 @@
 import './loadEnv.js';
 
+/**
+ * 进程级致命错误后置位：由 server 启动流程注入 runtime 标记。
+ * 记录日志后进程会继续存活（避免内存态房间瞬间清空），但必须让 readiness
+ * 立刻失败，否则负载均衡会继续把流量打到一个状态可能已损坏的实例上。
+ */
+let markRuntimeUnhealthy = null;
+
 // 兜底：定时任务/后台异步里的未捕获拒绝绝不能带走整个进程。
 // 一旦进程退出，内存模式下的所有房间会瞬间消失，前端表现为「加载房间列表失败」。
 process.on('unhandledRejection', (reason) => {
@@ -7,6 +14,7 @@ process.on('unhandledRejection', (reason) => {
 });
 process.on('uncaughtException', (error) => {
   console.error('[uncaughtException]', error?.stack || error?.message || error);
+  markRuntimeUnhealthy?.(error);
 });
 
 import { resizeCoverForThumb } from './coverUrl.js';
@@ -33,11 +41,13 @@ import {
   searchDesktopQishuiWithHealth,
   resolveDesktopQishuiPlayUrlWithHealth,
   clearDesktopQishuiLogin,
+  releaseQishuiRoom,
 } from './sourceResolvers.js';
 import { neteaseSearchSongs, neteaseSearchPlaylists } from './neteaseSearch.js';
 import { mountWechatFileHelperProxy } from './wechatFileHelperProxy.js';
 import { buildRobotsTxt, buildSitemapXml, resolveSiteOrigin } from './seoFiles.js';
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -49,12 +59,10 @@ import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { resolveSecrets } from './security/secrets.js';
 import { createRuntimeObservability } from './runtimeObservability.js';
 import { isPrivateHostname, isPrivateIp as isOutboundPrivateIp, isSafeHttpUrl, resolveValidatedHttpUrl, safeFetchFollow } from './outboundUrl.js';
-import {
-  rateLimiter,
-  createSocketRateLimiter,
-  createConcurrencyLimiter,
-  slidingCount,
-} from './rateLimiter.js';
+import { createSocketRateLimiter, createConcurrencyLimiter, slidingCount } from './rateLimiter.js';
+import { createHttpApiRateLimit, resolveApiRateLimitPerMin } from './httpRateLimit.js';
+import { apiNoStore, apiNotFoundHandler, createErrorHandler } from './httpErrors.js';
+import { hardenSocket } from './socketGuard.js';
 import { initRedisAdapter, closeRedis } from './redisAdapter.js';
 import { registerUser, loginUser, authMiddleware, requireRole, ensureInitialAdmin, authRouter } from './auth/index.js';
 import { taskRouter, startTaskScheduler, stopTaskScheduler } from './tasks/index.js';
@@ -135,6 +143,7 @@ import {
   reportTrackDuration,
   setOnRoomPrefetchReady,
   setOnRoomStructureChanged,
+  setOnRoomDestroyed,
   serializeRoomForViewer,
   prepareRoomBroadcast,
   roomUpdateForViewer,
@@ -164,6 +173,7 @@ import {
 import { fetchRecentReleaseNotes, isAllowedReleaseRedirectUrl, updateService } from './update.js';
 import { getProviderHealth } from './mediaHealth.js';
 import { applySelfUpdate, getSelfUpdateState } from './selfUpdate.js';
+import { isAllowedMediaUrl } from './mediaProxyPolicy.js';
 import {
   getDesktopSourceCookieForPlayback,
   getDesktopSourceLogins,
@@ -200,6 +210,15 @@ const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const METRICS_ENABLED = process.env.METRICS_ENABLED === '1';
 const METRICS_TOKEN = String(process.env.METRICS_TOKEN || '').trim();
 const runtime = createRuntimeObservability();
+
+// 未捕获异常后进程仍然存活（保住内存态房间），但不再对外声明 ready。
+markRuntimeUnhealthy = (error) => {
+  runtime.setReady(false);
+  runtime.logger.error('运行时进入不健康状态：探针将返回 503', {
+    context: 'uncaughtException',
+    reason: error instanceof Error ? error.message : String(error),
+  });
+};
 
 if (IS_PRODUCTION && !ALLOWED_ORIGINS) {
   runtime.logger.warn('NODE_ENV=production 但未配置 CLIENT_URL，浏览器跨域请求将被拒绝', { context: 'startup', env: process.env.NODE_ENV, clientUrl: process.env.CLIENT_URL });
@@ -250,10 +269,47 @@ const io = new Server(httpServer, {
 });
 
 app.use(cors({ origin: corsOrigin }));
+
+/**
+ * 响应压缩。
+ *
+ * 之前没有任何压缩：/assets/*.js 全部以原始体积传输（Room.js 197KB、
+ * three-vendor.js 900KB），首屏实际传输量是 gzip 后的 3-4 倍。
+ *
+ * 只压缩文本类响应，且跳过媒体代理：音频是已压缩的二进制流，再压一遍既
+ * 没有收益，又会破坏 Range 请求的字节偏移与流式缓冲。
+ */
+app.use(compression({
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.path.startsWith('/api/media-proxy')) return false;
+    if (req.path.startsWith('/wx-proxy') || req.path.startsWith('/cgi-bin')) return false;
+    const type = String(res.getHeader('Content-Type') || '');
+    // 显式放行文本/脚本/字体；媒体与图片不压（APNG/JPEG/MP3 本身已压缩）
+    if (/^(text\/|application\/(javascript|json|xml|manifest\+json)|image\/svg\+xml|font\/)/.test(type)) {
+      return true;
+    }
+    return compression.filter(req, res);
+  },
+}));
 app.use(runtime.securityHeaders);
 app.use(runtime.requestContext);
-// Global HTTP rate limiter (per IP, 60 req/min by default)
-app.use(rateLimiter({ name: 'http' }));
+
+/**
+ * 通用 HTTP 限流只作用于 /api。
+ *
+ * 之前的写法是 `app.use(rateLimiter(...))`，它排在 express.static 之前，会把首页、
+ * /assets/*.js、/qface/*.apng 这些静态请求一起计进同一个桶：进入房间一次就要拉
+ * 20+ 个 chunk，再加封面和表情，正常用户几分钟内就会被整站 429（NAT 下所有用户
+ * 共用一个 IP 桶，等于整站雪崩）。静态资源与 Socket.IO 握手各自有独立边界：
+ * 静态资源不需要按 IP 限流，Socket 握手在 io.use 中单独限制。
+ */
+const HTTP_API_RATE_LIMIT_PER_MIN = resolveApiRateLimitPerMin(process.env.HTTP_API_RATE_LIMIT_PER_MIN);
+const httpApiRateLimit = createHttpApiRateLimit({ max: HTTP_API_RATE_LIMIT_PER_MIN });
+/** 静态资源与 Socket.IO 握手不经过该限流；健康检查在中间件内部豁免。 */
+app.use('/api', httpApiRateLimit);
+/** 房间列表/账号等信息不应被浏览器或中间层缓存；个别路由（更新日志、封面代理）会显式覆盖。 */
+app.use('/api', apiNoStore);
 app.use(express.json({
   limit: '2mb',
   verify: (req, _res, buf) => {
@@ -666,8 +722,14 @@ app.get('/api/update', async (_req, res) => {
 });
 
 app.get('/metrics', (req, res) => {
-  const authorized = !METRICS_TOKEN || req.headers.authorization === 'Bearer ' + METRICS_TOKEN;
-  if (!METRICS_ENABLED || !authorized) return res.status(404).end();
+  // 未设置 METRICS_TOKEN 时不再"放行所有人"：指标包含房间/连接/错误率等运行细节，
+  // 公网暴露等于对外开放一份内部拓扑。生产环境必须显式配置令牌，否则直接 404。
+  if (!METRICS_ENABLED || !METRICS_TOKEN) return res.status(404).end();
+  const provided = String(req.headers.authorization || '');
+  const expected = 'Bearer ' + METRICS_TOKEN;
+  const authorized = provided.length === expected.length
+    && timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+  if (!authorized) return res.status(404).end();
   res.type('text/plain; version=0.0.4; charset=utf-8').send(runtime.metrics());
 });
 
@@ -799,8 +861,8 @@ app.get('/api/music/sources', (_req, res) => {
 });
 
 /**
- * 一键更新会执行 git fetch/reset + 重装依赖 + 重建 + 重启，属破坏性运维操作。
- * 桌面模式同样需要本机桌面应用可信校验（跨站一次 POST 即可 git reset --hard 清掉未提交代码）；
+ * 一键更新会执行 git fetch/快进合并 + 重装依赖 + 重建 + 重启，属破坏性运维操作。
+ * 更新前会拒绝不干净的 Git 工作区，并校验远程仓库；桌面模式同样需要本机桌面应用可信校验；
  * 其余部署必须管理员身份，否则任意访客可重启服务、甚至让内存模式下所有房间数据随重启丢失。
  */
 const selfUpdateGuards = DESKTOP_MODE
@@ -812,13 +874,13 @@ const selfUpdateGuards = DESKTOP_MODE
   }]
   : [authMiddleware, requireRole('super_admin', 'admin')];
 
-app.post('/api/update/apply', ...selfUpdateGuards, (req, res) => {
+app.post('/api/update/apply', ...selfUpdateGuards, async (req, res) => {
   const info = getSelfUpdateState();
   if (!info.supported) return res.status(501).json({ ok: false, error: info.error || '当前部署方式不支持自动更新' });
   if (!limitUpdateApply(`update-apply:${getRequestIp(req)}`)) {
     return res.status(429).json({ ok: false, error: '请求过于频繁，请稍后再试' });
   }
-  const result = applySelfUpdate();
+  const result = await applySelfUpdate();
   if (result.error) return res.status(400).json({ ok: false, error: result.error });
   res.json({ ok: true, ...result, hint: '更新中：约 1-3 分钟后服务自动重启，页面会自动恢复' });
 });
@@ -1044,6 +1106,9 @@ app.get('/api/media-proxy', async (req, res) => {
   if (isPrivateHostname(parsed.hostname)) {
     return res.status(403).json({ error: '禁止访问内网地址' });
   }
+  if (!isAllowedMediaUrl(raw)) {
+    return res.status(403).json({ error: '媒体域名不在允许列表中' });
+  }
 
   try {
     if (parseMetingPicQuery(raw)) {
@@ -1055,7 +1120,7 @@ app.get('/api/media-proxy', async (req, res) => {
     }
 
     if (!(await isSafeMediaUrl(fetchUrl))) {
-      return res.status(403).json({ error: '禁止访问内网地址' });
+      return res.status(403).json({ error: '媒体地址未通过安全校验' });
     }
 
     await serveUpstreamMedia(fetchUrl, res, fetchWithTimeout, {
@@ -1637,9 +1702,20 @@ app.get('/sitemap.xml', (req, res) => {
 app.use(express.static(clientDist, {
   setHeaders(res, filePath) {
     const rel = path.relative(clientDist, filePath).replace(/\\/g, '/');
-    if (rel === 'index.html' || rel === 'sw.js' || rel.startsWith('assets/')) {
-      // 稳定文件名 + 禁止长期缓存：发版覆盖源站后，CDN/浏览器会重新拉取
+    // 构建产物使用稳定文件名（发版会覆盖同路径），因此不能 immutable：
+    // 但完全 no-cache 会让每次导航产生 20+ 次条件请求，弱网下明显拖慢首屏。
+    // 折中：短缓存 + 必须回源校验，发版后最多 5 分钟自然失效。
+    if (rel.startsWith('assets/')) {
+      res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+      return;
+    }
+    if (rel === 'index.html' || rel === 'sw.js') {
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      return;
+    }
+    // 表情/图标按内容 ID 命名，天然内容寻址，可长缓存
+    if (rel.startsWith('qface/') || rel.startsWith('icons/') || rel === 'og-cover.png') {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
     }
   },
 }));
@@ -1658,6 +1734,10 @@ app.get('/{*splat}', (req, res, next) => {
     if (err) next();
   });
 });
+/** /api 未匹配路径返回 JSON，而不是被 SPA 兜底成 HTML（客户端 res.json() 会直接抛解析错误）。 */
+app.use(apiNotFoundHandler);
+/** 统一错误边界：路由抛出的异常不再返回 Express 默认 HTML 错误页。 */
+app.use(createErrorHandler({ logger: runtime.logger }));
 
 const socketToRoom = new Map();
 const socketToUserId = new Map();
@@ -1672,7 +1752,8 @@ async function isSafeMediaUrl(rawUrl) {
   if (!['http:', 'https:'].includes(parsed.protocol)
     || parsed.username
     || parsed.password
-    || isPrivateHostname(parsed.hostname)) {
+    || isPrivateHostname(parsed.hostname)
+    || !isAllowedMediaUrl(rawUrl)) {
     return false;
   }
 
@@ -1841,6 +1922,14 @@ setOnRoomStructureChanged((roomId) => {
   broadcastPlaybackState(roomId);
 });
 
+/**
+ * 房间被删除时释放按房间缓存的外部音源上下文。
+ * sourceResolvers 的 qishuiRooms 只增不减，房间关闭后仍会持有 API 实例。
+ */
+setOnRoomDestroyed((roomId) => {
+  releaseQishuiRoom(roomId);
+});
+
 function emitRoomAndPlayback(roomId, room) {
   // 切歌/队列结构变化：立即下发完整 room + playback
   broadcastRoomUpdate(roomId, { immediate: true });
@@ -1903,6 +1992,10 @@ io.use((socket, next) => {
 });
 
 io.on('connection', (socket) => {
+  // 所有监听器统一加防护：非法 payload 解构、同步异常、异步 rejection 都不能
+  // 变成进程级 uncaughtException（一次就会让 readiness 永久 503）。
+  hardenSocket(socket, { logger: runtime.logger });
+
   socket.on('join_room', ({ roomId, nickname, password, readOnly }, callback) => {
     const id = roomId?.toUpperCase();
     if (!roomExists(id)) {
@@ -2519,6 +2612,9 @@ io.on('connection', (socket) => {
 
   socket.on('finish_song', async ({ queueId }, callback) => {
     if (rejectReadOnly(socket, callback)) return;
+    // 与 skip_song 保持一致：finish_song 会触发 playNext + FM 预取，
+    // 不限制的话单个客户端可以并发堆积大量播放推进任务。
+    if (rejectRateLimited(socket, limitSocketAction, 'finish_song', callback)) return;
 
     const roomId = socketToRoom.get(socket.id);
     if (!roomId) {

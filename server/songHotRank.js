@@ -32,8 +32,24 @@ function recordSongRequestMemory(song) {
   if (existing) {
     existing.count += 1;
     Object.assign(existing, meta);
-  } else {
-    memoryHot.set(key, { ...meta, count: 1 });
+    return;
+  }
+  memoryHot.set(key, { ...meta, count: 1 });
+  // Redis 分支有 trimHotRank，内存分支之前没有任何上限：任意成员点一首新歌
+  // 就永久多一条 Map 项，热门榜读取还要全量排序。这里保持同样的 200 条上限。
+  if (memoryHot.size > MAX_HOT_ITEMS) {
+    let weakestKey = null;
+    let weakestCount = Infinity;
+    let weakestAt = Infinity;
+    for (const [candidateKey, entry] of memoryHot) {
+      if (entry.count < weakestCount
+        || (entry.count === weakestCount && entry.lastRequestedAt < weakestAt)) {
+        weakestKey = candidateKey;
+        weakestCount = entry.count;
+        weakestAt = entry.lastRequestedAt;
+      }
+    }
+    if (weakestKey) memoryHot.delete(weakestKey);
   }
 }
 
@@ -119,4 +135,14 @@ function getHotSongsFromMemory(n) {
     .sort((a, b) => b.count - a.count || b.lastRequestedAt - a.lastRequestedAt)
     .slice(0, n)
     .map(({ count, ...song }) => ({ ...song, count }));
+}
+
+/** 测试用：清空内存热榜，避免用例间互相污染。 */
+export function resetMemoryHotRank() {
+  memoryHot.clear();
+}
+
+/** 测试用：读取内存热榜条目数，验证容量上限生效。 */
+export function memoryHotRankSize() {
+  return memoryHot.size;
 }

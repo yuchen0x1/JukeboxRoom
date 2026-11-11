@@ -1,8 +1,32 @@
-import { Readable } from 'stream';
+import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 
 export const DEFAULT_MEDIA_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/** 图片/缩略图整包缓冲的上限。超过即中止，避免大图或恶意上游打爆内存。 */
+const MAX_BUFFERED_MEDIA_BYTES = 12 * 1024 * 1024;
+/** 流式转发单次请求的硬上限（音频）。Range 请求天然较小；整轨下载也不应无限。 */
+const MAX_STREAMED_MEDIA_BYTES = 256 * 1024 * 1024;
+
+/** 把上游 node 流读成 Buffer，并在超过上限时中止。 */
+function readStreamWithLimit(stream, limitBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    stream.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > limitBytes) {
+        stream.destroy();
+        reject(new Error('媒体响应超过大小上限'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
+}
 
 function hostnameOf(rawUrl) {
   try {
@@ -120,6 +144,7 @@ export async function serveUpstreamMedia(rawUrl, res, fetchWithTimeout, options 
       }
 
       // 不允许 fetch 自动跟随重定向；每一次跳转都必须重新校验目标地址。
+      // stream: true —— 音频/视频绝不整包缓冲，否则单个请求即可耗尽进程内存。
       response = await fetchWithTimeout(
         fetchUrl,
         {
@@ -128,6 +153,7 @@ export async function serveUpstreamMedia(rawUrl, res, fetchWithTimeout, options 
             Referer: options.referer || refererForMediaUrl(fetchUrl),
           },
           redirect: 'manual',
+          stream: true,
         },
         options.timeoutMs || 20000,
       );
@@ -166,7 +192,9 @@ export async function serveUpstreamMedia(rawUrl, res, fetchWithTimeout, options 
 
   if (useBuffer) {
     try {
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = response.nodeStream
+        ? await readStreamWithLimit(response.nodeStream, MAX_BUFFERED_MEDIA_BYTES)
+        : Buffer.from(await response.arrayBuffer());
       if (res.writableEnded || res.destroyed) return false;
       if (contentType) res.set('Content-Type', contentType);
       res.status(200).send(buffer);
@@ -183,7 +211,10 @@ export async function serveUpstreamMedia(rawUrl, res, fetchWithTimeout, options 
     if (value) res.set(header, value);
   }
 
-  if (!response.body) {
+  // 流式转发：优先使用 node 流（safeFetch({stream:true}) 直接返回上游连接）。
+  const nodeStream = response.nodeStream;
+  const webBody = response.body;
+  if (!nodeStream && !webBody) {
     try {
       const buffer = Buffer.from(await response.arrayBuffer());
       res.status(response.status).send(buffer);
@@ -194,16 +225,30 @@ export async function serveUpstreamMedia(rawUrl, res, fetchWithTimeout, options 
     }
   }
 
-  const stream = Readable.fromWeb(response.body);
+  const stream = nodeStream || Readable.fromWeb(webBody);
   let clientGone = false;
   res.on('close', () => {
     clientGone = true;
     stream.destroy();
   });
 
+  // 用 Transform 计数而不是额外挂 'data' 监听：后者会把流切到 flowing 模式，
+  // 在 pipeline 接管前就可能丢数据。
+  let forwarded = 0;
+  const byteLimit = new Transform({
+    transform(chunk, _encoding, callback) {
+      forwarded += chunk.length;
+      if (forwarded > MAX_STREAMED_MEDIA_BYTES) {
+        callback(new Error('媒体流超过大小上限'));
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
+
   res.status(response.status);
   try {
-    await pipeline(stream, res);
+    await pipeline(stream, byteLimit, res);
     return true;
   } catch {
     if (clientGone) return false;

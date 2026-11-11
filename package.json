@@ -1,6 +1,6 @@
 {
   "name": "openmusic",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "OpenMusic - Multiplayer Music Room",
   "private": true,
   "scripts": {
@@ -12,9 +12,10 @@
     "test:server": "npm test --prefix server",
     "test:client": "npm test --prefix client",
     "test:all": "npm run test:server && npm run test:client",
-    "check": "npm run test:all && npm run build && npm run audit:prod",
+    "check": "npm run test:all && npm run build && npm run check:bundle && npm run audit:prod",
     "check:health": "node scripts/health-check.mjs",
-    "audit:prod": "npm audit --omit=dev && npm audit --prefix server --omit=dev && npm audit --prefix client --omit=dev",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "audit:prod": "npm audit --omit=dev --registry=https://registry.npmjs.org && npm audit --prefix server --omit=dev --registry=https://registry.npmjs.org && npm audit --prefix client --omit=dev --registry=https://registry.npmjs.org",
     "start": "npm run start --prefix server",
     "package:build": "node scripts/package-build.mjs",
     "install:all": "npm install && npm install --prefix server && npm install --prefix client && npm install --prefix desktop",

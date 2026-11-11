@@ -1,0 +1,18 @@
+{
+  "projectName": "JukeboxRoom",
+  "projectRoot": "E:\\移动云盘同步盘\\JukeboxRoom",
+  "gitRemote": "https://github.com/yuchen0x1/JukeboxRoom.git",
+  "branch": "main",
+  "version": "0.0.14",
+  "projectType": ["自托管 Web 应用", "Windows Electron 桌面软件", "Capacitor Android/iOS 应用", "实时音乐房间", "AI 辅助开发对象"],
+  "technology": {
+    "server": "Node.js 20+ / Express 5 / Socket.IO / JSON or Redis",
+    "client": "React 19 / TypeScript / Vite / Zustand / Capacitor",
+    "desktop": "Electron 42 / electron-builder",
+    "tests": "Node test runner / Vitest / Vite production build"
+  },
+  "taskId": "evolution-2026-11-12-media-proxy-hardening",
+  "mode": "single-project-independent-evolution",
+  "workspacePolicy": "保留任务开始前已有未提交修改；本轮只追加白名单策略、测试、文档和状态报告。",
+  "blockedInstruction": "AGENTS.md 指定的 D:\\DevTools\\Codex\\skills\\application-development\\SKILL.md 在当前环境不存在，已记录并按仓库规范继续。"
+}

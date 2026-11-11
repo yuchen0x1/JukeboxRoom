@@ -9,6 +9,20 @@ import {
   parseVersion,
   resolveChannel,
 } from './update.js';
+import { isExpectedGithubRemote, isExpectedUpdateBranch } from './selfUpdate.js';
+
+test('自更新只接受确认的 GitHub 仓库远程地址', () => {
+  assert.equal(isExpectedGithubRemote('https://github.com/yuchen0x1/JukeboxRoom.git'), true);
+  assert.equal(isExpectedGithubRemote('https://github.com/yuchen0x1/JukeboxRoom'), true);
+  assert.equal(isExpectedGithubRemote('https://gitee.com/yuchen0x1/JukeboxRoom.git'), false);
+  assert.equal(isExpectedGithubRemote('https://github.com/other/project.git'), false);
+});
+
+test('自更新只允许在 main 分支执行', () => {
+  assert.equal(isExpectedUpdateBranch('main'), true);
+  assert.equal(isExpectedUpdateBranch('codex/audit'), false);
+  assert.equal(isExpectedUpdateBranch(''), false);
+});
 
 const githubAsset = (name) => `https://github.com/yuchen0x1/JukeboxRoom/releases/download/v2.0.2/${name}`;
 

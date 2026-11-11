@@ -1,11 +1,31 @@
 # 宝塔 Nginx 配置示例 — 替换 your-domain.com 和端口
 # 网站 → 你的站点 → 配置文件，在 server { } 内加入：
 
+# 压缩：应用层已用 compression 中间件压缩动态响应，这里主要覆盖代理转发场景并
+# 避免重复压缩。若使用 CDN，请在 CDN 侧也开启 gzip/brotli。
+gzip on;
+gzip_vary on;
+gzip_comp_level 5;
+gzip_min_length 1024;
+gzip_proxied any;
+gzip_types
+    text/plain
+    text/css
+    text/xml
+    application/javascript
+    application/json
+    application/xml
+    application/manifest+json
+    image/svg+xml;
+
 location / {
     proxy_pass http://127.0.0.1:4000;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
+    # 注意：只有本级反代会覆盖这些头时才在应用侧设置 TRUST_PROXY=1。
+    # 未开启 TRUST_PROXY 时应用看到的所有客户端都是 127.0.0.1，
+    # 限流与并发上限会退化成"全站共用一个桶"。
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 }
@@ -25,6 +45,8 @@ location /api/media-proxy {
     proxy_max_temp_file_size 0;
     proxy_read_timeout 3600s;
     proxy_send_timeout 3600s;
+    # 音频是已压缩的二进制流，不要再压一遍
+    gzip off;
 }
 
 # Socket.io 必须单独配置 WebSocket

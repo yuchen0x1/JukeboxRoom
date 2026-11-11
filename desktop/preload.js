@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('jukeboxWindow', Object.freeze({
   saveMusicState: (state) => safeInvoke('jukebox:save-music-state', state),
   setTrayTrack: (title) => safeInvoke('jukebox:set-tray-track', title),
   openMusicConfig: () => safeInvoke('jukebox:open-music-config'),
+  openDataDir: () => safeInvoke('jukebox:open-data-dir'),
+  clearLocalData: () => safeInvoke('jukebox:clear-local-data'),
   restartApp: () => safeInvoke('jukebox:restart-app'),
   onTrayTogglePlay: (listener) => {
     const handler = () => listener();

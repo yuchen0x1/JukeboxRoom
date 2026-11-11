@@ -8,7 +8,7 @@ import {
   recomputeStageLyricPalette,
 } from './stageLyricPaletteLive';
 import { applyRoomVisualAppearance } from './roomVisualAppearance';
-import { syncGalaxyHandGestureMode } from '../components/galaxy/lib/galaxyHandGesture';
+import { syncGalaxyHandGestureMode } from './galaxyHandGestureBridge';
 
 const fxListeners = new Set<() => void>();
 

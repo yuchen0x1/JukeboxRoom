@@ -7,7 +7,7 @@
 
 JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在同一个房间里搜索歌曲、提交队列、同步播放进度、看歌词、聊天和管理播放规则。
 
-- 当前版本：**v0.0.13**（2026-11-08）
+- 当前版本：**v0.0.14**（2026-11-10）
 - 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
 - 完整变更记录：[CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
@@ -54,7 +54,7 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 - AutoDJ：在指定时间段内按低水位自动补歌，并按歌曲/歌手去重
 - 可选 Redis、JSON 数据持久化、Prometheus 指标和任务/审计 API
 
-> 服务端已包含认证、管理员、曲库、AutoDJ、共享歌单、任务中心和审计日志 API；当前 Web 客户端主要提供首页、房间页和 TV 页，**没有配套的管理后台 UI**。
+> 服务端包含认证、管理员、曲库、AutoDJ、共享歌单、任务中心和审计日志 API；Web 客户端提供首页、房间页、TV 大屏与管理后台（`/admin`）。
 
 ## 快速开始
 
@@ -140,6 +140,10 @@ Windows 首次运行若出现 SmartScreen，请先核对文件确实来自本项
 
 ## 生产部署
 
+### 自动更新边界
+
+服务端默认每天检查 GitHub Release。执行一键更新前会检查 Git 工作区必须干净，并确认 `origin` 指向 `yuchen0x1/JukeboxRoom`；存在未提交/未跟踪文件、远程地址不匹配或本地分支无法快进时会拒绝更新，不会覆盖本地代码。需要手动维护版本时可设置 `AUTO_UPDATE=0`。
+
 ### Node.js / PM2
 
 生产环境由同一个 Node.js 进程提供 API、Socket.IO 和 `client/dist` 静态资源：
@@ -184,7 +188,8 @@ pm2 start deploy/ecosystem.config.cjs
 | `CLIENT_ID_SECRET` | 生产必填 | 浏览器会话签名密钥；至少 32 字符，重启后保持不变 |
 | `AUTH_JWT_SECRET` | 生产必填 | 平台账号 JWT 密钥；至少 32 字符，必须与上一项不同且保持不变 |
 | `AUTH_ACCESS_TTL` / `AUTH_REFRESH_TTL` | 访问令牌 24 小时 / 刷新令牌 30 天 | 单位为毫秒 |
-| `TRUST_PROXY` | 关闭 | 仅在可信反代正确覆盖转发头时设为 `1` |
+| `TRUST_PROXY` | 关闭 | 仅在可信反代正确覆盖转发头时设为 `1`；未开启时所有客户端共用回环 IP 桶 |
+| `HTTP_API_RATE_LIMIT_PER_MIN` | `240` | 单 IP 每分钟 `/api/*` 请求上限；静态资源与健康检查不计入 |
 | `MAX_CONCURRENT_SOCKETS_PER_IP` | `50` | 单 IP 进程内 Socket 连接上限 |
 | `OPENMUSIC_DATA_DIR` | `server/data` | JSON 数据目录；变量名保留 OpenMusic 兼容前缀 |
 
@@ -196,6 +201,7 @@ pm2 start deploy/ecosystem.config.cjs
 | `METING_SEARCH_API_URL` | 主 Meting 不支持搜索时使用的备用搜索端点 |
 | `METING_API_AUTH` | Meting 鉴权令牌（如上游启用鉴权） |
 | `ALLOW_PRIVATE_UPSTREAMS` | 仅为本机自托管 Meting 放行私有地址；不要用于放宽用户可控媒体代理 |
+| `MEDIA_PROXY_ALLOWED_HOSTS` | 媒体代理额外允许的 CDN 域名，逗号/空格/分号分隔，支持 `*.example.com`；未知域名默认拒绝 |
 | `CYAPI_BASE` / `CYAPI_KEY` | 可选的迟言 API 配置，用于部分酷狗能力和推荐 |
 | `VMY_LRC_URL` | 按歌名获取歌词的备用接口 |
 
@@ -219,7 +225,7 @@ pm2 start deploy/ecosystem.config.cjs
 | `APIHZ_IMG_ID` / `APIHZ_IMG_KEY` | 接口盒子表情包搜索；不配置则隐藏入口 |
 | `UPDATE_REPOSITORY` | 在线更新仓库，默认 `yuchen0x1/JukeboxRoom` |
 | `UPDATE_GITHUB_TOKEN` | GitHub 只读令牌；降低更新检查和应用内更新日志同步的匿名限流影响 |
-| `METRICS_ENABLED` / `METRICS_TOKEN` | 开启并保护 `/metrics` |
+| `METRICS_ENABLED` / `METRICS_TOKEN` | 开启并保护 `/metrics`；只开开关不配令牌时 `/metrics` 返回 404 |
 | `MEDIA_HEALTH_FAILURE_THRESHOLD` / `MEDIA_HEALTH_FAILURE_WINDOW_MS` / `MEDIA_HEALTH_COOLDOWN_MS` | 音乐源失败统计与熔断参数 |
 | `TASK_AUDIT_RETENTION_DAYS` / `TASK_RUNS_KEEP` | 任务审计保留时间和运行记录上限 |
 
@@ -303,7 +309,8 @@ curl http://localhost:4000/api/music/sources
 | `npm test --prefix server` | 仅服务端 Node test runner |
 | `npm test --prefix client` | 仅客户端 Vitest |
 | `npm run build` | TypeScript 检查并构建 `client/dist` |
-| `npm run check` | 测试、构建和生产依赖审计 |
+| `npm run check` | 测试、构建、包体预算检查和生产依赖审计 |
+| `npm run check:bundle` | 校验首屏入口不加载 3D 依赖且体积在预算内 |
 | `npm run check:health` | 对已启动实例执行健康/更新接口冒烟检查 |
 | `npm run desktop:build` | 构建 Windows NSIS 安装包 |
 
@@ -373,6 +380,12 @@ npm run build
 ```
 
 涉及 URL、媒体代理、鉴权或第三方接口的改动，请同时检查协议、主机校验、超时、错误处理和回归测试。发布流程见 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)。
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=yuchen0x1/JukeboxRoom&type=Date)](https://star-history.com/#yuchen0x1/JukeboxRoom&Date)
+
+如果这个项目对你有帮助，欢迎点一个 Star 支持继续维护。
 
 ## License
 

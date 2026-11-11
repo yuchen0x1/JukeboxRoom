@@ -4,7 +4,7 @@ import type { QueueItem } from '../types';
 import { ROOM_VISUAL_MODE_META, type RoomVisualMode } from '../lib/roomVisualPreset';
 import { roomVisualFxLive, subscribeRoomVisualFx } from '../lib/roomVisualFxLive';
 import { effectiveBackgroundColor } from '../lib/roomVisualAppearance';
-import { syncGalaxyHandGestureMode } from './galaxy/lib/galaxyHandGesture';
+import { syncGalaxyHandGestureMode } from '../lib/galaxyHandGestureBridge';
 import AmbientCoverLayers from './AmbientCoverLayers';
 
 const GalaxyBackground = lazy(() => import('./galaxy/GalaxyBackground3D'));

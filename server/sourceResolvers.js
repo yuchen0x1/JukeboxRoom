@@ -919,6 +919,25 @@ function getQishuiContext(roomId) {
   return ctx;
 }
 
+/**
+ * 房间关闭/销毁时释放汽水上下文。
+ *
+ * 这个 Map 只增不减：每个用过汽水音源的房间都会留下一个持有 API 实例的条目，
+ * 房间关闭后仍常驻内存。由 roomManager 在删除房间时调用。
+ */
+export function releaseQishuiRoom(roomId) {
+  const key = roomId?.toUpperCase?.() || String(roomId || '').toUpperCase();
+  qishuiRooms.delete(key);
+  // 大小写不一致的历史条目也一并清理
+  qishuiRooms.delete(roomId);
+  qishuiRooms.delete(String(roomId || ''));
+}
+
+/** 测试用：当前缓存的汽水房间上下文数量。 */
+export function qishuiRoomContextCount() {
+  return qishuiRooms.size;
+}
+
 function getDesktopQishuiContext() {
   if (!qishuiDesktopContext) {
     let revision = 0;

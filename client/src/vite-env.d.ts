@@ -15,6 +15,8 @@ interface Window {
     onTrayNextTrack?: (listener: () => void) => () => void;
     onMaximizedChanged: (listener: (maximized: boolean) => void) => () => void;
     openMusicConfig: () => Promise<boolean>;
+    openDataDir?: () => Promise<boolean>;
+    clearLocalData?: () => Promise<boolean>;
     restartApp: () => Promise<void>;
   };
 }
