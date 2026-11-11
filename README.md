@@ -370,6 +370,8 @@ curl http://localhost:4000/api/music/sources
 
 ## 版本、贡献与反馈
 
+本项目统一在 GitHub 的 `main` 分支上持续更新。提交或同步前请确认当前分支为 `main`、远程指向 `https://github.com/yuchen0x1/JukeboxRoom.git`；项目不再向 Gitee 或其他分支推送。
+
 应用内更新日志会优先读取 `GET /api/update/changelog` 的 GitHub Releases 内容；网络不可用或上游失败时，会回退到随包日志并按版本号去重。完整历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 欢迎通过 GitHub [Issue](https://github.com/yuchen0x1/JukeboxRoom/issues) 或 Pull Request 反馈问题和提交改进。提交前至少运行：
