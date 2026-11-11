@@ -71,7 +71,7 @@ JukeboxRoom 是 Node/Express/Socket.IO 服务端、React/Vite/TypeScript 客户�
 | UI 与用户体验 | 75 | 75 | 保留上一轮错误状态和分包改进，本轮无视觉重构 |
 | 稳定性 | 74 | 80 | 130 项服务端测试、媒体代理白名单和运行态 403 |
 | 架构与代码质量 | 72 | 76 | 独立策略模块、无新依赖、全量回归通过 |
-| 性能与安全 | 76 | 82 | SSRF/DNS/域名三层边界、流式媒体上限、依赖审计零漏洞 |
+| 性能与安全 | 76 | 82 | SSRF/DNS/域名三层边界、流式媒体上限、本地官方 npm audit 为零；GitHub 远端另提示 1 个 moderate Dependabot alert，待定位 |
 | 文档与工程交付 | 76 | 82 | 环境变量、README、CHANGELOG 与 `.evolution` 报告齐备 |
 
 评分是带证据的辅助评估，不替代未完成的真实设备和多实例测试。
@@ -83,4 +83,4 @@ JukeboxRoom 是 Node/Express/Socket.IO 服务端、React/Vite/TypeScript 客户�
 3. 配置签名与构建环境，完成 Android release 和 Windows NSIS 安装升级回归。
 4. 先补 Room 行为测试，再拆分巨型页面；随后做可访问性和前端错误上报。
 
-本轮没有执行 `git commit`、`git push` 或 Release 发布；工作区仍保留所有本地修改，按仓库规则后续如需提交只能推送 GitHub。 
+本轮已提交 `91c71bf` 并推送到 GitHub `origin/main`，没有创建 Tag 或发布 Release。推送成功后 GitHub 提示 1 个 moderate Dependabot alert；这与本地官方 npm audit 的 0 vulnerabilities 不一致，列为下一阶段安全核查项。

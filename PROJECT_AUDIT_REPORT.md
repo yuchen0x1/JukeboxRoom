@@ -169,4 +169,4 @@ JukeboxRoom 是一个自托管多人实时点歌系统，提供房间、队列�
 
 ## 12. Git 与远程状态
 
-本次没有执行 `git commit`、`git push`、远程 Tag、Release 发布或远程分支创建。当前工作区保留本地修改，等待人工验收。
+本轮后续已提交 `91c71bf` 并推送 `origin/main` 到 GitHub；没有创建 Tag 或发布 Release。GitHub 推送后提示 1 个 moderate Dependabot alert，本地官方 npm audit 仍为 0 vulnerabilities，需后续定位差异。

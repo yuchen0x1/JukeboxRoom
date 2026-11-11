@@ -2,7 +2,7 @@
 
 日期：2026-11-10
 会话窗口：12:11 – 18:40（+08:00）
-分支：`main`（保留工作区既有 v0.0.14 未提交改动，未 commit / 未 push / 未发布）
+分支：`main`（本轮已提交并推送 GitHub，未发布 Release）
 基线版本：0.0.14
 
 ## 1. 项目原始情况
@@ -120,6 +120,6 @@ JukeboxRoom 是自托管的多人实时在线点歌系统：房间大厅、共�
 
 ## 8. Git 与远程状态
 
-- 未执行 `git commit`、`git push`、打 Tag 或发布 Release。
-- 工作区保留全部改动，等待人工验收。
+- 已执行 `git commit` 和 `git push origin main`，提交为 `91c71bf`。
+- 未打 Tag 或发布 Release；GitHub 推送后提示 1 个 moderate Dependabot alert，本地官方 npm audit 仍为 0 vulnerabilities，待定位差异。
 - 推送目标按仓库规则仅允许 GitHub：`https://github.com/yuchen0x1/JukeboxRoom.git`。

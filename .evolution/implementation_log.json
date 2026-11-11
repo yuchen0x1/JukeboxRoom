@@ -28,5 +28,7 @@
   "preservedPreExistingChanges": true,
   "noNewDependencies": true,
   "noFilesDeleted": true,
-  "noPushPerformed": true
+  "noPushPerformed": false,
+  "commit": "91c71bf security: restrict media proxy destinations",
+  "pushedTo": "origin/main (GitHub)"
 }
