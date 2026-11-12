@@ -1,5 +1,14 @@
 # 发布说明历史
 
+## 0.0.17（正式发布，2026-11-13）
+
+- 修复 Windows 系统代理环境下 Electron 桌面端内置本机服务被代理拦截的问题；外部请求保留系统代理，`localhost`、`127.0.0.1` 和 `::1` 强制直连。
+- 桌面音频优先走本机媒体代理，代理不可用时回退到原始 CDN 地址，并增加加载超时、取消和网络错误提示。
+- 新增代理绕过、播放地址回退、自动更新和桌面打包资源回归测试；继续沿用 v0.0.16 的透明多尺寸 Windows 图标。
+- 本次继续只发布 Windows 安装包，Android APK 暂缓。
+
+完整变更见 [CHANGELOG.md](../../CHANGELOG.md)；正式 Release 资产见 [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)。
+
 ## 0.0.16（正式发布，2026-11-13）
 
 - 全面修复 Windows 桌面版图标黑边、黑色背景和透明边缘污染问题，保留原有 Logo 设计。

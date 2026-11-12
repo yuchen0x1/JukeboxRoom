@@ -7,12 +7,18 @@
 
 JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在同一个房间里搜索歌曲、提交队列、同步播放进度、看歌词、聊天和管理播放规则。
 
-- 当前版本：**v0.0.16**（2026-11-13）
+- 当前版本：**v0.0.17**（2026-11-13）
 - 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
 - 完整变更记录：[CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
 
 ## 最新更新
+
+### v0.0.17（2026-11-13）
+
+- Windows 桌面版保留系统代理访问外部服务，同时绕过 `localhost`、`127.0.0.1` 和 `::1`，避免代理工具拦截内置本机服务。
+- 桌面音频优先通过本机媒体代理播放；代理不可用时自动回退到原始 CDN 地址，并提供明确的超时、网络中断和格式错误提示。
+- 增加代理绕过、播放地址回退和版本回归测试；继续沿用 v0.0.16 的透明多尺寸 Windows 图标。
 
 ### v0.0.16（2026-11-13）
 

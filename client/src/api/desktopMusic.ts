@@ -16,6 +16,13 @@ export interface DesktopMusicCapabilities {
   }>;
 }
 
+export interface DesktopSongPlaybackUrls {
+  /** 同源媒体代理地址，优先使用以兼容 HTTP 音频与受 Referer 保护的 CDN。 */
+  primary: string;
+  /** 原始 CDN 地址；桌面端代理失败时交给 Chromium/系统代理重试。 */
+  fallback?: string;
+}
+
 const DESKTOP_SOURCES: Array<Exclude<DesktopSourceFilter, 'all'>> = [
   'netease',
   'tencent',
@@ -146,15 +153,27 @@ export async function loginDesktopMigu(phone: string, code: string): Promise<voi
   if (!res.ok) throw new Error(data.error || '咪咕登录失败');
 }
 
-export async function resolveDesktopSongUrl(
+export function buildDesktopSongPlaybackUrls(url: string): DesktopSongPlaybackUrls {
+  const primary = toProxiedMediaUrl(url);
+  return primary === url ? { primary } : { primary, fallback: url };
+}
+
+export async function resolveDesktopSongPlaybackUrls(
   song: Pick<Song, 'id' | 'source'>,
   quality: string,
-): Promise<string> {
+): Promise<DesktopSongPlaybackUrls> {
   const params = new URLSearchParams({ source: song.source || 'netease', id: song.id, quality });
   const res = await fetchWithTimeout(`/api/desktop/music/song-url?${params}`, {}, 20000);
   const data = await res.json().catch(() => ({})) as { url?: string; error?: string };
   if (!res.ok || !data.url) throw new Error(data.error || '无法获取播放地址');
-  return toProxiedMediaUrl(data.url);
+  return buildDesktopSongPlaybackUrls(data.url);
+}
+
+export async function resolveDesktopSongUrl(
+  song: Pick<Song, 'id' | 'source'>,
+  quality: string,
+): Promise<string> {
+  return (await resolveDesktopSongPlaybackUrls(song, quality)).primary;
 }
 
 export async function getDesktopLyrics(song: Pick<Song, 'id' | 'source' | 'name' | 'lrc'>): Promise<string> {

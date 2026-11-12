@@ -1,7 +1,7 @@
 {
   "name": "jukeboxroom-desktop",
   "productName": "JukeboxRoom",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "private": true,
   "description": "JukeboxRoom 桌面版（内置本地服务端）",
   "main": "main.js",
@@ -11,7 +11,7 @@
     "predist": "node ../scripts/gen-desktop-icon.mjs && npm run check:icon",
     "postdist": "node ../scripts/check-desktop-icon.mjs --artifacts",
     "dist": "electron-builder --win nsis",
-    "test:updater": "node --test updater.test.js ipc-security.test.js scripts/write-checksums.test.cjs scripts/afterPack.test.cjs"
+    "test:updater": "node --test updater.test.js network.test.js ipc-security.test.js scripts/write-checksums.test.cjs scripts/afterPack.test.cjs"
   },
   "devDependencies": {
     "electron": "^42.11.16",
@@ -27,6 +27,7 @@
     },
     "files": [
       "main.js",
+      "network.js",
       "preload.js",
       "ipc-security.js",
       "updater.js",

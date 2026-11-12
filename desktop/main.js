@@ -3,13 +3,24 @@
  * 启动时在本机拉起 JukeboxRoom 服务端（内嵌 Node 运行），再用窗口加载页面。
  * 配置与数据目录：优先沿用旧版 %APPDATA%/openmusic-desktop，首次安装的新目录为 %APPDATA%/JukeboxRoom。
  */
-const { app, BrowserWindow, Tray, Menu, dialog, ipcMain, nativeImage, shell } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  dialog,
+  ipcMain,
+  nativeImage,
+  shell,
+  session,
+} = require('electron');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
 const { createDesktopUpdater } = require('./updater');
+const { configureDesktopSessionProxy } = require('./network');
 const { CancellationToken } = require('builder-util-runtime');
 const { assertTrustedRendererRequest } = require('./ipc-security');
 
@@ -608,7 +619,12 @@ if (!gotLock) {
     // 已在托盘后台运行时再次启动，唤起主窗口而不是无响应
     showMainWindow();
   });
-  app.whenReady().then(createWindow);
+  app.whenReady().then(async () => {
+    // Keep system-proxy access for external services, but never proxy the
+    // loopback server that serves the desktop UI and media proxy.
+    await configureDesktopSessionProxy(session);
+    await createWindow();
+  });
 }
 
 app.on('window-all-closed', () => {
