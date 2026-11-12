@@ -1,5 +1,13 @@
 # 发布说明历史
 
+## 0.0.16（正式发布，2026-11-13）
+
+- 全面修复 Windows 桌面版图标黑边、黑色背景和透明边缘污染问题，保留原有 Logo 设计。
+- EXE、NSIS 安装器、桌面快捷方式、任务栏、窗口标题栏和系统托盘统一使用同一套透明多尺寸图标。
+- 发布前新增 PNG、ICO、app.asar 和 PE 图标自动校验；本次继续只发布 Windows 安装包，Android APK 暂缓。
+
+完整变更见 [CHANGELOG.md](../../CHANGELOG.md)；正式 Release 资产见 [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)。
+
 ## 0.0.15（正式发布，2026-11-13）
 
 - Windows 桌面版新增咪咕音乐（实验性）搜索、播放和手机号短信验证码登录。

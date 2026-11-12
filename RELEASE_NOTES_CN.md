@@ -1,12 +1,14 @@
-# JukeboxRoom v0.0.15
+# JukeboxRoom v0.0.16
 
-> 📅 发布日期：2026-11-13 ｜ 🏷️ Tag：`v0.0.15` ｜ 📦 对比上一正式版本：[v0.0.14...v0.0.15](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.14...v0.0.15)
+> 📅 发布日期：2026-11-13 ｜ 🏷️ Tag：`v0.0.16` ｜ 📦 对比上一正式版本：[v0.0.15...v0.0.16](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.15...v0.0.16)
 
-本版本为 Windows 桌面版增加咪咕音乐（实验性）接入，并继续沿用 GitHub 自动更新、媒体安全和本机数据保护能力。
+本版本全面修复 Windows 桌面版图标黑边、黑色背景和透明边缘污染问题，并继续沿用 GitHub 自动更新、媒体安全和本机数据保护能力。
 
 ## 版本亮点
 
 - **Windows 桌面自动更新**：检查 GitHub Releases 稳定版本；由用户决定是否下载，显示真实进度，下载完成后确认即可退出并安装。
+- **Windows 图标修复**：EXE、安装程序、桌面快捷方式、任务栏、窗口标题栏和系统托盘统一使用透明多尺寸图标，避免黑边和黑色背景。
+- **图标质量门禁**：发布前检查 PNG Alpha、透明 RGB、ICO 图层、app.asar、EXE 和 NSIS 图标资源。
 - **Windows 发布修复**：修复 GitHub Actions runner 找不到 `rcedit.exe` 导致安装包未生成的问题。
 - **首屏更轻快**：Three.js 延迟到需要 3D 视觉效果时加载；静态资源压缩并采用分级缓存。
 - **本机数据更安全**：卸载桌面版时保留用户数据；设置页可打开数据目录，或在二次确认后清理数据。
@@ -19,7 +21,7 @@
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
-| Windows 桌面版 | `jukeboxroom-desktop-setup-0.0.15-x64.exe` | x64 NSIS 安装程序，内置本地服务端；同一 Release 提供自动更新元数据与 SHA-256 校验清单。 |
+| Windows 桌面版 | `jukeboxroom-desktop-setup-0.0.16-x64.exe` | x64 NSIS 安装程序，内置本地服务端；同一 Release 提供自动更新元数据与 SHA-256 校验清单。 |
 
 本次 GitHub Actions 只构建 Windows 桌面版。Android APK 暂不随本次 Release 发布，以免使用临时 debug 密钥构建的安装包造成签名不匹配、无法覆盖升级。
 
