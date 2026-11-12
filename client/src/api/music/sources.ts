@@ -3,6 +3,7 @@ import { neteaseProvider } from './providers/meting';
 import { tencentProvider } from './providers/tencent';
 import { kugouProvider } from './providers/kugou';
 import { qishuiProvider } from './providers/qishui';
+import { miguProvider } from './providers/migu';
 import type { MusicSource } from '../../types';
 
 export const providers: Record<MusicSource, MusicProvider> = {
@@ -10,6 +11,7 @@ export const providers: Record<MusicSource, MusicProvider> = {
   tencent: tencentProvider,
   kugou: kugouProvider,
   qishui: qishuiProvider,
+  migu: miguProvider,
 };
 
 export function getAllSources(): MusicProviderMeta[] {

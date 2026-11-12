@@ -5,6 +5,7 @@ const SOURCE_PRIORITY: Record<MusicSource, number> = {
   tencent: 1,
   kugou: 2,
   qishui: 3,
+  migu: 4,
 };
 
 function normalize(text: string): string {

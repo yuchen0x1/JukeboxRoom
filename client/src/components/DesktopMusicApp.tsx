@@ -92,6 +92,7 @@ const SOURCE_OPTIONS: Array<{ id: DesktopSourceFilter; label: string }> = [
   { id: 'tencent', label: 'QQ 音乐' },
   { id: 'kugou', label: '酷狗音乐' },
   { id: 'qishui', label: '汽水音乐' },
+  { id: 'migu', label: '咪咕音乐（实验性）' },
 ];
 
 const SEARCH_PAGE_SIZE = 30;
@@ -477,7 +478,7 @@ export default function DesktopMusicApp() {
   const [topError, setTopError] = useState('');
   const [capabilities, setCapabilities] = useState<Awaited<ReturnType<typeof getDesktopMusicCapabilities>> | null>(null);
   const [capabilityError, setCapabilityError] = useState('');
-  const [sourceLogins, setSourceLogins] = useState<DesktopSourceLogins>({ netease: false, tencent: false, kugou: false, qishui: false });
+  const [sourceLogins, setSourceLogins] = useState<DesktopSourceLogins>({ netease: false, tencent: false, kugou: false, qishui: false, migu: false });
   const [sourceLoginOpen, setSourceLoginOpen] = useState(false);
   const [accountError, setAccountError] = useState('');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -1094,20 +1095,20 @@ export default function DesktopMusicApp() {
                       <p>平台公开接口的可用性会随上游策略变化。</p>
                       {capabilityError && <p className="desktop-settings-error">{capabilityError}</p>}
                       <div className="desktop-capability-list">
-                        {(['netease', 'tencent', 'kugou', 'qishui'] as const).map((source) => {
+                        {(['netease', 'tencent', 'kugou', 'qishui', 'migu'] as const).map((source) => {
                           const sourceCapability = capabilities?.sources[source];
                           const label = SOURCE_OPTIONS.find((option) => option.id === source)?.label || source;
                           const available = sourceCapability?.playback;
                           return <div className="desktop-capability-row" key={source}><span className={`desktop-status-dot${available ? '' : ' is-muted'}`} /><span>{label}</span><small>{sourceCapability ? available ? '搜索与播放可用' : '搜索可用，播放需配置' : '读取中'}</small></div>;
                         })}
                       </div>
-                      {capabilities && !capabilities.sources.netease.playback && <div className="desktop-config-callout"><p>网易云播放需要配置可用的 Meting API。也可以直接使用 QQ 音乐或酷狗的免费音源。</p><button type="button" className="desktop-secondary-button" onClick={() => void openMusicConfig()}>打开音源配置</button><button type="button" className="desktop-text-button" onClick={() => void restartApp()}>保存后重启应用</button></div>}
+                      {capabilities && !capabilities.sources.netease.playback && <div className="desktop-config-callout"><p>未配置 Meting API 时，可先登录网易云账号播放账号有权限的歌曲；也可以配置 Meting API 或切换到其他可用音源。</p><button type="button" className="desktop-secondary-button" onClick={() => setSourceLoginOpen(true)}>登录音乐平台账号</button><button type="button" className="desktop-secondary-button" onClick={() => void openMusicConfig()}>打开音源配置</button><button type="button" className="desktop-text-button" onClick={() => void restartApp()}>保存后重启应用</button></div>}
                     </section>
                     <section className="desktop-settings-section">
                       <h2>音乐平台账号</h2>
-                      <p>扫码登录网易云、QQ 音乐、酷狗或汽水音乐。账号用于平台授权播放；歌曲搜索来自公开曲库，不会读取私人歌单。</p>
+                      <p>扫码登录网易云、QQ 音乐、酷狗或汽水音乐；咪咕音乐使用手机号验证码试验性登录。账号用于平台授权播放；歌曲搜索来自公开曲库，不会读取私人歌单。</p>
                       <div className="desktop-account-list">
-                        {(['netease', 'tencent', 'kugou', 'qishui'] as const).map((source) => {
+                        {(['netease', 'tencent', 'kugou', 'qishui', 'migu'] as const).map((source) => {
                           const label = SOURCE_OPTIONS.find((option) => option.id === source)?.label || source;
                           const loggedIn = sourceLogins[source];
                           return (
@@ -1121,7 +1122,7 @@ export default function DesktopMusicApp() {
                       </div>
                       {accountError && <p className="desktop-settings-error">{accountError}</p>}
                       <button type="button" className="desktop-secondary-button desktop-account-manage" onClick={() => setSourceLoginOpen(true)}>
-                        <LogIn aria-hidden="true" />{Object.values(sourceLogins).some(Boolean) ? '管理音乐账号' : '扫码登录账号'}
+                        <LogIn aria-hidden="true" />{Object.values(sourceLogins).some(Boolean) ? '管理音乐账号' : '登录音乐账号'}
                       </button>
                     </section>
                     <section className="desktop-settings-section">

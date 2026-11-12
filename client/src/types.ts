@@ -1,4 +1,4 @@
-export type MusicSource = 'netease' | 'tencent' | 'kugou' | 'qishui';
+export type MusicSource = 'netease' | 'tencent' | 'kugou' | 'qishui' | 'migu';
 
 export interface RoomAudioQuality {
   netease: string;
@@ -171,7 +171,7 @@ export interface RoomState {
   /** 房间播放音质（网易云 / QQ音乐） */
   audioQuality?: RoomAudioQuality;
   /** 房主已登录的音源（凭据只在服务端，这里仅暴露布尔） */
-  sourceLogins?: { netease?: boolean; tencent?: boolean; kugou?: boolean; qishui?: boolean };
+  sourceLogins?: { netease?: boolean; tencent?: boolean; kugou?: boolean; qishui?: boolean; migu?: boolean };
   /** 队列为空时私人漫游推荐模式 */
   neteaseFmMode?: string;
   /** 公告是否开启 */

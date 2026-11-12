@@ -1,7 +1,7 @@
 const DEFAULT_FAILURE_THRESHOLD = 5;
 const DEFAULT_FAILURE_WINDOW_MS = 60_000;
 const DEFAULT_COOLDOWN_MS = 30_000;
-const PROVIDERS = ['netease', 'tencent', 'kugou', 'qishui'];
+const PROVIDERS = ['netease', 'tencent', 'kugou', 'qishui', 'migu'];
 const states = new Map();
 
 function config() {

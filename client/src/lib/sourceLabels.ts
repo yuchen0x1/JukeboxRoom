@@ -7,6 +7,7 @@ export const SOURCE_SHORT_LABELS: Record<MusicSource, string> = {
   tencent: 'QQ音乐',
   kugou: '酷狗音乐',
   qishui: '汽水音乐',
+  migu: '咪咕音乐',
 };
 
 export const SOURCE_COLORS: Record<MusicSource, string> = {
@@ -14,6 +15,7 @@ export const SOURCE_COLORS: Record<MusicSource, string> = {
   tencent: 'var(--color-primary-hover)',
   kugou: '#2688ee',
   qishui: '#f5a623',
+  migu: '#20c4f4',
 };
 
 export const PLAYLIST_PLATFORM_LABELS: Record<PlaylistPlatform, string> = {

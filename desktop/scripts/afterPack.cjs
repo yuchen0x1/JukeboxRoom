@@ -1,4 +1,3 @@
-const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -56,11 +55,7 @@ function findBundledRcedit() {
 module.exports = async function afterPack(context) {
   if (context.electronPlatformName !== 'win32') return;
   const executable = path.join(context.appOutDir, 'JukeboxRoom.exe');
-  const icon = path.resolve(__dirname, '..', 'build', 'JukeboxRoom.ico');
   if (!fs.existsSync(executable)) throw new Error(`打包后的应用程序不存在：${executable}`);
-  if (!fs.existsSync(icon)) throw new Error(`应用图标不存在：${icon}`);
-
-  execFileSync(findRcedit(), [executable, '--set-icon', icon], { stdio: 'inherit' });
 
   // electron-builder v26 起 extraResources 的 glob 复制不再包含 node_modules，
   // 内嵌 server 的依赖必须显式补齐，否则应用启动即 ERR_MODULE_NOT_FOUND（服务进程 code=1）。

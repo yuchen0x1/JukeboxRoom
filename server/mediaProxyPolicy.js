@@ -35,6 +35,8 @@ const DEFAULT_ALLOWED_MEDIA_HOST_SUFFIXES = Object.freeze([
   'qishui.com',
   'zijieapi.com',
   'zjcdn.com',
+  // 咪咕音乐播放与封面 CDN
+  'migu.cn',
 ]);
 
 function normalizeHostname(value) {

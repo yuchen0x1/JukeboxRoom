@@ -36,7 +36,7 @@ export async function searchAllSongs(
   if (!keyword.trim()) return [];
 
   const filterMode = options.filterMode ?? 'smart';
-  const allSources = (sourceList ?? getAllSources()).filter((s) => s.supportsSearch);
+  const allSources = (sourceList ?? getAllSources()).filter((s) => s.supportsSearch && s.id !== 'migu');
 
   if (filterMode !== 'smart') {
     const meta = allSources.find((s) => s.id === filterMode);

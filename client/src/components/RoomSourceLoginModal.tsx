@@ -5,7 +5,9 @@ import { fetchWithTimeout } from '../api/http';
 import { useRoomStore } from '../stores/roomStore';
 import {
   pollDesktopSourceLogin,
+  loginDesktopMigu,
   saveDesktopSourceCookie,
+  sendDesktopMiguSmsCode,
   startDesktopSourceLogin,
   type DesktopAccountSource,
 } from '../api/desktopMusic';
@@ -15,6 +17,7 @@ export interface SourceLoginsState {
   tencent?: boolean;
   kugou?: boolean;
   qishui?: boolean;
+  migu?: boolean;
 }
 
 interface RoomSourceLoginModalProps {
@@ -59,6 +62,11 @@ export default function RoomSourceLoginModal({
   const [cookieSaving, setCookieSaving] = useState(false);
   const [removingSource, setRemovingSource] = useState<string | null>(null);
   const [remainingSec, setRemainingSec] = useState(0);
+  const [miguPhone, setMiguPhone] = useState('');
+  const [miguCode, setMiguCode] = useState('');
+  const [miguSmsSending, setMiguSmsSending] = useState(false);
+  const [miguLoggingIn, setMiguLoggingIn] = useState(false);
+  const [miguSmsRemaining, setMiguSmsRemaining] = useState(0);
   const [enlarged, setEnlarged] = useState(false);
   const pollTimer = useRef<number | null>(null);
   const tickTimer = useRef<number | null>(null);
@@ -95,10 +103,65 @@ export default function RoomSourceLoginModal({
       setShowCookieInput(false);
       setEnlarged(false);
       sessionRef.current = '';
+      setMiguPhone('');
+      setMiguCode('');
+      setMiguSmsRemaining(0);
     }
   }, [open, stopPolling]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  useEffect(() => {
+    if (miguSmsRemaining <= 0) return undefined;
+    const timer = window.setInterval(() => setMiguSmsRemaining((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [miguSmsRemaining]);
+
+  const sendMiguCode = useCallback(async () => {
+    const phone = miguPhone.trim();
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setScanError('请输入有效的中国大陆手机号');
+      return;
+    }
+    setMiguSmsSending(true);
+    setScanError('');
+    try {
+      if (mode !== 'desktop') throw new Error('咪咕试验性登录目前仅支持桌面版');
+      await sendDesktopMiguSmsCode(phone);
+      setMiguSmsRemaining(60);
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : '咪咕验证码发送失败');
+    } finally {
+      setMiguSmsSending(false);
+    }
+  }, [miguPhone, mode]);
+
+  const loginMigu = useCallback(async () => {
+    const phone = miguPhone.trim();
+    const code = miguCode.trim();
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setScanError('请输入有效的中国大陆手机号');
+      return;
+    }
+    if (!/^\d{4,8}$/.test(code)) {
+      setScanError('请输入 4-8 位短信验证码');
+      return;
+    }
+    setMiguLoggingIn(true);
+    setScanError('');
+    try {
+      if (mode !== 'desktop') throw new Error('咪咕试验性登录目前仅支持桌面版');
+      await loginDesktopMigu(phone, code);
+      const currentRoom = useRoomStore.getState().room;
+      if (currentRoom) useRoomStore.getState().setRoom({ ...currentRoom, sourceLogins: { ...currentRoom.sourceLogins, migu: true } });
+      setMiguCode('');
+      await onCredentialChange?.();
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : '咪咕登录失败');
+    } finally {
+      setMiguLoggingIn(false);
+    }
+  }, [miguCode, miguPhone, mode, onCredentialChange]);
 
   const startScan = useCallback(async (source: 'netease' | 'tencent' | 'kugou' | 'qishui') => {
     stopPolling();
@@ -401,6 +464,32 @@ export default function RoomSourceLoginModal({
             );
           })}
         </div>
+
+        {mode === 'desktop' && (
+          <div className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.04] p-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Music2 className="w-4 h-4 flex-shrink-0 text-cyan-300" />
+                <span className="text-sm font-medium text-white truncate">咪咕音乐（实验性）</span>
+              </div>
+              {statusBadge(Boolean(sourceLogins.migu))}
+            </div>
+            <p className="mt-2 text-[11px] leading-4 text-white/40">非官方接口试验性接入，手机号和验证码只用于本次登录；登录令牌会加密保存在本机，上游接口变化可能导致功能失效。</p>
+            <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+              <input value={miguPhone} onChange={(event) => setMiguPhone(event.target.value.replace(/\D/g, '').slice(0, 11))} inputMode="tel" autoComplete="tel" placeholder="手机号" className="glass-input rounded-lg px-3 py-2 text-xs text-white" aria-label="咪咕手机号" />
+              <button type="button" onClick={() => void sendMiguCode()} disabled={miguSmsSending || miguSmsRemaining > 0} className="rounded-lg border border-cyan-300/30 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-300/10 disabled:opacity-50">
+                {miguSmsSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : miguSmsRemaining > 0 ? `${miguSmsRemaining}s 后重发` : '发送验证码'}
+              </button>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input value={miguCode} onChange={(event) => setMiguCode(event.target.value.replace(/\D/g, '').slice(0, 8))} inputMode="numeric" autoComplete="one-time-code" placeholder="短信验证码" className="glass-input min-w-0 flex-1 rounded-lg px-3 py-2 text-xs text-white" aria-label="咪咕短信验证码" />
+              <button type="button" onClick={() => void loginMigu()} disabled={miguLoggingIn} className="glass-button-primary rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-50">
+                {miguLoggingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '登录并保存'}
+              </button>
+            </div>
+            {sourceLogins.migu && <button type="button" disabled={removingSource === 'migu'} onClick={async () => { setRemovingSource('migu'); try { const result = onRemoveCredential ? await onRemoveCredential('migu') : { success: false, error: '退出失败' }; if (result.success) await onCredentialChange?.(); else setScanError(result.error || '退出咪咕账号失败'); } catch (error) { setScanError(error instanceof Error ? error.message : '退出咪咕账号失败'); } finally { setRemovingSource(null); } }} className="mt-2 inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/50 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"><LogOut className="w-3.5 h-3.5" />退出咪咕账号</button>}
+          </div>
+        )}
 
         {scanError && <p className="mt-3 text-xs text-red-400">{scanError}{scanStatus === 'failed' && scanError.includes('Cookie') ? '（已在 QQ 卡片内展开 Cookie 登录入口）' : ''}</p>}
         <p className="mt-4 text-[11px] text-white/25 leading-4">

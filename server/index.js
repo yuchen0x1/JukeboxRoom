@@ -176,12 +176,15 @@ import { applySelfUpdate, getSelfUpdateState } from './selfUpdate.js';
 import { isAllowedMediaUrl } from './mediaProxyPolicy.js';
 import {
   getDesktopSourceCookieForPlayback,
+  getDesktopMiguSession,
   getDesktopSourceLogins,
   getDesktopSourceLoginsWithValidity,
   isTrustedDesktopRequest,
   removeDesktopSourceAccount,
   saveDesktopSourceCookie,
+  saveDesktopMiguSession,
 } from './desktopSourceAccounts.js';
+import { loginMiguByPhone, requestMiguSmsCode, resolveMiguPlayUrl, searchMiguSongs } from './miguMusic.js';
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -909,6 +912,7 @@ if (DESKTOP_MODE) {
         tencent: { search: true, playback: true, accountRequiredForVip: true },
         kugou: { search: true, playback: true, accountRequiredForVip: true },
         qishui: { search: true, playback: true, accountRequiredForVip: true },
+        migu: { search: true, playback: true, accountRequiredForVip: true },
       },
     });
   });
@@ -943,6 +947,41 @@ if (DESKTOP_MODE) {
     } catch (err) {
       console.error('Desktop source QR start error:', err.message);
       res.status(502).json({ error: err.message || '获取登录二维码失败' });
+    }
+  });
+
+  app.post('/api/desktop/music/accounts/migu/sms/send', async (req, res) => {
+    if (!limitProxyRequest(`desktop-migu-sms-send:${getRequestIp(req)}`)) {
+      return res.status(429).json({ error: '验证码请求过于频繁，请稍后再试' });
+    }
+    const phone = String(req.body?.phone || '').trim();
+    if (!/^1[3-9]\d{9}$/.test(phone)) return res.status(400).json({ error: '请输入有效的中国大陆手机号' });
+    try {
+      await requestMiguSmsCode(phone);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ success: true, message: '验证码已发送，请注意查收短信' });
+    } catch (err) {
+      console.error('Desktop Migu SMS send error:', err instanceof Error ? err.message : 'unknown');
+      res.status(502).json({ error: err instanceof Error ? err.message : '验证码发送失败，请稍后重试' });
+    }
+  });
+
+  app.post('/api/desktop/music/accounts/migu/sms/login', async (req, res) => {
+    if (!limitProxyRequest(`desktop-migu-sms-login:${getRequestIp(req)}`)) {
+      return res.status(429).json({ error: '登录请求过于频繁，请稍后再试' });
+    }
+    const phone = String(req.body?.phone || '').trim();
+    const code = String(req.body?.code || '').trim();
+    if (!/^1[3-9]\d{9}$/.test(phone)) return res.status(400).json({ error: '请输入有效的中国大陆手机号' });
+    if (!/^\d{4,8}$/.test(code)) return res.status(400).json({ error: '请输入 4-8 位短信验证码' });
+    try {
+      const session = await loginMiguByPhone(phone, code);
+      saveDesktopMiguSession(session);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ success: true, loggedIn: true, sources: getDesktopSourceLogins() });
+    } catch (err) {
+      console.error('Desktop Migu SMS login error:', err instanceof Error ? err.message : 'unknown');
+      res.status(502).json({ error: err instanceof Error ? err.message : '咪咕登录失败，请稍后重试' });
     }
   });
 
@@ -988,7 +1027,7 @@ if (DESKTOP_MODE) {
 
   app.delete('/api/desktop/music/accounts/:source', (req, res) => {
     const source = String(req.params.source || '').trim().toLowerCase();
-    if (!['netease', 'tencent', 'kugou', 'qishui'].includes(source)) return res.status(400).json({ error: '不支持该音乐平台' });
+    if (!['netease', 'tencent', 'kugou', 'qishui', 'migu'].includes(source)) return res.status(400).json({ error: '不支持该音乐平台' });
     if (source === 'qishui') clearDesktopQishuiLogin();
     else removeDesktopSourceAccount(source);
     res.json({ success: true, sources: getDesktopSourceLogins() });
@@ -1000,14 +1039,14 @@ if (DESKTOP_MODE) {
     }
     const source = String(req.query.source || '').trim().toLowerCase();
     const keyword = String(req.query.q || '').trim();
-    if (source !== 'qishui') return res.status(400).json({ error: '桌面版当前仅通过该接口搜索汽水音乐' });
+    if (source !== 'qishui' && source !== 'migu') return res.status(400).json({ error: '桌面版当前仅通过该接口搜索汽水或咪咕音乐' });
     if (!keyword || keyword.length > 120) return res.status(400).json({ error: '搜索关键词无效' });
     try {
       res.setHeader('Cache-Control', 'no-store');
-      res.json({ songs: await searchDesktopQishuiWithHealth(keyword) });
+      res.json({ songs: source === 'migu' ? await searchMiguSongs(keyword) : await searchDesktopQishuiWithHealth(keyword) });
     } catch (err) {
-      console.error('Desktop Qishui search error:', err.message);
-      res.status(502).json({ error: err.message || '汽水音乐搜索失败' });
+      console.error(`Desktop ${source} search error:`, err.message);
+      res.status(502).json({ error: err.message || `${source === 'migu' ? '咪咕' : '汽水'}音乐搜索失败` });
     }
   });
 
@@ -1019,7 +1058,7 @@ if (DESKTOP_MODE) {
     const source = String(req.query.source || '').trim().toLowerCase();
     const songId = String(req.query.id || '').trim();
     const quality = String(req.query.quality || 'standard').trim().toLowerCase();
-    if (!['netease', 'tencent', 'kugou', 'qishui'].includes(source)) {
+    if (!['netease', 'tencent', 'kugou', 'qishui', 'migu'].includes(source)) {
       return res.status(400).json({ error: '桌面版不支持该音源' });
     }
     if (!songId || songId.length > 128) return res.status(400).json({ error: '歌曲 id 无效' });
@@ -1030,7 +1069,7 @@ if (DESKTOP_MODE) {
       if (source === 'netease') {
         if (accountCookie) url = await resolveNeteasePlayUrl(songId, quality, accountCookie);
         if (!url && !METING_API_URL && !accountCookie) {
-          return res.status(503).json({ error: '网易云播放需要在设置中配置可用的 METING_API_URL，或切换到 QQ 音乐、酷狗音源' });
+          return res.status(503).json({ error: '网易云播放需要先登录网易云账号，或配置可用的 METING_API_URL；也可以切换到其他可用音源' });
         }
         if (!url && METING_API_URL) {
           const response = await fetchMeting(
@@ -1047,8 +1086,12 @@ if (DESKTOP_MODE) {
         url = await resolveTencentPlayUrl(songId, quality, accountCookie);
       } else if (source === 'kugou') {
         url = await resolveKugouPlayUrl(songId, quality, accountCookie);
-      } else {
+      } else if (source === 'qishui') {
         url = await resolveDesktopQishuiPlayUrlWithHealth(songId, quality);
+      } else {
+        let miguSession = null;
+        try { miguSession = getDesktopMiguSession(); } catch { miguSession = null; }
+        url = await resolveMiguPlayUrl(songId, quality, miguSession);
       }
 
       if (!url) return res.status(404).json({ error: '该歌曲暂时没有可用的免费音源，可尝试其他平台或音质' });

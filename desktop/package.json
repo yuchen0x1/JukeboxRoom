@@ -1,7 +1,7 @@
 {
   "name": "jukeboxroom-desktop",
   "productName": "JukeboxRoom",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "private": true,
   "description": "JukeboxRoom 桌面版（内置本地服务端）",
   "main": "main.js",
@@ -65,7 +65,7 @@
         }
       ],
       "icon": "build/JukeboxRoom.ico",
-      "signAndEditExecutable": false,
+      "signExecutable": false,
       "verifyUpdateCodeSignature": true,
       "artifactName": "jukeboxroom-desktop-${version}-${arch}.${ext}",
       "requestedExecutionLevel": "asInvoker"

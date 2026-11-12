@@ -86,7 +86,7 @@ export default function SearchFilterSelect({ value, onChange }: Props) {
                       className={`w-3.5 h-3.5 flex-shrink-0 ${value === opt.value ? 'opacity-100' : 'opacity-0'}`}
                     />
                     <span>{opt.label}</span>
-                    {opt.value !== 'smart' && sourceLogins?.[opt.value as 'netease' | 'tencent' | 'kugou' | 'qishui'] && (
+                    {opt.value !== 'smart' && sourceLogins?.[opt.value as 'netease' | 'tencent' | 'kugou' | 'qishui' | 'migu'] && (
                       <span className="ml-auto rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[9px] leading-none text-amber-300">VIP</span>
                     )}
                   </button>
@@ -107,7 +107,7 @@ export default function SearchFilterSelect({ value, onChange }: Props) {
                     className={`w-3.5 h-3.5 flex-shrink-0 ${value === opt.value ? 'opacity-100' : 'opacity-0'}`}
                   />
                   <span>{opt.label}</span>
-                  {opt.value !== 'smart' && sourceLogins?.[opt.value as 'netease' | 'tencent' | 'kugou' | 'qishui'] && (
+                  {opt.value !== 'smart' && sourceLogins?.[opt.value as 'netease' | 'tencent' | 'kugou' | 'qishui' | 'migu'] && (
                     <span className="ml-auto rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[9px] leading-none text-amber-300">VIP</span>
                   )}
                 </button>

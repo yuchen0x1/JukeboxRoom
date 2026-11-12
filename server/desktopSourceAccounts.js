@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import { findOne, findAndUpdate, insertUnique, remove } from './db/store.js';
 
 const COLLECTION = 'desktop_source_accounts';
-const SOURCES = new Set(['netease', 'tencent', 'kugou', 'qishui']);
+const SOURCES = new Set(['netease', 'tencent', 'kugou', 'qishui', 'migu']);
 const MAX_COOKIE_LENGTH = 16_384;
 const MAX_SESSION_LENGTH = 65_536;
 
@@ -56,7 +56,7 @@ function encryptPayload(value, version) {
 
 function decryptPayload(credential) {
   try {
-    if (credential?.version !== 1 && credential?.version !== 2) throw new Error('Unsupported credential version');
+    if (credential?.version !== 1 && credential?.version !== 2 && credential?.version !== 3) throw new Error('Unsupported credential version');
     const decipher = createDecipheriv('aes-256-gcm', getEncryptionKey(), Buffer.from(credential.iv, 'base64'));
     decipher.setAuthTag(Buffer.from(credential.tag, 'base64'));
     const plaintext = Buffer.concat([
@@ -70,16 +70,18 @@ function decryptPayload(credential) {
 }
 
 export function getDesktopSourceLogins() {
-  const logins = { netease: false, tencent: false, kugou: false, qishui: false };
+  const logins = { netease: false, tencent: false, kugou: false, qishui: false, migu: false };
   for (const source of SOURCES) {
     const record = findOne(COLLECTION, (entry) => entry.source === source);
-    if (record?.credential?.version !== 1 && record?.credential?.version !== 2) continue;
+    if (record?.credential?.version !== 1 && record?.credential?.version !== 2 && record?.credential?.version !== 3) continue;
     // 与解密语义对齐：密钥变更/密文损坏时视为未登录，避免"显示已登录但解析必失败"
     try {
       const value = decryptPayload(record.credential);
       logins[source] = source === 'qishui'
         ? Boolean(value && typeof value === 'object' && value.ticket)
-        : Boolean(typeof value === 'string' && value.trim());
+        : source === 'migu'
+          ? Boolean(value && typeof value === 'object' && value.pacmToken)
+          : Boolean(typeof value === 'string' && value.trim());
     } catch {
       logins[source] = false;
     }
@@ -89,7 +91,7 @@ export function getDesktopSourceLogins() {
 
 export function getDesktopSourceCookie(source) {
   assertSource(source);
-  if (source === 'qishui') throw new Error('汽水账号使用独立会话存储');
+  if (source === 'qishui' || source === 'migu') throw new Error(`${source === 'migu' ? '咪咕' : '汽水'}账号使用独立会话存储`);
   const record = findOne(COLLECTION, (entry) => entry.source === source);
   return record?.credential?.version === 1 ? decryptPayload(record.credential) : '';
 }
@@ -101,7 +103,7 @@ export function getDesktopSourceCookie(source) {
  */
 export function getDesktopSourceCookieForPlayback(source) {
   assertSource(source);
-  return source === 'qishui' ? '' : getDesktopSourceCookie(source);
+  return source === 'qishui' || source === 'migu' ? '' : getDesktopSourceCookie(source);
 }
 
 export function saveDesktopSourceCookie(source, cookie) {
@@ -115,6 +117,30 @@ export function getDesktopSourceSession() {
   if (!record) return null;
   if (record.credential?.version !== 2) throw new Error('汽水账号会话无效，请重新扫码登录');
   return decryptPayload(record.credential);
+}
+
+export function getDesktopMiguSession() {
+  const record = findOne(COLLECTION, (entry) => entry.source === 'migu');
+  if (!record) return null;
+  if (record.credential?.version !== 3) throw new Error('咪咕账号会话无效，请重新登录');
+  const session = decryptPayload(record.credential);
+  if (!session || typeof session !== 'object' || typeof session.pacmToken !== 'string' || !session.pacmToken) {
+    throw new Error('咪咕账号会话无效，请重新登录');
+  }
+  return session;
+}
+
+export function saveDesktopMiguSession(session) {
+  if (!session || typeof session !== 'object' || Array.isArray(session)
+    || typeof session.token !== 'string' || !session.token
+    || typeof session.pacmToken !== 'string' || !session.pacmToken) {
+    throw new Error('咪咕账号会话无效，请重新登录');
+  }
+  const serialized = JSON.stringify(session);
+  if (!serialized || Buffer.byteLength(serialized, 'utf8') > MAX_SESSION_LENGTH) {
+    throw new Error('咪咕账号会话数据无效');
+  }
+  return saveEncryptedCredential('migu', encryptPayload(session, 3));
 }
 
 export function saveDesktopSourceSession(session) {

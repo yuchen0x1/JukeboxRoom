@@ -97,7 +97,7 @@ function normalizeSavedState(value: unknown): Partial<PersistedDesktopMusicState
     playbackQuality: typeof saved.playbackQuality === 'string' ? saved.playbackQuality : 'standard',
     repeatMode: saved.repeatMode === 'all' || saved.repeatMode === 'one' ? saved.repeatMode : 'off',
     shuffle: Boolean(saved.shuffle),
-    sourceFilter: saved.sourceFilter === 'netease' || saved.sourceFilter === 'tencent' || saved.sourceFilter === 'kugou' || saved.sourceFilter === 'qishui'
+    sourceFilter: saved.sourceFilter === 'netease' || saved.sourceFilter === 'tencent' || saved.sourceFilter === 'kugou' || saved.sourceFilter === 'qishui' || saved.sourceFilter === 'migu'
       ? saved.sourceFilter
       : 'all',
   };

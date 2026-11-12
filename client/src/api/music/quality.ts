@@ -69,7 +69,7 @@ export function getRoomPlaybackQuality(source: MusicSource): string | undefined 
   const quality = normalizeRoomAudioQuality(room?.audioQuality);
   if (source === 'netease') return quality.netease;
   if (source === 'tencent') return quality.tencent;
-  if (source === 'kugou' || source === 'qishui') return 'lossless';
+  if (source === 'kugou' || source === 'qishui' || source === 'migu') return 'lossless';
   return undefined;
 }
 
@@ -79,7 +79,7 @@ export function getUserPlaybackQuality(source: MusicSource): string | undefined 
   const quality = resolveEffectiveAudioQuality(room?.audioQuality);
   if (source === 'netease') return quality.netease;
   if (source === 'tencent') return quality.tencent;
-  if (source === 'kugou' || source === 'qishui') return 'lossless';
+  if (source === 'kugou' || source === 'qishui' || source === 'migu') return 'lossless';
   return undefined;
 }
 

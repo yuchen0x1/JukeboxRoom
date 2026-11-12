@@ -21,6 +21,7 @@ const DESKTOP_SOURCES: Array<Exclude<DesktopSourceFilter, 'all'>> = [
   'tencent',
   'kugou',
   'qishui',
+  'migu',
 ];
 
 export async function searchDesktopSongs(
@@ -83,6 +84,7 @@ export async function getDesktopSourceLogins(): Promise<DesktopSourceLogins> {
     tencent: Boolean(data.sources?.tencent),
     kugou: Boolean(data.sources?.kugou),
     qishui: Boolean(data.sources?.qishui),
+    migu: Boolean(data.sources?.migu),
   };
 }
 
@@ -122,6 +124,26 @@ export async function removeDesktopSourceLogin(source: DesktopAccountSource): Pr
   const res = await fetchWithTimeout(`/api/desktop/music/accounts/${source}`, { method: 'DELETE' });
   const data = await res.json().catch(() => ({})) as { error?: string };
   if (!res.ok) throw new Error(data.error || '退出账号失败');
+}
+
+export async function sendDesktopMiguSmsCode(phone: string): Promise<void> {
+  const res = await fetchWithTimeout('/api/desktop/music/accounts/migu/sms/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone }),
+  }, 15000);
+  const data = await res.json().catch(() => ({})) as { error?: string };
+  if (!res.ok) throw new Error(data.error || '咪咕验证码发送失败');
+}
+
+export async function loginDesktopMigu(phone: string, code: string): Promise<void> {
+  const res = await fetchWithTimeout('/api/desktop/music/accounts/migu/sms/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone, code }),
+  }, 20000);
+  const data = await res.json().catch(() => ({})) as { error?: string };
+  if (!res.ok) throw new Error(data.error || '咪咕登录失败');
 }
 
 export async function resolveDesktopSongUrl(

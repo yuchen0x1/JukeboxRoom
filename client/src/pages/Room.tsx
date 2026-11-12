@@ -1183,6 +1183,7 @@ export default function Room() {
     tencent: 'QQ音乐需房主在「音源登录」登录后才能点播',
     kugou: '',
     qishui: '',
+    migu: '咪咕音乐试验性登录目前仅支持桌面版',
   };
 
   const handleAdd = useCallback(async (song: SearchResult) => {
@@ -2349,6 +2350,7 @@ export default function Room() {
               tencent: room?.sourceLogins?.tencent,
               kugou: room?.sourceLogins?.kugou,
               qishui: room?.sourceLogins?.qishui,
+              migu: room?.sourceLogins?.migu,
             }}
             onClose={() => setSourceLoginOpen(false)}
             onSaveCredential={handleSaveSourceCredential}
