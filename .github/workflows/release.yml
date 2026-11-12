@@ -105,7 +105,7 @@ jobs:
         with:
           draft: false
           prerelease: false
-          generate_release_notes: true
+          body_path: RELEASE_NOTES_CN.md
           fail_on_unmatched_files: true
           files: |
             release/desktop/jukeboxroom-desktop-setup-*.exe

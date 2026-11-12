@@ -7,18 +7,20 @@
 
 JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在同一个房间里搜索歌曲、提交队列、同步播放进度、看歌词、聊天和管理播放规则。
 
-- 当前版本：**v0.0.14**（2026-11-10）
+- 当前版本：**v0.0.14**（2026-11-12）
 - 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
 - 完整变更记录：[CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
 
 ## 最新更新
 
-### v0.0.14 持续维护（2026-11-12）
+### v0.0.14 正式发布（2026-11-12）
 
-- Windows 桌面版已接入 GitHub Releases 自动更新：检查、真实下载进度和用户确认后的退出安装均由安装包完成。
-- GitHub Actions 现在只在 `main` 上的 `vX.Y.Z` 标签发布 Windows NSIS 安装包及 `latest.yml` / `.blockmap` 更新元数据。
-- 更新边界、发布权限、签名 Secrets 和回滚步骤见 [自动更新说明](docs/AUTO_UPDATE.md)；完整历史见 [发布说明历史](docs/releases/release-notes.md)。
+- Windows 桌面版支持从 GitHub Releases 检查更新、按需下载并查看进度，安装前会征求确认。
+- 首页首屏静态资源体积显著下降，资源压缩和缓存策略也得到优化。
+- 桌面版卸载时保留本地数据；设置页提供打开数据目录及经确认后清理数据的入口。
+- 强化媒体代理、房间事件和健康检查的安全与稳定性，并改善 PWA 缓存升级和网络错误提示。
+- 本次自动发布工作流生成 Windows 安装包及更新元数据。Android APK 暂不随本次 Release 发布；更新边界与回滚步骤见 [自动更新说明](docs/AUTO_UPDATE.md)，完整历史见 [发布说明历史](docs/releases/release-notes.md)。
 
 | 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
 |:---:|:---:|:---:|
