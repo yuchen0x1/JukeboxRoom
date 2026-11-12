@@ -3,6 +3,8 @@ import type { MusicSource } from '../../../types';
 import { fetchWithTimeout } from '../../http';
 
 const API_BASE = '/api/meting';
+const NETEASE_COVER_API = '/api/music/netease/cover';
+const NETEASE_LRC_API = '/api/music/netease/lrc';
 
 async function metingFetch<T>(server: MusicSource, params: Record<string, string>): Promise<T> {
   const query = new URLSearchParams({ server, ...params });
@@ -20,6 +22,16 @@ async function metingText(server: MusicSource, params: Record<string, string>): 
   }
   if (!res.ok) throw new Error('API 请求失败');
   return res.text();
+}
+
+function isMetingPicUrl(value: string, source: MusicSource): boolean {
+  if (source !== 'netease' || !value) return false;
+  try {
+    const base = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+    return new URL(value, base).searchParams.get('type') === 'pic';
+  } catch {
+    return false;
+  }
 }
 
 function extractIdFromUrl(url: string): string {
@@ -99,10 +111,30 @@ function createMetingProvider(
     },
     async getLyrics(song) {
       if (song.lrc?.startsWith('[')) return song.lrc;
+
+      // 网易云官方歌词接口不依赖 Meting，桌面版未配置上游时也能正常显示。
+      if (song.source === 'netease') {
+        try {
+          const native = await fetchWithTimeout(
+            `${NETEASE_LRC_API}?id=${encodeURIComponent(song.id)}`,
+            { redirect: 'manual' },
+          );
+          if (native.ok) {
+            const text = (await native.text()).trim();
+            if (text) return text;
+          }
+        } catch {
+          // 回退到 Meting/按歌名歌词接口。
+        }
+      }
+
       return metingText(song.source, { type: 'lrc', id: song.id });
     },
     getCoverUrl(song) {
-      if (song.pic) return song.pic;
+      if (song.pic && !isMetingPicUrl(song.pic, source)) return song.pic;
+      if (source === 'netease') {
+        return `${NETEASE_COVER_API}?id=${encodeURIComponent(song.id)}`;
+      }
       return `${API_BASE}?server=${song.source}&type=pic&id=${song.id}`;
     },
   };

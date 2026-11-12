@@ -144,7 +144,8 @@ export async function serveUpstreamMedia(rawUrl, res, fetchWithTimeout, options 
       }
 
       // 不允许 fetch 自动跟随重定向；每一次跳转都必须重新校验目标地址。
-      // stream: true —— 音频/视频绝不整包缓冲，否则单个请求即可耗尽进程内存。
+      // forceBuffer/stream=false 用于图片等有限大小媒体，避免流式读取偶发
+      // 连接重置；音频/视频仍默认保持流式，避免整包占用内存。
       response = await fetchWithTimeout(
         fetchUrl,
         {
@@ -153,7 +154,7 @@ export async function serveUpstreamMedia(rawUrl, res, fetchWithTimeout, options 
             Referer: options.referer || refererForMediaUrl(fetchUrl),
           },
           redirect: 'manual',
-          stream: true,
+          stream: options.stream !== false && !options.forceBuffer,
         },
         options.timeoutMs || 20000,
       );

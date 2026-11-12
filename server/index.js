@@ -43,7 +43,12 @@ import {
   clearDesktopQishuiLogin,
   releaseQishuiRoom,
 } from './sourceResolvers.js';
-import { neteaseSearchSongs, neteaseSearchPlaylists } from './neteaseSearch.js';
+import {
+  neteaseSearchSongs,
+  neteaseSearchPlaylists,
+  fetchNeteaseSongCover,
+  fetchNeteaseSongLyrics,
+} from './neteaseSearch.js';
 import { mountWechatFileHelperProxy } from './wechatFileHelperProxy.js';
 import { buildRobotsTxt, buildSitemapXml, resolveSiteOrigin } from './seoFiles.js';
 import express from 'express';
@@ -586,16 +591,21 @@ function extractIdFromMetingUrl(url) {
 }
 
 /**
- * 搜索结果清洗：剥离上游 url/lrc/pic，避免把搜索备源已失效的解析地址透传给客户端，
- * 播放/歌词/封面统一由客户端经 /api/meting 走主源解析。
+ * 搜索结果清洗：剥离上游 url/lrc 与可能失效的外链封面；
+ * 网易歌曲补同源封面代理，播放/歌词仍由客户端按需解析。
  */
-function sanitizeMetingSearchItem(item) {
+function sanitizeMetingSearchItem(item, source = '') {
   const id = item.id != null ? String(item.id) : extractIdFromMetingUrl(item.url);
   return {
     id,
     name: item.name ?? item.title,
     artist: item.artist ?? item.author,
     album: item.album || undefined,
+    // 网易搜索备源的 pic 经常是失效的 Meting 地址；交给同源代理按歌曲 id
+    // 拉取官方专辑图，避免桌面端没有配置 METING_API_URL 时封面全空。
+    pic: source === 'netease' && id
+      ? `/api/music/netease/cover?id=${encodeURIComponent(id)}`
+      : undefined,
     duration: item.duration || undefined,
   };
 }
@@ -616,7 +626,7 @@ async function handleMetingSearch(query, res) {
       const text = await response.text();
       const parsed = JSON.parse(text);
       if (response.status < 400 && Array.isArray(parsed)) {
-        res.json(parsed.map(sanitizeMetingSearchItem).filter((item) => item.id));
+        res.json(parsed.map((item) => sanitizeMetingSearchItem(item, server)).filter((item) => item.id));
         return true;
       }
       console.warn('Meting search upstream returned invalid payload, fallback');
@@ -861,6 +871,57 @@ app.get('/api/music/sources', (_req, res) => {
     },
   ];
   res.json(sources);
+});
+
+/** 网易云官方元数据兜底：桌面版未配置 Meting 时仍可显示封面。 */
+app.get('/api/music/netease/cover', async (req, res) => {
+  if (!limitProxyRequest(`netease-cover:${getRequestIp(req)}`)) {
+    return res.status(429).json({ error: '封面请求过于频繁，请稍后再试' });
+  }
+
+  const songId = String(req.query.id || '').trim();
+  if (!/^\d{1,20}$/.test(songId)) {
+    return res.status(400).json({ error: '歌曲 id 无效' });
+  }
+
+  try {
+    const coverUrl = await fetchNeteaseSongCover(songId);
+    if (!coverUrl) return res.status(404).json({ error: '歌曲没有可用封面' });
+    if (!(await isSafeMediaUrl(coverUrl))) {
+      return res.status(403).json({ error: '封面地址未通过安全校验' });
+    }
+
+    // 封面是有限大小的图片，强制使用缓冲模式。网易 CDN 对 node 流转发
+    // 偶尔会在传输中途重置连接，非流式响应可以稳定拿到完整图片。
+    return serveUpstreamMedia(coverUrl, res, fetchWithTimeout, {
+      forceBuffer: true,
+      validateUrl: isSafeMediaUrl,
+    });
+  } catch (err) {
+    console.error('Netease cover error:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: '网易云封面获取失败' });
+  }
+});
+
+/** 网易云官方歌词兜底：优先于 Meting/第三方按歌名接口。 */
+app.get('/api/music/netease/lrc', async (req, res) => {
+  if (!limitProxyRequest(`netease-lrc:${getRequestIp(req)}`)) {
+    return res.status(429).json({ error: '歌词请求过于频繁，请稍后再试' });
+  }
+
+  const songId = String(req.query.id || '').trim();
+  if (!/^\d{1,20}$/.test(songId)) {
+    return res.status(400).json({ error: '歌曲 id 无效' });
+  }
+
+  try {
+    const lyric = await fetchNeteaseSongLyrics(songId);
+    if (!lyric) return res.status(404).json({ error: '歌曲没有可用歌词' });
+    res.type('text/plain; charset=utf-8').send(lyric);
+  } catch (err) {
+    console.error('Netease lyric error:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: '网易云歌词获取失败' });
+  }
 });
 
 /**

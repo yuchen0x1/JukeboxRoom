@@ -23,14 +23,15 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
 
 function normalizeNeteaseToplistSong(raw) {
   if (!raw || raw.id == null) return null;
+  const id = String(raw.id);
   const artists = Array.isArray(raw.artists) ? raw.artists : [];
   return {
-    id: String(raw.id),
+    id,
     source: 'netease',
     name: String(raw.name || '未知歌曲'),
     artist: artists.map((a) => a?.name).filter(Boolean).join(' / ') || '未知歌手',
     album: raw.album?.name || undefined,
-    pic: raw.album?.picUrl || undefined,
+    pic: raw.album?.picUrl || `/api/music/netease/cover?id=${encodeURIComponent(id)}`,
     duration: typeof raw.duration === 'number' ? raw.duration : undefined,
   };
 }
