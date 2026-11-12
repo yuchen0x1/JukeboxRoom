@@ -14,6 +14,7 @@
     "test:desktop-updater": "npm run test:updater --prefix desktop",
     "test:all": "npm run test:server && npm run test:client && npm run test:desktop-updater",
     "check": "npm run test:all && npm run build && npm run check:bundle && npm run audit:prod",
+    "check:desktop-icon": "node scripts/check-desktop-icon.mjs",
     "check:health": "node scripts/health-check.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
     "audit:prod": "npm audit --omit=dev --registry=https://registry.npmjs.org && npm audit --prefix server --omit=dev --registry=https://registry.npmjs.org && npm audit --prefix client --omit=dev --registry=https://registry.npmjs.org",
@@ -29,7 +30,7 @@
     "cap:run:ios": "npm run cap:run:ios --prefix client",
     "cap:build:apk": "npm run cap:build:apk --prefix client",
     "desktop:dev": "npm run build && npm run start --prefix desktop",
-    "desktop:build": "npm run build && npm run dist --prefix desktop"
+    "desktop:build": "node scripts/gen-desktop-icon.mjs && npm run build && npm run dist --prefix desktop"
   },
   "devDependencies": {
     "concurrently": "^9.2.5"

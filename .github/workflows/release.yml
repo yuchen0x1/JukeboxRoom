@@ -83,7 +83,9 @@ jobs:
           npm run test:server
           npm run test:client
       - name: Build client
-        run: npm run build
+        run: |
+          node scripts/gen-desktop-icon.mjs
+          npm run build
       - name: Check bundle
         run: npm run check:bundle
       - name: Audit production dependencies
