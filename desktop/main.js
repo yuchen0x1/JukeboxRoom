@@ -9,6 +9,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
+const { createDesktopUpdater } = require('./updater');
+const { CancellationToken } = require('builder-util-runtime');
+const { assertTrustedRendererRequest } = require('./ipc-security');
 
 for (const output of [process.stdout, process.stderr]) {
   output.on('error', (error) => {
@@ -35,6 +38,7 @@ const serverDir = path.join(resourcesBase, 'server');
 const serverEntry = path.join(serverDir, 'index.js');
 
 const READY_TIMEOUT_MS = 20_000;
+const UPDATE_CHECK_INTERVAL_HOURS = Math.min(168, Math.max(1, Number(process.env.JUKEBOX_UPDATE_CHECK_INTERVAL_HOURS) || 6));
 const DESKTOP_MUSIC_STATE_MAX_BYTES = 2 * 1024 * 1024;
 const DESKTOP_MUSIC_STATE_KEYS = new Set([
   'current',
@@ -130,6 +134,28 @@ let reportedExit = false;
 let desktopMusicWriteQueue = Promise.resolve();
 let desktopMusicWriteTarget = 0;
 let desktopMusicStateGeneration = 0;
+let desktopUpdater = null;
+let desktopUpdaterUnsubscribe = null;
+let desktopUpdaterTimer = null;
+
+function getDesktopUpdater() {
+  if (desktopUpdater) return desktopUpdater;
+  let updater = null;
+  if (isPackaged && process.platform === 'win32') {
+    try {
+      ({ autoUpdater: updater } = require('electron-updater'));
+    } catch (error) {
+      process.emitWarning(`桌面自动更新模块不可用：${error.message}`);
+    }
+  }
+  desktopUpdater = createDesktopUpdater({
+    updater,
+    supported: Boolean(updater),
+    currentVersion: app.getVersion(),
+    createCancellationToken: () => new CancellationToken(),
+  });
+  return desktopUpdater;
+}
 
 function normalizeDesktopMusicState(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -350,6 +376,7 @@ async function startServer() {
 }
 
 async function createWindow() {
+  const updater = getDesktopUpdater();
   let port;
   try {
     port = await startServer();
@@ -394,17 +421,7 @@ async function createWindow() {
   });
 
   const assertTrustedWindowRequest = (event) => {
-    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
-      throw new Error('Untrusted window control request');
-    }
-    if (event.senderFrame !== event.sender.mainFrame) {
-      throw new Error('Window controls are only available to the main frame');
-    }
-    try {
-      if (new URL(event.senderFrame.url).origin !== base) throw new Error('Unexpected renderer origin');
-    } catch {
-      throw new Error('Unexpected renderer origin');
-    }
+    assertTrustedRendererRequest(event, { mainWindow, origin: base });
   };
 
   const windowHandlers = {
@@ -489,9 +506,36 @@ async function createWindow() {
       app.relaunch();
       app.quit();
     },
+    'jukebox:updater-get-state': (event) => {
+      assertTrustedWindowRequest(event);
+      return updater.getState();
+    },
+    'jukebox:updater-check': async (event) => {
+      assertTrustedWindowRequest(event);
+      return updater.check();
+    },
+    'jukebox:updater-download': async (event) => {
+      assertTrustedWindowRequest(event);
+      return updater.download();
+    },
+    'jukebox:updater-cancel-download': (event) => {
+      assertTrustedWindowRequest(event);
+      return updater.cancelDownload();
+    },
+    'jukebox:updater-install': (event) => {
+      assertTrustedWindowRequest(event);
+      const installed = updater.install();
+      if (installed) app.isQuitting = true;
+      return installed;
+    },
   };
 
   for (const [channel, handler] of Object.entries(windowHandlers)) ipcMain.handle(channel, handler);
+
+  desktopUpdaterUnsubscribe = updater.onState((state) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send('jukebox:updater-state', state);
+  });
 
   const publishMaximizedState = () => {
     if (!mainWindow?.isDestroyed()) {
@@ -522,6 +566,16 @@ async function createWindow() {
   });
 
   await mainWindow.loadURL(base);
+
+  // Updates are opt-in: checking is automatic, download and installation always
+  // require an explicit renderer action. Development and non-Windows builds are
+  // represented as unsupported by the controller and never contact GitHub.
+  const initialCheckTimer = setTimeout(() => { void updater.check(); }, 10_000);
+  initialCheckTimer.unref?.();
+  if (updater.getState().supported) {
+    desktopUpdaterTimer = setInterval(() => { void updater.check(); }, UPDATE_CHECK_INTERVAL_HOURS * 60 * 60 * 1000);
+    desktopUpdaterTimer.unref?.();
+  }
 
   createTray();
 
@@ -569,6 +623,12 @@ app.on('before-quit', () => {
 process.on('exit', stopServer);
 
 app.on('will-quit', () => {
+  if (desktopUpdaterTimer) clearInterval(desktopUpdaterTimer);
+  desktopUpdaterTimer = null;
+  desktopUpdaterUnsubscribe?.();
+  desktopUpdaterUnsubscribe = null;
+  desktopUpdater?.dispose();
+  desktopUpdater = null;
   if (tray) {
     tray.destroy();
     tray = null;
@@ -581,6 +641,14 @@ app.on('will-quit', () => {
     'jukebox:load-music-state',
     'jukebox:save-music-state',
     'jukebox:open-music-config',
+    'jukebox:open-data-dir',
+    'jukebox:clear-local-data',
+    'jukebox:set-tray-track',
     'jukebox:restart-app',
+    'jukebox:updater-get-state',
+    'jukebox:updater-check',
+    'jukebox:updater-download',
+    'jukebox:updater-cancel-download',
+    'jukebox:updater-install',
   ]) ipcMain.removeHandler(channel);
 });

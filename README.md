@@ -12,6 +12,14 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
 - 完整变更记录：[CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
 
+## 最新更新
+
+### v0.0.14 持续维护（2026-11-12）
+
+- Windows 桌面版已接入 GitHub Releases 自动更新：检查、真实下载进度和用户确认后的退出安装均由安装包完成。
+- GitHub Actions 现在只在 `main` 上的 `vX.Y.Z` 标签发布 Windows NSIS 安装包及 `latest.yml` / `.blockmap` 更新元数据。
+- 更新边界、发布权限、签名 Secrets 和回滚步骤见 [自动更新说明](docs/AUTO_UPDATE.md)；完整历史见 [发布说明历史](docs/releases/release-notes.md)。
+
 | 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
 |:---:|:---:|:---:|
 | ![房间大厅](docs/screenshots/home.png) | ![房间点歌](docs/screenshots/room.png) | ![音源登录](docs/screenshots/login.png) |
@@ -143,6 +151,8 @@ Windows 首次运行若出现 SmartScreen，请先核对文件确实来自本项
 ### 自动更新边界
 
 服务端默认每天检查 GitHub Release。执行一键更新前会检查 Git 工作区必须干净，并确认 `origin` 指向 `yuchen0x1/JukeboxRoom`；存在未提交/未跟踪文件、远程地址不匹配或本地分支无法快进时会拒绝更新，不会覆盖本地代码。需要手动维护版本时可设置 `AUTO_UPDATE=0`。
+
+Windows 桌面安装包使用独立的 `electron-updater` 流程：只在已打包的 Windows NSIS 版本启用，检查不会自动下载，用户确认后才下载并退出安装。Android/iOS 仍使用应用商店或手动分发。完整流程见 [docs/AUTO_UPDATE.md](docs/AUTO_UPDATE.md)。
 
 ### Node.js / PM2
 

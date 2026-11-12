@@ -31,3 +31,16 @@ contextBridge.exposeInMainWorld('jukeboxWindow', Object.freeze({
     return () => ipcRenderer.removeListener('jukebox:window-maximized', handler);
   },
 }));
+
+contextBridge.exposeInMainWorld('desktopUpdater', Object.freeze({
+  getState: () => safeInvoke('jukebox:updater-get-state'),
+  check: () => safeInvoke('jukebox:updater-check'),
+  download: () => safeInvoke('jukebox:updater-download'),
+  cancelDownload: () => safeInvoke('jukebox:updater-cancel-download'),
+  install: () => safeInvoke('jukebox:updater-install'),
+  onState: (listener) => {
+    const handler = (_event, state) => listener(state);
+    ipcRenderer.on('jukebox:updater-state', handler);
+    return () => ipcRenderer.removeListener('jukebox:updater-state', handler);
+  },
+}));

@@ -7,7 +7,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis",
+    "test:updater": "node --test updater.test.js ipc-security.test.js scripts/write-checksums.test.cjs"
   },
   "devDependencies": {
     "electron": "^42.11.16",
@@ -24,9 +25,20 @@
     "files": [
       "main.js",
       "preload.js",
+      "ipc-security.js",
+      "updater.js",
       "package.json",
       "build/JukeboxRoom.ico"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "yuchen0x1",
+        "repo": "JukeboxRoom",
+        "releaseType": "release"
+      }
+    ],
+    "electronUpdaterCompatibility": ">=6.0",
     "extraResources": [
       {
         "from": "../server",
@@ -54,6 +66,7 @@
       ],
       "icon": "build/JukeboxRoom.ico",
       "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": true,
       "artifactName": "jukeboxroom-desktop-${version}-${arch}.${ext}",
       "requestedExecutionLevel": "asInvoker"
     },
@@ -66,5 +79,9 @@
       "deleteAppDataOnUninstall": false,
       "artifactName": "jukeboxroom-desktop-setup-${version}-${arch}.${ext}"
     }
+  },
+  "dependencies": {
+    "builder-util-runtime": "9.7.0",
+    "electron-updater": "^6.8.11"
   }
 }

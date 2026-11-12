@@ -2,6 +2,12 @@
 
 ## 0.0.14 - 2026-11-10
 
+### 自动更新与发布链路（持续维护，2026-11-12）
+
+- Windows 桌面版接入 `electron-updater`：只从 GitHub Releases 检查稳定版本，默认不自动下载，设置页展示真实下载进度，失败自动重试一次，下载完成后由用户确认退出并安装。
+- 新增 GitHub Actions CI 与 Windows tag 发布流程；只接受版本一致的 `vX.Y.Z` 标签，并上传 NSIS 安装包、`latest.yml` 和 `.blockmap`。
+- 新增 [docs/AUTO_UPDATE.md](docs/AUTO_UPDATE.md)，说明 Web、自托管、Windows、Android/iOS 的更新边界、回滚、权限与未签名构建限制。
+
 ### 可用性修复
 
 - 修复全站 HTTP 限流误伤静态资源的问题。此前限流中间件挂在 `express.static` 之前，首页、`/assets/*.js`、`/qface/*.apng` 全都计入同一个 IP 桶（默认 60 次/分钟）：进入房间一次就要拉 20+ 个 chunk，正常用户几分钟内会被整站返回 429；反向代理后未开启 `TRUST_PROXY` 时所有用户共用一个桶，会直接演变成整站不可用。

@@ -924,6 +924,33 @@
   white-space: pre-line;
 }
 
+.desktop-native-download-progress {
+  width: 100%;
+}
+
+.desktop-native-download-progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(197, 215, 225, 0.12);
+}
+
+.desktop-native-download-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #45cbb0;
+  transition: width 160ms ease;
+}
+
+.desktop-native-download-progress small {
+  display: block;
+  margin-top: 6px;
+  color: #91a2aa;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 640px) {
   .desktop-update-heading {
     flex-direction: column;

@@ -71,6 +71,21 @@ import './desktopMusic.css';
 
 type TrackInput = Omit<DesktopTrack, 'trackKey' | 'requestId'> & Partial<Pick<DesktopTrack, 'trackKey' | 'requestId'>>;
 
+function formatUpdateBytes(value: number) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  return `${(bytes / (1024 ** index)).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
+
+function formatUpdateTimeRemaining(total: number, transferred: number, bytesPerSecond: number) {
+  if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0 || total <= transferred) return null;
+  const seconds = Math.ceil((total - transferred) / bytesPerSecond);
+  if (seconds < 60) return `${seconds} 秒剩余`;
+  return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒剩余`;
+}
+
 const SOURCE_OPTIONS: Array<{ id: DesktopSourceFilter; label: string }> = [
   { id: 'all', label: '全部音源' },
   { id: 'netease', label: '网易云' },
@@ -468,6 +483,9 @@ export default function DesktopMusicApp() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<'latest' | 'failed' | null>(null);
+  const [desktopUpdateState, setDesktopUpdateState] = useState<DesktopUpdateState | null>(null);
+  const [desktopUpdateAction, setDesktopUpdateAction] = useState<'download' | 'install' | null>(null);
+  const [snoozedDesktopVersion, setSnoozedDesktopVersion] = useState('');
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -503,6 +521,9 @@ export default function DesktopMusicApp() {
   const selectedPlaylist = playlists.find((playlist) => playlist.id === activePlaylistId) || null;
   const lyricLines = useTrackLyrics(current && !current.isLocal ? current : null);
   const viewMeta = VIEW_META[view];
+  const nativeUpdate = desktopUpdateState?.supported ? desktopUpdateState : null;
+  const nativeLatestVersion = nativeUpdate?.latestVersion;
+  const nativeUpdateAvailable = Boolean(nativeLatestVersion && ['available', 'downloading', 'downloaded', 'error'].includes(nativeUpdate?.state || ''));
 
   const refreshSourceLogins = useCallback(async () => {
     const [result, nextCapabilities] = await Promise.all([
@@ -520,6 +541,14 @@ export default function DesktopMusicApp() {
     updateCheckInFlight.current = true;
     setUpdateChecking(true);
     try {
+      if (window.desktopUpdater) {
+        const desktopState = await window.desktopUpdater.getState();
+        if (desktopState) setDesktopUpdateState(desktopState);
+        if (manual && desktopState?.supported) {
+          const checked = await window.desktopUpdater.check();
+          if (checked) setDesktopUpdateState(checked);
+        }
+      }
       const next = await fetchUpdateInfo();
       setUpdateInfo(next);
       if (manual) setUpdateMessage(!next ? 'failed' : next.updateAvailable ? null : 'latest');
@@ -528,6 +557,44 @@ export default function DesktopMusicApp() {
       updateCheckInFlight.current = false;
       setUpdateChecking(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const updater = window.desktopUpdater;
+    if (!updater) return undefined;
+    let active = true;
+    void updater.getState().then((state) => {
+      if (active && state) setDesktopUpdateState(state);
+    });
+    const unsubscribe = updater.onState((state) => {
+      if (active) setDesktopUpdateState(state);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const downloadDesktopUpdate = useCallback(async () => {
+    if (!window.desktopUpdater) return;
+    setDesktopUpdateAction('download');
+    try {
+      const next = await window.desktopUpdater.download();
+      if (next) setDesktopUpdateState(next);
+    } finally {
+      setDesktopUpdateAction(null);
+    }
+  }, []);
+
+  const installDesktopUpdate = useCallback(async () => {
+    if (!window.desktopUpdater) return;
+    setDesktopUpdateAction('install');
+    try { await window.desktopUpdater.install(); } finally { setDesktopUpdateAction(null); }
+  }, []);
+
+  const cancelDesktopUpdateDownload = useCallback(async () => {
+    if (!window.desktopUpdater) return;
+    await window.desktopUpdater.cancelDownload();
   }, []);
 
   useEffect(() => {
@@ -913,7 +980,7 @@ export default function DesktopMusicApp() {
                           <h2>软件更新</h2>
                           <p>自动检查 GitHub 上的 Windows 版本，也可以随时手动检查。</p>
                         </div>
-                        <span className="desktop-version-label">当前 v{updateInfo?.currentVersion || __APP_VERSION__}</span>
+                        <span className="desktop-version-label">当前 v{nativeUpdate?.currentVersion || updateInfo?.currentVersion || __APP_VERSION__}</span>
                       </div>
                       <div className="desktop-update-actions">
                         <button type="button" className="desktop-secondary-button" onClick={() => void checkForUpdates(true)} disabled={updateChecking}>
@@ -940,10 +1007,16 @@ export default function DesktopMusicApp() {
                         </button>
                       </div>
                       <p className="desktop-update-feedback" aria-live="polite">
-                        {updateChecking
+                        {!nativeUpdate && window.desktopUpdater && desktopUpdateState && !desktopUpdateState.supported
+                          ? '自动下载安装仅适用于已安装的 Windows 桌面版。'
+                          : updateChecking || nativeUpdate?.state === 'checking'
                           ? '正在检查最新版本…'
-                          : updateInfo?.updateAvailable && updateInfo.latestVersion
-                            ? `发现新版本 v${updateInfo.latestVersion}。`
+                          : nativeUpdate?.state === 'error'
+                            ? nativeUpdate.error
+                            : nativeUpdate?.state === 'not-available'
+                              ? '当前已是最新版本。'
+                              : nativeUpdateAvailable && nativeLatestVersion
+                                ? `发现新版本 v${nativeLatestVersion}。`
                             : updateMessage === 'latest'
                               ? '当前已是最新版本。'
                               : updateMessage === 'failed'
@@ -951,9 +1024,35 @@ export default function DesktopMusicApp() {
                                 : updateInfo
                                   ? `已是最新版本${formatUpdateTime(updateInfo.checkedAt) ? ` · 检查于 ${formatUpdateTime(updateInfo.checkedAt)}` : ''}`
                                   : '尚未取得版本信息。'}
-                        {updateInfo?.stale && ' 当前显示缓存的检测结果。'}
+                        {updateInfo?.stale && !nativeUpdate && ' 当前显示缓存的检测结果。'}
                       </p>
-                      {updateInfo?.updateAvailable && updateInfo.latestVersion && (
+                      {nativeUpdateAvailable && nativeUpdate?.latestVersion && snoozedDesktopVersion !== nativeUpdate.latestVersion ? (
+                        <div className="desktop-update-available">
+                          <div className="desktop-update-release-heading">
+                            <strong>JukeboxRoom v{nativeUpdate.latestVersion}</strong>
+                            {nativeUpdate.releaseDate && <span>{formatUpdateTime(nativeUpdate.releaseDate)}</span>}
+                          </div>
+                          {nativeUpdate.total > 0 && nativeUpdate.state !== 'downloading' && <p>安装包大小：{formatUpdateBytes(nativeUpdate.total)}</p>}
+                          {nativeUpdate.releaseNotes && <p>{nativeUpdate.releaseNotes.replace(/^#{1,6}\s*/gm, '').replace(/\*/g, '').trim()}</p>}
+                          {nativeUpdate.state === 'downloading' && (
+                            <div className="desktop-native-download-progress" role="status" aria-live="polite">
+                              <div className="desktop-native-download-progress-track"><span style={{ width: `${nativeUpdate.percent}%` }} /></div>
+                              <small>{nativeUpdate.percent.toFixed(1)}% · {formatUpdateBytes(nativeUpdate.transferred)} / {formatUpdateBytes(nativeUpdate.total)}{nativeUpdate.bytesPerSecond > 0 ? ` · ${formatUpdateBytes(nativeUpdate.bytesPerSecond)}/s` : ''}{formatUpdateTimeRemaining(nativeUpdate.total, nativeUpdate.transferred, nativeUpdate.bytesPerSecond) ? ` · ${formatUpdateTimeRemaining(nativeUpdate.total, nativeUpdate.transferred, nativeUpdate.bytesPerSecond)}` : ''}</small>
+                              <button type="button" className="desktop-text-button" onClick={() => void cancelDesktopUpdateDownload()}>取消下载</button>
+                            </div>
+                          )}
+                          {nativeUpdate.state === 'downloaded' ? (
+                            <button type="button" className="desktop-primary-button" onClick={() => void installDesktopUpdate()} disabled={desktopUpdateAction !== null}>
+                              {desktopUpdateAction === 'install' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}退出并安装更新
+                            </button>
+                          ) : (
+                            <button type="button" className="desktop-primary-button" onClick={() => void downloadDesktopUpdate()} disabled={desktopUpdateAction !== null || nativeUpdate.state === 'downloading'}>
+                              {desktopUpdateAction === 'download' || nativeUpdate.state === 'downloading' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}{nativeUpdate.state === 'error' ? '重试下载' : '下载并安装'}
+                            </button>
+                          )}
+                          <button type="button" className="desktop-text-button" onClick={() => setSnoozedDesktopVersion(nativeUpdate.latestVersion || '')}>稍后提醒</button>
+                        </div>
+                      ) : !nativeUpdate && updateInfo?.updateAvailable && updateInfo.latestVersion && (
                         <div className="desktop-update-available">
                           <div className="desktop-update-release-heading">
                             <strong>JukeboxRoom v{updateInfo.latestVersion}</strong>

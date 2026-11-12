@@ -36,9 +36,9 @@
 
 ## 4. 发布流程
 
-- [ ] 确认远程仓库为 GitHub：`git remote -v`（无则 `git remote add github https://github.com/yuchen0x1/JukeboxRoom.git`）。
-- [ ] 推送代码到 GitHub main 分支。
-- [ ] 创建 Tag 并推送：`git tag v<版本号> && git push github v<版本号>`。
+- [ ] 确认当前分支为 `main`、跟踪 `origin/main`，且 `git remote -v` 中 `origin` 指向 GitHub `yuchen0x1/JukeboxRoom`；不得向 Gitee 或其他远程推送。
+- [ ] 推送代码：`git push origin main`。
+- [ ] 在版本号、日志和构建检查全部完成后创建并推送 Tag：`git tag v<版本号> && git push origin v<版本号>`。
 - [ ] 创建 GitHub Release（`gh release create v<版本号>` 或网页端），正文使用 `RELEASE_NOTES_CN.md` 内容（可附英文版链接）。
 - [ ] 上传资产：Windows `.exe` + Android `.apk`，文件名与下表一致：
 
