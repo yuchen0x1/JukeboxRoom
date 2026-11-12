@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.15 - 2026-11-12
+
+### Windows 桌面版发布修复
+
+- 修复 Windows 打包阶段无法定位 `rcedit.exe` 的问题；优先使用 `electron-winstaller` 随依赖提供的工具，并保留显式路径和 electron-builder 缓存回退。
+- 为工具定位增加回归测试，避免 GitHub Actions Windows runner 因 electron-builder 缓存布局差异而中止发布。
+
+### 正式交付
+
+- 本版本正式交付 0.0.14 开发期间积累的 Windows 桌面自动更新、首屏性能、卸载数据保护与稳定性修复；细节见下方 0.0.14 记录。
+- Android APK 继续暂缓发布，等待稳定签名配置，避免无法覆盖升级的 debug 签名包。
+
 ## 0.0.14 - 2026-11-10
 
 ### 自动更新与发布链路（持续维护，2026-11-12）

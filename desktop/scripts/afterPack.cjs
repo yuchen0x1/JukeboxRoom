@@ -6,6 +6,12 @@ function findRcedit() {
   const explicit = process.env.RCEDIT_PATH;
   if (explicit && fs.existsSync(explicit)) return explicit;
 
+  // electron-builder installs this copy for its Windows installer tooling. The
+  // builder's newer tool-cache layout is not reliably discoverable from a
+  // fixed-depth cache scan on GitHub-hosted runners.
+  const bundled = findBundledRcedit();
+  if (bundled) return bundled;
+
   const cacheRoots = [
     process.env.ELECTRON_BUILDER_CACHE,
     process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'electron-builder', 'Cache'),
@@ -36,6 +42,17 @@ function findRcedit() {
   throw new Error('找不到 electron-builder 的 rcedit-x64.exe；请设置 RCEDIT_PATH 指向该工具。');
 }
 
+function findBundledRcedit() {
+  try {
+    const entrypoint = require.resolve('electron-winstaller');
+    const bundled = path.resolve(path.dirname(entrypoint), '..', 'vendor', 'rcedit.exe');
+    if (fs.existsSync(bundled)) return bundled;
+  } catch {
+    // Keep the existing explicit-path and electron-builder-cache fallbacks.
+  }
+  return null;
+}
+
 module.exports = async function afterPack(context) {
   if (context.electronPlatformName !== 'win32') return;
   const executable = path.join(context.appOutDir, 'JukeboxRoom.exe');
@@ -56,3 +73,5 @@ module.exports = async function afterPack(context) {
     fs.cpSync(serverNodeModules, targetNodeModules, { recursive: true });
   }
 };
+
+module.exports.findBundledRcedit = findBundledRcedit;
