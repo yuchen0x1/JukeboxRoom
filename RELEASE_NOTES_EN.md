@@ -1,6 +1,6 @@
-# JukeboxRoom v0.0.15
+# JukeboxRoom v0.0.14
 
-> 📅 Release date: 2026-11-12 ｜ 🏷️ Tag: `v0.0.15` ｜ 📦 Compare: [v0.0.13...v0.0.15](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.13...v0.0.15)
+> 📅 Release date: 2026-11-12 ｜ 🏷️ Tag: `v0.0.14` ｜ 📦 Compare: [v0.0.13...v0.0.14](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.13...v0.0.14)
 
 This release completes GitHub-based automatic updates for the Windows desktop app and includes recent performance, reliability, and data-safety improvements.
 
@@ -16,7 +16,7 @@ This release completes GitHub-based automatic updates for the Windows desktop ap
 
 | Platform | File | Notes |
 |---|---|---|
-| Windows desktop | `jukeboxroom-desktop-setup-0.0.15-x64.exe` | x64 NSIS installer with the local server bundled. Update metadata and a SHA-256 checksum manifest are included in the same Release. |
+| Windows desktop | `jukeboxroom-desktop-setup-0.0.14-x64.exe` | x64 NSIS installer with the local server bundled. Update metadata and a SHA-256 checksum manifest are included in the same Release. |
 
 This GitHub Actions release builds only the Windows desktop app. No Android APK is included, to avoid publishing an APK signed with a temporary debug key that could not upgrade existing installations.
 

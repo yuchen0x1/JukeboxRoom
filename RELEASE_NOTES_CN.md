@@ -1,6 +1,6 @@
-# JukeboxRoom v0.0.15
+# JukeboxRoom v0.0.14
 
-> 📅 发布日期：2026-11-12 ｜ 🏷️ Tag：`v0.0.15` ｜ 📦 对比上一正式版本：[v0.0.13...v0.0.15](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.13...v0.0.15)
+> 📅 发布日期：2026-11-12 ｜ 🏷️ Tag：`v0.0.14` ｜ 📦 对比上一正式版本：[v0.0.13...v0.0.14](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.13...v0.0.14)
 
 本版本完成 Windows 桌面端 GitHub 自动更新接入，并汇总近期的性能、稳定性和数据安全改进。
 
@@ -16,7 +16,7 @@
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
-| Windows 桌面版 | `jukeboxroom-desktop-setup-0.0.15-x64.exe` | x64 NSIS 安装程序，内置本地服务端；同一 Release 提供自动更新元数据与 SHA-256 校验清单。 |
+| Windows 桌面版 | `jukeboxroom-desktop-setup-0.0.14-x64.exe` | x64 NSIS 安装程序，内置本地服务端；同一 Release 提供自动更新元数据与 SHA-256 校验清单。 |
 
 本次 GitHub Actions 只构建 Windows 桌面版。Android APK 暂不随本次 Release 发布，以免使用临时 debug 密钥构建的安装包造成签名不匹配、无法覆盖升级。
 
