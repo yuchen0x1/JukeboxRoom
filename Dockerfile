@@ -4,6 +4,8 @@ WORKDIR /app/client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci
 COPY client/ ./
+# Vite emits the root changelog as the offline release-history fallback.
+COPY CHANGELOG.md /app/CHANGELOG.md
 RUN npm run build
 
 # ---- 阶段 2：服务端运行 ----

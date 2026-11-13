@@ -2,13 +2,12 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { copyServerFiles } from './package-server.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const outDir = path.join(root, 'release', 'openmusic');
 const archivePath = path.join(root, 'release', 'openmusic-build.zip');
-
-const SERVER_EXCLUDED_DIRS = new Set(['node_modules', 'data', 'downloads']);
 
 function rm(dir) {
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
@@ -17,7 +16,6 @@ function rm(dir) {
 function copyDir(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    if (entry.isDirectory() && SERVER_EXCLUDED_DIRS.has(entry.name)) continue;
     const from = path.join(src, entry.name);
     const to = path.join(dest, entry.name);
     if (entry.isDirectory()) copyDir(from, to);
@@ -33,7 +31,7 @@ rm(outDir);
 fs.mkdirSync(path.join(outDir, 'server'), { recursive: true });
 fs.mkdirSync(path.join(outDir, 'client', 'dist'), { recursive: true });
 
-copyDir(path.join(root, 'server'), path.join(outDir, 'server'));
+copyServerFiles(path.join(root, 'server'), path.join(outDir, 'server'));
 
 copyDir(path.join(root, 'client', 'dist'), path.join(outDir, 'client', 'dist'));
 copyDir(path.join(root, 'deploy'), path.join(outDir, 'deploy'));

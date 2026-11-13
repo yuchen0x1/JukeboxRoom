@@ -1,35 +1,33 @@
 # JukeboxRoom v0.0.17
 
-> 📅 发布日期：2026-11-13 ｜ 🏷️ Tag：`v0.0.17` ｜ 📦 对比上一正式版本：[v0.0.16...v0.0.17](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.16...v0.0.17)
+发布日期：2026-11-13（北京时间） · [与上一版比较](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.16...v0.0.17)
 
-本版本修复 Windows 系统代理环境下桌面端本机服务和音频播放的兼容性，并保留 v0.0.16 的透明多尺寸 Windows 图标修复。
+## 本版更新
 
-## 版本亮点
+- 修复 Windows 系统代理拦截桌面内置服务的问题：外部服务继续使用系统代理，本机地址始终直连。
+- 桌面音频优先通过本机媒体代理播放，代理不可达时回退原始 CDN 地址。
+- 补充音频超时、取消、网络中断和格式错误提示；延续 v0.0.16 的透明多尺寸图标。
 
-- **系统代理兼容**：外部网络请求继续使用 Windows 系统代理，同时绕过 `localhost`、`127.0.0.1` 和 `::1`，避免代理工具拦截桌面端内置本机服务。
-- **音频播放回退**：桌面音频优先通过本机媒体代理播放；代理不可达时自动回退到原始 CDN 地址，交给 Chromium/系统代理重试。
-- **错误处理更清晰**：增加音频加载超时、取消、网络中断和格式错误状态，减少“解析成功但无法播放”的误判。
-- **回归测试**：覆盖代理绕过规则、播放地址回退、自动更新和桌面打包资源。
-- **图标保持一致**：EXE、安装程序、桌面快捷方式、任务栏、窗口标题栏和系统托盘继续使用透明多尺寸图标，无需重新配置。
+## 下载与发布资产
 
-## 下载
+| 文件 | 用途 |
+|---|---|
+| [jukeboxroom-desktop-setup-0.0.17-x64.exe](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.17/jukeboxroom-desktop-setup-0.0.17-x64.exe) | Windows x64 安装程序（内置本地服务端，无需安装 Node.js） |
+| [jukeboxroom-desktop-setup-0.0.17-x64.exe.blockmap](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.17/jukeboxroom-desktop-setup-0.0.17-x64.exe.blockmap) | Windows 增量更新所需文件 |
+| [latest.yml](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.17/latest.yml) | Windows 自动更新版本及 SHA-512 元数据 |
+| [SHA256SUMS.txt](https://github.com/yuchen0x1/JukeboxRoom/releases/download/v0.0.17/SHA256SUMS.txt) | 发布文件 SHA-256 校验清单 |
 
-| 平台 | 文件 | 说明 |
-|---|---|---|
-| Windows 桌面版 | `jukeboxroom-desktop-setup-0.0.17-x64.exe` | x64 NSIS 安装程序，内置本地服务端；同一 Release 提供自动更新元数据与 SHA-256 校验清单。 |
+## 升级与适用范围
 
-本次 GitHub Actions 只构建 Windows 桌面版。Android APK 暂不随本次 Release 发布，以免使用临时 debug 密钥构建的安装包造成签名不匹配、无法覆盖升级。
+- Windows 用户可下载安装包覆盖安装；操作前建议备份收藏、歌单与本机配置。
+- 已支持自动更新的 Windows 客户端可在设置页检查版本，确认下载后重启安装；本版卸载程序保留本机数据。
+- 本次只发布 Windows 安装包；Android 暂缓发包，请继续使用现有版本。
+- Web / 自托管用户按原部署方式更新；启用管理后台时按部署文档配置首个管理员。
 
-## 升级说明
+## 已知限制
 
-- Windows 用户可从本页下载安装包覆盖安装；桌面版未使用商业代码签名证书，首次运行可能出现 SmartScreen 提示。
-- 已安装 v0.0.16 的 Windows 用户可在设置页检查更新，确认下载后重启安装 v0.0.17。
-- Web / 自托管用户按原有部署方式拉取 `main` 并重启服务。
-- Android 用户请继续使用当前安装版本；本次没有发布新的 APK。
+- Windows 安装包未使用商业代码签名证书，首次运行可能触发 SmartScreen。
+- 本版未发布 Android APK 或 iOS IPA。
+- 音乐播放、登录、封面和歌词可用性受外部平台、账号权限与网络环境影响。
 
-## 已知事项
-
-- Windows 安装包未使用商业代码签名证书，可能触发 SmartScreen 提示。
-- Android APK 需要稳定的发布签名配置后再随版本发布。
-
-完整历史见 [CHANGELOG.md](CHANGELOG.md)、[发布说明历史](docs/releases/release-notes.md) 与 [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)。
+[本版技术变更](https://github.com/yuchen0x1/JukeboxRoom/blob/v0.0.17/CHANGELOG.md) · [完整发布历史](https://github.com/yuchen0x1/JukeboxRoom/blob/main/docs/releases/release-notes.md) · [部署说明](https://github.com/yuchen0x1/JukeboxRoom/blob/main/docs/DEPLOY.md)

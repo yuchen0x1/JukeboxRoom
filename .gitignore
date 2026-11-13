@@ -41,3 +41,36 @@ server/.qishui-device
 client/dist.bak-*/
 server/data_quarantine/
 server/data_quarantine2/
+.evolution/test-data-*/
+.evolution/qa-tools/
+.evolution/browser-*/
+.evolution/runtime-*/
+.evolution/data-*-isolated-tests.json
+
+# AI session records and one-off task artifacts are local workspace state
+.autonomous-upgrade/
+.evolution/
+
+# Local environment variants; keep documented configuration templates
+.env.*
+!.env.example
+!.env.*.example
+
+# Signing credentials, editor state and disposable caches
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+keystore.properties
+.idea/
+.vscode/
+.pytest_cache/
+__pycache__/
+coverage/
+playwright-report/
+test-results/
+.tmp-*
+*.tmp
+*.swp
+server/data*/

@@ -10,30 +10,16 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 - 当前版本：**v0.0.17**（2026-11-13）
 - 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
-- 完整变更记录：[CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
+- 完整版本历史：[发布说明历史](docs/releases/release-notes.md) · [CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
 
 ## 最新更新
 
 ### v0.0.17（2026-11-13）
 
-- Windows 桌面版保留系统代理访问外部服务，同时绕过 `localhost`、`127.0.0.1` 和 `::1`，避免代理工具拦截内置本机服务。
-- 桌面音频优先通过本机媒体代理播放；代理不可用时自动回退到原始 CDN 地址，并提供明确的超时、网络中断和格式错误提示。
-- 增加代理绕过、播放地址回退和版本回归测试；继续沿用 v0.0.16 的透明多尺寸 Windows 图标。
-
-### v0.0.16（2026-11-13）
-
-- Windows 桌面版全面替换为真正透明的 JukeboxRoom 图标，修复黑边、黑色背景和透明边缘污染。
-- Windows EXE、安装程序、桌面快捷方式、任务栏、窗口标题栏和系统托盘统一使用同一套多尺寸图标。
-- 发布前增加 PNG Alpha、透明 RGB、ICO 图层、app.asar 和 PE 图标自动校验。
-
-### v0.0.15（2026-11-13）
-
-- Windows 桌面版新增咪咕音乐（实验性）搜索与播放，支持用户主动触发手机号短信验证码登录。
-- 咪咕登录令牌使用 AES-256-GCM 加密保存在本机，手机号和短信验证码不会写入磁盘；支持登录状态展示与退出登录。
-- 优化咪咕歌曲、歌词、封面和播放地址解析，并加入媒体 CDN 白名单与健康状态保护。
-- 网易云播放失败时给出更明确的登录、`METING_API_URL` 和切换音源提示；QQ 音乐、酷狗音乐等其他音源可继续使用。
-- 咪咕接入依赖非官方社区接口，可能随上游变化失效；本次自动发布工作流继续生成 Windows 安装包及更新元数据，Android APK 暂不随本次 Release 发布。
-- 更新边界与回滚步骤见 [自动更新说明](docs/AUTO_UPDATE.md)，完整历史见 [发布说明历史](docs/releases/release-notes.md)。
+- 修复 Windows 系统代理拦截桌面内置本机服务的问题，外部请求继续使用系统代理。
+- 桌面音频优先使用本机媒体代理，不可达时回退到原始 CDN；补充超时、网络中断和格式错误提示。
+- 沿用 v0.0.16 的透明多尺寸 Windows 图标。本版仅提供 Windows 安装包，Android 暂缓发布。
+- [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.17) · [完整发布历史](docs/releases/release-notes.md) · [技术变更](CHANGELOG.md) · [自动更新说明](docs/AUTO_UPDATE.md)
 
 | 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
 |:---:|:---:|:---:|

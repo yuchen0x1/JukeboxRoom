@@ -1,6 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### main 分支维护、尚未发布安装包
+
+- 修复网易云搜索结果封面、歌词地址与相关媒体访问兼容问题；修复提交在 v0.0.17 标签之后，不属于该版安装包。
+- 收紧 Windows 安装包、部署 ZIP 和 Docker 构建上下文的文件范围，排除本机凭据、设备身份、数据隔离副本、测试和会话产物。
+- 补全历史版本说明、下载与升级边界，并移除过期任务记录和已失效的一次性迁移脚本。
+
 ## 0.0.17 - 2026-11-13
+
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.17) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.17)。日期按北京时间记录。
 
 ### Windows 网络代理与音频播放兼容性
 
@@ -11,6 +21,8 @@
 
 ## 0.0.16 - 2026-11-13
 
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.16) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.16)。日期按北京时间记录。
+
 ### Windows 图标修复
 
 - 替换为真正透明的 JukeboxRoom 图标源，清理透明像素 RGB 污染，保留原有 Logo 设计。
@@ -19,6 +31,8 @@
 - 发布前自动检查 PNG Alpha、透明边缘、ICO 图层、app.asar、EXE 和 NSIS 安装器图标。
 
 ## 0.0.15 - 2026-11-13
+
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.15) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.15)。日期按北京时间记录。
 
 ### 咪咕音乐（实验性）
 
@@ -34,6 +48,8 @@
 - 本次 Release 继续只发布 Windows 桌面安装包、自动更新元数据和 SHA-256 清单；Android APK 暂不发布。
 
 ## 0.0.14 - 2026-11-12
+
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.14) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.14)。日期按北京时间记录。
 
 ### Windows 桌面版发布修复
 
@@ -109,6 +125,8 @@
 
 ## 0.0.13 - 2026-11-08
 
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.13) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.13)。日期按北京时间记录。
+
 ### 管理后台
 
 - 新增独立管理后台 `/admin`：概览、用户、房间、任务、审计、曲库、AutoDJ 七个页签，覆盖日常运营所需的核心管理能力。
@@ -137,6 +155,8 @@
 
 ## 0.0.12 - 2026-11-06
 
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.12) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.12)。日期按北京时间记录。
+
 ### 热修复
 
 - 修复首页版本徽章仍显示 `V0.0.10 PRO` 的硬编码问题，改为使用构建期注入的实际版本号。
@@ -144,6 +164,8 @@
 - 更新服务端 `.env.example` 中过期的 `APP_VERSION` 示例，并将 Android `versionCode` / `versionName` 递增到 12 / 0.0.12。
 
 ## 0.0.11 - 2026-11-06
+
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.11) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.11)。日期按北京时间记录。
 
 ### UI 全面升级：赛博科技感重构
 
@@ -172,6 +194,8 @@
 
 ## 0.0.10 - 2026-11-04
 
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.10) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.10)。日期按北京时间记录。
+
 ### 应用内更新日志
 
 - 「更新日志」改为动态同步 GitHub Releases 说明：发布新版后应用内自动展示最新条目，不再依赖随包内置的静态日志文件。
@@ -181,12 +205,16 @@
 
 ## 0.0.9 - 2026-11-04
 
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.9) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.9)。日期按北京时间记录。
+
 ### 桌面版 & Android 版
 
 - 设置页新增「QQ 交流群」入口：点击即可跳转加入【冷漠网络科技交流群①】，点歌、播放或账号问题欢迎进群反馈。
 - Android 版设置页新增「关于与交流」区块（QQ 交流群 + GitHub 发布页）。
 
 ## 0.0.8 - 2026-11-04
+
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.8) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.8)。日期按北京时间记录。
 
 ### 桌面版：系统托盘
 
@@ -210,6 +238,8 @@
 - 修复 v0.0.8 首个安装包内嵌服务依赖缺失导致的「本地服务已退出（code=1）」启动错误。
 
 ## 0.0.7 - 2026-11-03
+
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.7) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.7)。日期按北京时间记录。
 
 ### 音源账号：登录一次长期有效
 
@@ -250,6 +280,8 @@
 
 ## 0.0.6 - 2026-11-02
 
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.6) · [本版源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.6)。日期按北京时间记录。
+
 ### 仓库迁移至 GitHub
 
 - 源码、Issue 与 Release 统一迁移至 [github.com/yuchen0x1/JukeboxRoom](https://github.com/yuchen0x1/JukeboxRoom)，不再使用 Gitee 作为代码托管与分发渠道。
@@ -260,6 +292,8 @@
 - 版本号统一升至 `0.0.6`；`README`、`docs/DEPLOY.md`、`server/.env.example` 等文档的更新源说明同步改为 GitHub。
 
 ## 0.0.5 - 2026-11-02
+
+> [历史标签源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.5)；当前 GitHub 无对应 Release 安装包记录。
 
 ### Windows 桌面版
 
@@ -280,6 +314,8 @@
 
 ## 0.0.4 - 2026-11-02
 
+> [历史标签源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.4)；当前 GitHub 无对应 Release 安装包记录。
+
 ### 安全加固与稳定性
 
 - 生产环境强制配置稳定的 `CLIENT_ID_SECRET` 与 `AUTH_JWT_SECRET`；开发环境密钥持久化，避免重启后会话失效。
@@ -292,6 +328,8 @@
 
 ## 0.0.3 - 2026-11-02
 
+> [历史标签源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.3)；当前 GitHub 无对应 Release 安装包记录。
+
 ### 一键更新 + 每日自动更新
 
 - 更新弹窗新增「一键更新」按钮：服务端自动完成 git 拉取 → 依赖安装 → 前端重建 → 自动重启，约 1-3 分钟
@@ -300,6 +338,8 @@
 - 更新弹窗说明文本不再显示 Markdown 符号
 
 ## 0.0.2 - 2026-11-02
+
+> [历史标签源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.2)；当前 GitHub 无对应 Release 安装包记录。
 
 ### 部署体验
 
@@ -314,6 +354,8 @@
 - 修复更新检查在 Gitee 匿名接口限流时的失败问题（支持 UPDATE_GITEE_TOKEN 认证请求）
 
 ## 0.0.1 - 2026-11-02（首个版本）
+
+> [历史标签源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.1)；当前 GitHub 无对应 Release 安装包记录。
 
 ### 音源登录（房主专属）
 
@@ -340,12 +382,16 @@
 
 ## 2.0.2 - 2026-09-05
 
+> [历史标签源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v2.0.2)；当前 GitHub 无对应 Release 安装包记录。
+
 - Added a home footer version badge with a manual check-for-updates action.
 - Showed a footer link to the latest stable Gitee release when a newer version is detected.
 - Injected the client version at build time so the badge stays visible while the update API is unavailable.
 - Fixed the home header Gitee repository link to point to the actual repository.
 
 ## 2.0.1 - 2026-08-29
+
+> 历史 OpenMusic 文档记录；当前 GitHub 无对应独立 Tag 或 Release，不代表当前稳定版本。
 
 - Added automatic online update detection from the latest stable Gitee Release.
 - Added update notices for the website, PWA and Capacitor remote URL clients.
@@ -355,7 +401,9 @@
 
 ## 2.0.0 - 2026-08-13
 
-OpenMusic 2.0 is the current stable baseline for the codebase, which remains under normal maintenance and ongoing development.
+> 历史 OpenMusic 文档记录；当前 GitHub 无对应独立 Tag 或 Release，不代表当前稳定版本。
+
+OpenMusic 2.0 was the historical baseline at this stage; the current JukeboxRoom version is recorded at the top of this file.
 
 ### Release Notes
 

@@ -77,6 +77,8 @@ jobs:
         run: npm ci --prefix client
       - name: Install desktop dependencies
         run: npm ci --prefix desktop
+      - name: Check server package boundaries
+        run: node --test scripts/package-server.test.mjs
       - name: Run tests
         run: |
           npm run test:desktop-updater

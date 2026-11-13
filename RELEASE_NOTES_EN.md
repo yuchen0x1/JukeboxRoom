@@ -32,4 +32,4 @@ This GitHub Actions release builds only the Windows desktop app. No Android APK 
 - The Windows installer is not signed with a commercial code-signing certificate and may trigger SmartScreen.
 - Android APK releases are deferred until a stable release-signing setup is available.
 
-See [CHANGELOG.md](CHANGELOG.md), the [release-notes history](docs/releases/release-notes.md), and [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases) for the full history.
+See [CHANGELOG.md](https://github.com/yuchen0x1/JukeboxRoom/blob/main/CHANGELOG.md), the [release-notes history](https://github.com/yuchen0x1/JukeboxRoom/blob/main/docs/releases/release-notes.md), and [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases) for the full history.

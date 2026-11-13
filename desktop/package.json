@@ -49,10 +49,19 @@
         "from": "../server",
         "to": "server",
         "filter": [
-          "**/*",
-          "!**/.env",
-          "!data/**",
-          "!downloads/**"
+          "**/*.js",
+          "package.json",
+          "package-lock.json",
+          ".env.example",
+          "!**/.*.js",
+          "!**/.*/**",
+          "!**/data*/**",
+          "!**/downloads/**",
+          "!**/node_modules/**",
+          "!**/test/**",
+          "!**/tests/**",
+          "!**/*.test.js",
+          "!**/*.spec.js"
         ]
       },
       {
