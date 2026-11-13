@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Music } from 'lucide-react';
+import { Music, Search } from 'lucide-react';
 import { useRoomStore } from '../stores/roomStore';
 import { useSocket } from '../hooks/useSocket';
 import { FixedSizeList, type ListChildComponentProps } from 'react-window';
 import QueueRow, { QUEUE_ITEM_SIZE, QUEUE_ROW_GAP, QUEUE_ROW_HEIGHT } from './queue/QueueRow';
-import type { RoomMemberTier, QueueItem } from '../types';
+import type { RoomMemberTier } from '../types';
 import { resolveDislikeSkipThreshold } from '../lib/dislikeSkip';
+import { getClientId } from '../lib/clientId';
+import { filterQueueSongs, selectableQueueIds, type QueueViewSong } from '../lib/queueView';
 
 const VISIBLE_ROWS = 3;
 const LIST_HEIGHT = VISIBLE_ROWS * QUEUE_ROW_HEIGHT + (VISIBLE_ROWS - 1) * QUEUE_ROW_GAP;
 const VIRTUAL_THRESHOLD = 8;
 
-type QueueRowSong = QueueItem & { isCurrent: boolean };
+type QueueRowSong = QueueViewSong;
 
 type RowData = {
   songs: QueueRowSong[];
@@ -27,6 +29,10 @@ type RowData = {
   onJump: (queueId: string) => void;
   onRemove: (queueId: string) => void;
   onBan: (song: QueueRowSong) => void;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  busy: boolean;
+  onSelect: (queueId: string) => void;
 };
 
 function VirtualQueueRow({ index, style, data }: ListChildComponentProps<RowData>) {
@@ -37,7 +43,7 @@ function VirtualQueueRow({ index, style, data }: ListChildComponentProps<RowData
     <div style={{ ...style, height: QUEUE_ITEM_SIZE, paddingBottom: QUEUE_ROW_GAP }}>
       <QueueRow
         song={song}
-        index={index}
+        index={song.position}
         memberTier={memberTier}
         mySocketId={data.mySocketId}
         nickname={data.nickname}
@@ -50,6 +56,10 @@ function VirtualQueueRow({ index, style, data }: ListChildComponentProps<RowData
         onJump={data.onJump}
         onRemove={data.onRemove}
         onBan={data.onBan}
+        selectionMode={data.selectionMode}
+        selected={data.selectedIds.has(song.queueId)}
+        selectionDisabled={data.busy}
+        onSelect={data.onSelect}
       />
     </div>
   );
@@ -64,13 +74,23 @@ export default function QueuePanel({ fillHeight = false }: Props) {
   const currentSong = useRoomStore((s) => s.room?.current);
   const memberTiers = useRoomStore((s) => s.room?.memberTiers);
   const hasRoom = useRoomStore((s) => Boolean(s.room));
+  const roomId = useRoomStore((s) => s.room?.id);
   const nickname = useRoomStore((s) => s.nickname);
   const mySocketId = useRoomStore((s) => s.mySocketId);
   const canControlPlayback = useRoomStore((s) => s.canControlPlayback);
   const memberJumpEnabled = useRoomStore((s) => Boolean(s.room?.memberJumpEnabled));
   const dislikeSkipThreshold = useRoomStore((s) => resolveDislikeSkipThreshold(s.room));
-  const { removeSong, requestJump, toggleQueueLike, toggleCurrentDislike, banRoomSong } = useSocket();
+  const { removeSongs, requestJump, toggleQueueLike, toggleCurrentDislike, banRoomSong } = useSocket();
   const [jumpMsg, setJumpMsg] = useState('');
+  const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [query, setQuery] = useState('');
+  const [onlyMine, setOnlyMine] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const mutationInFlight = useRef(false);
+  const myUserId = mySocketId || getClientId();
   const currentRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<FixedSizeList>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
@@ -78,13 +98,37 @@ export default function QueuePanel({ fillHeight = false }: Props) {
 
   const allSongs = useMemo<QueueRowSong[]>(() => {
     return [
-      ...(currentSong ? [{ ...currentSong, isCurrent: true }] : []),
-      ...(queue || []).map((s) => ({ ...s, isCurrent: false })),
+      ...(currentSong ? [{ ...currentSong, isCurrent: true, position: 0 }] : []),
+      ...(queue || []).map((s, index) => ({ ...s, isCurrent: false, position: index + 1 })),
     ];
   }, [queue, currentSong]);
 
+  const visibleSongs = useMemo(() => filterQueueSongs(allSongs, query, onlyMine, myUserId, nickname),
+    [allSongs, query, onlyMine, myUserId, nickname]);
+  const selectableIds = useMemo(() => selectableQueueIds(visibleSongs, canControlPlayback, myUserId, nickname),
+    [visibleSongs, canControlPlayback, myUserId, nickname]);
+
+  useEffect(() => {
+    const allowed = new Set(selectableIds);
+    setSelectedIds((prev) => {
+      const next = new Set([...prev].filter((id) => allowed.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [selectableIds]);
+
+  useEffect(() => {
+    setQuery('');
+    setOnlyMine(false);
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+    setConfirmIds(null);
+    setJumpMsg('');
+  }, [roomId]);
+
+  useEffect(() => () => { if (messageTimer.current) clearTimeout(messageTimer.current); }, []);
+
   const currentKey = currentSong?.queueId || '';
-  const useVirtualList = allSongs.length >= VIRTUAL_THRESHOLD;
+  const useVirtualList = visibleSongs.length >= VIRTUAL_THRESHOLD;
   const prevCurrentKeyRef = useRef(currentKey);
 
   useEffect(() => {
@@ -107,17 +151,52 @@ export default function QueuePanel({ fillHeight = false }: Props) {
     if (!switched || !currentKey) return;
 
     if (useVirtualList) {
-      const idx = allSongs.findIndex((song) => song.isCurrent);
+      const idx = visibleSongs.findIndex((song) => song.isCurrent);
       if (idx >= 0) listRef.current?.scrollToItem(idx, 'smart');
       return;
     }
-    currentRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [currentKey, allSongs, useVirtualList]);
+    currentRef.current?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, [currentKey, visibleSongs, useVirtualList]);
+
+  useEffect(() => { listRef.current?.scrollTo(0); }, [query, onlyMine]);
 
   const showQueueMessage = useCallback((message: string) => {
+    if (messageTimer.current) clearTimeout(messageTimer.current);
     setJumpMsg(message);
-    setTimeout(() => setJumpMsg(''), 3000);
+    messageTimer.current = setTimeout(() => setJumpMsg(''), 5000);
   }, []);
+
+  const handleSelect = useCallback((queueId: string) => {
+    setConfirmIds(null);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(queueId)) next.delete(queueId); else next.add(queueId);
+      return next;
+    });
+  }, []);
+
+  const handleRemove = useCallback(async (ids: string[]) => {
+    if (mutationInFlight.current) return;
+    mutationInFlight.current = true;
+    setBusy(true);
+    try {
+      const res = await removeSongs(ids);
+      if (!res.success) {
+        showQueueMessage(res.error || '移除失败，请刷新队列后重试');
+        return;
+      }
+      setSelectedIds(new Set());
+      showQueueMessage(`已移除 ${res.removed ?? ids.length} 首待播歌曲`);
+    } catch {
+      showQueueMessage('移除失败，请检查连接后重试');
+    } finally {
+      setBusy(false);
+      mutationInFlight.current = false;
+      setConfirmIds(null);
+    }
+  }, [removeSongs, showQueueMessage]);
+
+  const handleRemoveOne = useCallback((queueId: string) => { void handleRemove([queueId]); }, [handleRemove]);
 
   const handleJumpRequest = useCallback(async (queueId: string) => {
     setJumpMsg('');
@@ -170,7 +249,7 @@ export default function QueuePanel({ fillHeight = false }: Props) {
   }, [banRoomSong, showQueueMessage]);
 
   const rowData = useMemo<RowData>(() => ({
-    songs: allSongs,
+    songs: visibleSongs,
     memberTiers,
     mySocketId,
     nickname,
@@ -181,10 +260,14 @@ export default function QueuePanel({ fillHeight = false }: Props) {
     onLike: handleLike,
     onDislike: handleDislike,
     onJump: handleJumpRequest,
-    onRemove: removeSong,
+    onRemove: handleRemoveOne,
     onBan: handleBanSong,
+    selectionMode,
+    selectedIds,
+    busy,
+    onSelect: handleSelect,
   }), [
-    allSongs,
+    visibleSongs,
     memberTiers,
     mySocketId,
     nickname,
@@ -194,31 +277,21 @@ export default function QueuePanel({ fillHeight = false }: Props) {
     handleLike,
     handleDislike,
     handleJumpRequest,
-    removeSong,
+    handleRemoveOne,
     handleBanSong,
+    selectionMode,
+    selectedIds,
+    busy,
+    handleSelect,
   ]);
 
   if (!hasRoom) return null;
 
-  if (allSongs.length === 0) {
-    return (
-      <div
-        className={`flex flex-col items-center justify-center text-netease-muted ${
-          fillHeight ? 'flex-1 min-h-0' : ''
-        }`}
-        style={fillHeight ? undefined : { height: LIST_HEIGHT }}
-      >
-        <Music className="w-7 h-7 mb-2 opacity-30" />
-        <p className="text-xs text-center">队列为空，搜索或双击点歌</p>
-      </div>
-    );
-  }
-
-  const renderPlainRows = () => allSongs.map((song, i) => (
+  const renderPlainRows = () => visibleSongs.map((song) => (
     <QueueRow
       key={song.queueId || `current-${song.id}`}
       song={song}
-      index={i}
+      index={song.position}
       memberTier={song.requestedById ? memberTiers?.[song.requestedById] : undefined}
       mySocketId={mySocketId}
       nickname={nickname}
@@ -229,18 +302,59 @@ export default function QueuePanel({ fillHeight = false }: Props) {
       onLike={handleLike}
       onDislike={song.isCurrent ? handleDislike : undefined}
       onJump={handleJumpRequest}
-      onRemove={removeSong}
+      onRemove={handleRemoveOne}
       onBan={handleBanSong}
+      selectionMode={selectionMode}
+      selected={selectedIds.has(song.queueId)}
+      selectionDisabled={busy}
+      onSelect={handleSelect}
     />
   ));
 
   return (
-    <div className={`flex flex-col ${fillHeight ? 'h-full min-h-0' : ''}`}>
+    <div className={`flex flex-col ${fillHeight ? 'h-full min-h-0' : ''}`} aria-label="播放队列管理" aria-busy={busy}>
+      <div className="mb-2 flex shrink-0 flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <label className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-[var(--om-glass-border)] bg-[var(--om-glass-base)] px-2 py-1.5 focus-within:border-[var(--om-accent)]">
+            <Search className="h-3.5 w-3.5 shrink-0 text-netease-muted" aria-hidden="true" />
+            <input type="search" value={query} disabled={busy} maxLength={120} onChange={(e) => { setQuery(e.target.value); setConfirmIds(null); }}
+              placeholder="搜索歌名、歌手、点歌人" aria-label="搜索播放队列"
+              className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-netease-muted" />
+          </label>
+          <button type="button" aria-pressed={onlyMine} disabled={busy} onClick={() => { setOnlyMine(!onlyMine); setConfirmIds(null); }}
+            className={`shrink-0 rounded-lg px-2 py-1.5 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--om-accent)] ${onlyMine ? 'bg-[rgba(var(--om-accent-rgb),0.16)] text-[var(--om-accent)]' : 'text-netease-muted hover:bg-white/10'}`}>我的点歌</button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-0.5 text-xs text-netease-muted">
+          <span>{query.trim() || onlyMine ? `${visibleSongs.length} / ${allSongs.length} 首` : `${queue?.length ?? 0} 首待播`}</span>
+          {(query || onlyMine) && <button type="button" disabled={busy} onClick={() => { setQuery(''); setOnlyMine(false); setConfirmIds(null); }} className="hover:text-white focus-visible:underline">重置筛选</button>}
+          <button type="button" disabled={busy || (!selectionMode && selectableIds.length === 0)} onClick={() => { setSelectionMode(!selectionMode); setSelectedIds(new Set()); setConfirmIds(null); }}
+            className="ml-auto text-[var(--om-accent)] disabled:opacity-40 focus-visible:underline">{selectionMode ? '退出多选' : '批量管理'}</button>
+        </div>
+        {selectionMode && <div className="flex flex-wrap items-center gap-3 rounded-lg bg-white/5 px-2 py-1.5 text-xs">
+          <button type="button" disabled={busy || selectableIds.length === 0} onClick={() => { setSelectedIds(new Set(selectedIds.size === selectableIds.length ? [] : selectableIds)); setConfirmIds(null); }}
+            className="text-netease-muted hover:text-white disabled:opacity-40 focus-visible:underline">{selectedIds.size === selectableIds.length && selectableIds.length > 0 ? '取消全选' : '全选可移除歌曲'}</button>
+          <span className="text-netease-muted">已选 {selectedIds.size} 首</span>
+          <button type="button" disabled={busy || selectedIds.size === 0} onClick={() => setConfirmIds([...selectedIds])}
+            className="ml-auto text-rose-300 disabled:opacity-40 focus-visible:underline">{busy ? '移除中…' : '移除所选'}</button>
+        </div>}
+        {confirmIds && <div className="rounded-lg border border-rose-300/25 bg-rose-300/5 p-2 text-xs text-white/80">
+          <p>移除这 {confirmIds.length} 首待播歌曲？当前播放不会中断。</p>
+          <div className="mt-2 flex justify-end gap-3">
+            <button type="button" disabled={busy} onClick={() => setConfirmIds(null)} className="p-1 focus-visible:underline">取消</button>
+            <button type="button" disabled={busy} onClick={() => { void handleRemove(confirmIds); }} className="rounded-md bg-rose-400/20 px-2 py-1 text-rose-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-300">{busy ? '移除中…' : '确认移除'}</button>
+          </div>
+        </div>}
+      </div>
       {jumpMsg && (
-        <p className="text-xs text-amber-400/80 mb-1.5 px-1 flex-shrink-0">{jumpMsg}</p>
+        <p role="status" className="text-xs text-amber-400/80 mb-1.5 px-1 flex-shrink-0">{jumpMsg}</p>
       )}
 
-      {useVirtualList ? (
+      {visibleSongs.length === 0 ? (
+        <div className={`flex flex-col items-center justify-center text-netease-muted ${fillHeight ? 'flex-1 min-h-0' : ''}`} style={fillHeight ? undefined : { height: LIST_HEIGHT }}>
+          <Music className="mb-2 h-7 w-7 opacity-30" />
+          <p className="text-center text-xs">{allSongs.length === 0 ? '队列为空，搜索或双击点歌' : '没有匹配的歌曲，试试其他关键词或重置筛选'}</p>
+        </div>
+      ) : useVirtualList ? (
         <div
           ref={listContainerRef}
           className={`pr-0.5 ${fillHeight ? 'flex-1 min-h-0' : ''}`}
@@ -250,7 +364,7 @@ export default function QueuePanel({ fillHeight = false }: Props) {
             ref={listRef}
             height={fillHeight ? virtualListHeight : LIST_HEIGHT}
             width="100%"
-            itemCount={allSongs.length}
+            itemCount={visibleSongs.length}
             itemSize={QUEUE_ITEM_SIZE}
             itemData={rowData}
             itemKey={(index, data) => data.songs[index]?.queueId ?? index}

@@ -82,6 +82,7 @@ jobs:
       - name: Run tests
         run: |
           npm run test:desktop-updater
+          npm run test:server-isolation
           npm run test:server
           npm run test:client
       - name: Build client

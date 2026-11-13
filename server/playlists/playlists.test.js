@@ -144,6 +144,31 @@ test('stale baseVersion triggers version conflict (no write applied)', () => {
 
 /* ---------------- integration: HTTP + permissions ---------------- */
 
+test('reorder rejects repeated IDs that would replace another song, without any write', async () => {
+  const { playlist } = createPlaylist({ name: '保护歌单', ownerId: ALICE.id });
+  addSong(playlist.id, { id: 'a', title: 'A' }, 'alice');
+  addSong(playlist.id, { id: 'b', title: 'B' }, 'alice');
+  const before = getPlaylist(playlist.id);
+  const response = await request('POST', `/api/playlists/${playlist.id}/reorder`, {
+    token: 'alice', body: { songIds: ['a', 'a'], baseVersion: before.version },
+  });
+  assert.equal(response.status, 400);
+  assert.equal(response.json.error, 'song_ids_mismatch');
+  assert.deepEqual(getPlaylist(playlist.id), before);
+});
+
+test('reorder preserves distinct legacy entries with the same ID and requires exact multiplicities', () => {
+  const { playlist } = createPlaylist({ name: '多音源歌单', ownerId: ALICE.id });
+  addSong(playlist.id, { id: 'same', title: '网易云版本', source: 'netease' }, 'alice');
+  addSong(playlist.id, { id: 'same', title: 'QQ版本', source: 'tencent' }, 'alice');
+  addSong(playlist.id, { id: 'other', title: '另一首' }, 'alice');
+  const result = reorderSongs(playlist.id, ['same', 'other', 'same']);
+  assert.deepEqual(result.playlist.songs.map((s) => s.title), ['网易云版本', '另一首', 'QQ版本']);
+  const before = getPlaylist(playlist.id);
+  assert.equal(reorderSongs(playlist.id, ['same', 'other', 'other']).error, 'song_ids_mismatch');
+  assert.deepEqual(getPlaylist(playlist.id), before);
+});
+
 test('POST / creates a playlist, PATCH bumps version', async () => {
   const created = await request('POST', '/api/playlists', { token: 'alice', body: { name: '协作歌单', visibility: 'shared' } });
   assert.equal(created.status, 201);

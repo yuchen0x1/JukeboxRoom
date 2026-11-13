@@ -43,6 +43,8 @@ jobs:
         run: node --test client/scripts/capacitor-config.test.mjs
       - name: Run desktop updater unit tests
         run: npm run test:desktop-updater
+      - name: Check server test isolation
+        run: npm run test:server-isolation
       - name: Run server tests
         run: npm run test:server
       - name: Run client tests

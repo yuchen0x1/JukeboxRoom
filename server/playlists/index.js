@@ -225,11 +225,20 @@ function reorderSongs(id, songIds, baseVersion) {
   if (vc.conflict) return { conflict: true, currentVersion: vc.currentVersion };
   if (!Array.isArray(songIds)) return { error: 'song_ids_required' };
 
-  const byId = new Map(playlist.songs.map((s) => [s.id, s]));
-  if (songIds.length !== playlist.songs.length || songIds.some((sid) => !byId.has(sid))) {
-    return { error: 'song_ids_mismatch' };
+  if (songIds.length !== playlist.songs.length) return { error: 'song_ids_mismatch' };
+  // An exact permutation is required. Preserve older playlists containing the
+  // same provider ID more than once instead of collapsing entries in a Map.
+  const byId = new Map();
+  for (const song of playlist.songs) {
+    if (!byId.has(song.id)) byId.set(song.id, []);
+    byId.get(song.id).push(song);
   }
-  const songs = songIds.map((sid) => byId.get(sid));
+  const songs = [];
+  for (const sid of songIds) {
+    const entries = byId.get(sid);
+    if (!entries?.length) return { error: 'song_ids_mismatch' };
+    songs.push(entries.shift());
+  }
   const next = saveVersion(playlist);
   update(COLLECTION, (p) => p.id === id, { songs });
   return { playlist: { ...playlist, songs, version: next.version, updatedAt: next.updatedAt } };

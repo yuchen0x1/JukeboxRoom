@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Trash2, Zap, ThumbsUp, ThumbsDown, AlertTriangle, Ban } from 'lucide-react';
 import { getClientId } from '../../lib/clientId';
 import { useTrackSourceError } from '../../hooks/useSongSourceError';
-import type { RoomMemberTier, QueueItem } from '../../types';
+import type { RoomMemberTier } from '../../types';
 import SongCover from '../SongCover';
 import FavoriteButton from '../FavoriteButton';
 import Tooltip from '../Tooltip';
@@ -10,12 +10,13 @@ import TruncateTip from '../TruncateTip';
 import MemberQueueFrame from '../MemberQueueFrame';
 import MemberTierBadge from '../MemberTierBadge';
 import RoleBadge from '../RoleBadge';
+import { isMyQueueSong, type QueueViewSong } from '../../lib/queueView';
 
 export const QUEUE_ROW_HEIGHT = 64;
 export const QUEUE_ROW_GAP = 6;
 export const QUEUE_ITEM_SIZE = QUEUE_ROW_HEIGHT + QUEUE_ROW_GAP;
 
-type QueueRowSong = QueueItem & { isCurrent: boolean };
+type QueueRowSong = QueueViewSong;
 
 interface Props {
   song: QueueRowSong;
@@ -32,6 +33,10 @@ interface Props {
   onJump: (queueId: string) => void;
   onRemove: (queueId: string) => void;
   onBan: (song: QueueRowSong) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  selectionDisabled?: boolean;
+  onSelect?: (queueId: string) => void;
 }
 
 function QueueRow({
@@ -49,12 +54,13 @@ function QueueRow({
   onJump,
   onRemove,
   onBan,
+  selectionMode = false,
+  selected = false,
+  selectionDisabled = false,
+  onSelect,
 }: Props) {
   const myUserId = mySocketId || getClientId();
-  const isMine = !song.isCurrent && Boolean(myUserId && (
-    song.requestedById === myUserId
-    || (!song.requestedById && song.requestedBy === nickname)
-  ));
+  const isMine = !song.isCurrent && isMyQueueSong(song, myUserId, nickname);
   const likedByIds = Array.isArray(song.likedByIds) ? song.likedByIds : [];
   const likeCount = likedByIds.length;
   const likedByMe = Boolean(myUserId && likedByIds.includes(myUserId));
@@ -70,7 +76,16 @@ function QueueRow({
 
   const rowInner = (
     <>
-      <span className="w-5 flex-shrink-0 text-center text-[11px] text-netease-muted">
+      {selectionMode && canRemove ? (
+        <input
+          type="checkbox"
+          checked={selected}
+          disabled={selectionDisabled}
+          onChange={() => onSelect?.(song.queueId)}
+          aria-label={`选择 ${song.name}`}
+          className="h-4 w-5 shrink-0 accent-[var(--om-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--om-accent)]"
+        />
+      ) : <span className="w-5 flex-shrink-0 text-center text-[11px] text-netease-muted">
         {song.isCurrent ? (
           <span className="inline-flex h-3.5 items-end gap-0.5">
             <span className="h-1.5 w-0.5 bg-[var(--om-accent)] animate-pulse" />
@@ -80,7 +95,7 @@ function QueueRow({
         ) : (
           index
         )}
-      </span>
+      </span>}
       <SongCover
         song={song}
         size="tiny"
@@ -99,7 +114,7 @@ function QueueRow({
             <Tooltip content="歌曲源异常，可在播放器中重试或切歌" side="bottom">
               <span className="inline-flex max-w-[9rem] flex-shrink-0 items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-rose-200 sm:max-w-none">
                 <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate sm:whitespace-nowrap">音源异常，可重试</span>
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">音源异常，可重试</span>
               </span>
             </Tooltip>
           )}
@@ -137,7 +152,7 @@ function QueueRow({
               </button>
             </Tooltip>
           )}
-          {!song.isCurrent && (
+          {!song.isCurrent && !selectionMode && (
             <div className="flex flex-shrink-0 items-center gap-0.5">
               {canLike && (
                 <Tooltip content={likedByMe ? '取消点赞' : '点赞提高排序'}>

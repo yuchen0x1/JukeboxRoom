@@ -733,6 +733,10 @@ if (s.connected) {
 
   }, []);
 
+  const removeSongs = useCallback((queueIds: string[]): Promise<{ success: boolean; error?: string; removed?: number }> => {
+    return emitWithAck('remove_songs', { queueIds }, { success: false, error: '连接超时，请刷新队列后重试' });
+  }, []);
+
   const clearQueue = useCallback((): Promise<{ success: boolean; error?: string }> => {
     return emitWithAck('clear_queue', {}, { success: false, error: '连接超时，请重试' });
   }, []);
@@ -1174,6 +1178,7 @@ if (s.connected) {
     seek,
 
     removeSong,
+    removeSongs,
 
     clearQueue,
 

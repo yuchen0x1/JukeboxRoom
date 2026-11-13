@@ -25,6 +25,14 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 |:---:|:---:|:---:|
 | ![房间大厅](docs/screenshots/home.png) | ![房间点歌](docs/screenshots/room.png) | ![音源登录](docs/screenshots/login.png) |
 
+## 队列管理改进（main 待发布，2026-11-13）
+
+- 播放队列内支持搜索歌名、歌手、专辑和点歌人，以及「我的点歌」筛选；筛选保留房间真实排序和位置编号。
+- 「批量管理」支持选择并确认移除待播歌曲；普通成员只能移除自己的点歌，房主和管理员可管理全部待播歌曲，当前播放保持不变。失败原因会在队列内提示。
+- 修复共享歌单重排接受重复 ID 导致歌曲被替换的问题；已有重复 ID 条目按原有出现次序保留。
+- 服务端测试改为强制使用每次新建的隔离数据目录，避免测试清理实际运行数据。
+- 本轮研究、验证边界和测试数据事件记录见 [升级交付报告](docs/EVOLUTION-REPORT-2026-11-13.md)。这些改动尚未发布到 GitHub Release。
+
 ## 多端维护（main 待发布）
 
 - **Android**：搜索翻页、切源重查、自定义 HTTPS 音源服务、手机版本检查与更新日志；加强原生播放状态、耳机断开和返回键处理。
@@ -153,7 +161,7 @@ npm run dev
 - **Windows**：`jukeboxroom-desktop-setup-<版本>-x64.exe`。内置本地服务端和完整页面，无需安装 Node.js。
 - **Android**：`jukeboxroom-android-<版本>-debug.apk`。独立个人音乐播放器，不需要填写 JukeboxRoom 服务器地址。
 
-Windows 首次运行若出现 SmartScreen，请先核对文件确实来自本项目 GitHub Release。桌面版关闭主窗口默认进入系统托盘；卸载安装程序会删除本机应用数据目录，升级或卸载前请按需备份。
+Windows 首次运行若出现 SmartScreen，请先核对文件确实来自本项目 GitHub Release。桌面版关闭主窗口默认进入系统托盘；当前 NSIS 配置保留本机应用数据目录，升级或卸载前仍建议按需备份。
 
 ## 生产部署
 
@@ -324,8 +332,9 @@ curl http://localhost:4000/api/music/sources
 | `npm run install:web` | 安装根目录、服务端和客户端依赖 |
 | `npm run install:all` | 额外安装桌面端依赖 |
 | `npm run dev` | 同时启动服务端（4000）和 Vite（5173） |
-| `npm test` | 运行服务端和客户端测试 |
-| `npm test --prefix server` | 仅服务端 Node test runner |
+| `npm test` | 运行测试隔离回归、服务端、客户端和桌面端测试 |
+| `npm test --prefix server` | 使用临时数据目录运行服务端测试 |
+| `npm run test:server-isolation` | 验证测试目录隔离及成功/失败后的清理 |
 | `npm test --prefix client` | 仅客户端 Vitest |
 | `npm run build` | TypeScript 检查并构建 `client/dist` |
 | `npm run check` | 测试、构建、包体预算检查和生产依赖审计 |
@@ -334,6 +343,18 @@ curl http://localhost:4000/api/music/sources
 | `npm run desktop:build` | 构建 Windows NSIS 安装包 |
 
 `check:health` 默认检查 `http://127.0.0.1:4000`；可用 `OPENMUSIC_URL` 指定地址，或用 `OPENMUSIC_SKIP_UPDATE=1` 跳过外部更新检查。
+
+服务端测试通过 `scripts/test-server.mjs` 强制覆盖 `OPENMUSIC_DATA_DIR`，并禁用继承的 Redis 连接；每次使用 `.evolution/test-data-*` 独立目录，结束后删除该临时目录。定向测试使用 `node scripts/test-server.mjs roomManager.queue.test.js`。部分旧测试会清空集合，**不要绕过隔离入口直接在 `server/` 执行 `node --test`**。
+
+可选浏览器验收（需要已构建前端和本机 Edge；仅安装测试工具，不改变应用依赖）：
+
+```bash
+npm install --prefix .evolution/qa-tools --no-save --package-lock=false playwright
+npm run build
+node scripts/check-queue-browser.mjs
+```
+
+该脚本启动临时本地服务，创建两个全新浏览器会话，通过真实 HTTP/Socket.IO 检查队列搜索、权限和批量移除。使用合成测试曲目，不验证外部音乐播放；截图写入 `docs/screenshots/queue-management-*.png`。如使用其他 Playwright 浏览器通道，可设置 `PLAYWRIGHT_CHANNEL`。
 
 ## 项目结构
 

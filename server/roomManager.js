@@ -2136,28 +2136,39 @@ export async function toggleCurrentDislike(roomId, userId) {
 }
 
 export function removeFromQueue(roomId, socketId, queueId) {
+  return removeSongsFromQueue(roomId, socketId, [queueId]);
+}
+
+/** Validate the complete selection before changing shared state. */
+export function removeSongsFromQueue(roomId, socketId, queueIds) {
   const room = rooms.get(roomId);
   if (!room) return { error: '房间不存在' };
-
-  const item = room.queue.find((s) => s.queueId === queueId);
-  if (!item) return { error: '歌曲不在队列中' };
-
+  if (!Array.isArray(queueIds) || queueIds.length === 0 || queueIds.length > 200
+    || queueIds.some((id) => typeof id !== 'string' || !id.trim() || id.length > 128)) {
+    return { error: '请选择 1–200 首待播歌曲' };
+  }
+  const ids = new Set(queueIds);
   const user = room.users.get(socketId);
+  if (!user || user.readOnly) return { error: '未加入房间或没有操作权限' };
   const canManage = canControlPlayback(room, socketId);
-  const isRequester = isQueueRequester(item, socketId, user);
-  if (!canManage && !isRequester) {
+  if (room.current && ids.has(room.current.queueId)) {
+    return { error: '不能移除正在播放的歌曲，请刷新选择' };
+  }
+  const items = room.queue.filter((item) => ids.has(item.queueId));
+  if (items.length !== ids.size) return { error: '歌曲不在队列中，请刷新选择' };
+  if (!canManage && items.some((item) => !isQueueRequester(item, socketId, user))) {
     return { error: '只能删除自己点的歌' };
   }
-
-  const songTitle = formatSongTitle(item);
-  room.queue = room.queue.filter((s) => s.queueId !== queueId);
-  room.jumpRequests = room.jumpRequests.filter((r) => r.queueId !== queueId);
+  room.queue = room.queue.filter((item) => !ids.has(item.queueId));
+  room.jumpRequests = room.jumpRequests.filter((request) => !ids.has(request.queueId));
   const systemMessage = appendSystemChatMessage(
     room,
-    `${formatActorName(user)} 移除了 ${songTitle}`,
+    items.length === 1
+      ? `${formatActorName(user)} 移除了 ${formatSongTitle(items[0])}`
+      : `${formatActorName(user)} 移除了 ${items.length} 首待播歌曲`,
   );
   persistRoom(room);
-  return { room: serializeRoom(room), systemMessage };
+  return { room: serializeRoom(room), systemMessage, removed: items.length };
 }
 
 export function clearQueue(roomId, userId) {

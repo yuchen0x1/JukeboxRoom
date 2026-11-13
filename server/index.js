@@ -115,6 +115,7 @@ import {
   setChatMute,
   addToQueue,
   removeFromQueue,
+  removeSongsFromQueue,
   clearQueue,
   skipSong,
   finishCurrentSong,
@@ -2671,6 +2672,24 @@ io.on('connection', (socket) => {
     broadcastRoomUpdate(roomId);
     emitSystemChat(roomId, result.systemMessage);
     callback?.({ success: true, room: getViewerRoomPayload(socket, roomId) });
+  });
+
+  socket.on('remove_songs', ({ queueIds }, callback) => {
+    if (rejectReadOnly(socket, callback)) return;
+    if (rejectRateLimited(socket, limitSocketAction, 'remove_songs', callback)) return;
+    const roomId = socketToRoom.get(socket.id);
+    if (!roomId) {
+      callback?.({ success: false, error: '未加入房间' });
+      return;
+    }
+    const result = removeSongsFromQueue(roomId, getSocketUserId(socket), queueIds);
+    if (result.error) {
+      callback?.({ success: false, error: result.error });
+      return;
+    }
+    broadcastRoomUpdate(roomId);
+    emitSystemChat(roomId, result.systemMessage);
+    callback?.({ success: true, removed: result.removed });
   });
 
   socket.on('clear_queue', (_payload, callback) => {
