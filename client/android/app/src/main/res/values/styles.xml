@@ -9,7 +9,6 @@
         <item name="android:statusBarColor">#111820</item>
         <item name="android:navigationBarColor">#111820</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowBackground">#111820</item>
     </style>
 
@@ -19,7 +18,6 @@
         <item name="android:statusBarColor">#111820</item>
         <item name="android:navigationBarColor">#111820</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowBackground">#111820</item>
         <item name="android:background">#111820</item>
     </style>
@@ -32,6 +30,5 @@
         <item name="android:statusBarColor">#111820</item>
         <item name="android:navigationBarColor">#111820</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

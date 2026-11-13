@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parseChangelog } from './changelog';
+import { parseChangelog, releaseNotesMarkdown } from './changelog';
 
 describe('parseChangelog', () => {
+  it('keeps one dated version per GitHub Release regardless of body headings', () => {
+    const entries = parseChangelog(releaseNotesMarkdown([{ tag_name: 'v0.0.17', published_at: '2026-11-12T21:45:29Z', body: '# JukeboxRoom v0.0.17\n\n## 本版更新\n- 修复播放\n\n## 下载\n- Windows 安装包' }]));
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ version: '0.0.17', date: '2026-11-13', bullets: ['修复播放', 'Windows 安装包'] });
+  });
   it('parses dated release headings, section titles, and bullets', () => {
     expect(parseChangelog(`# Changelog\n\n## 0.0.4 - 2026-11-02\n\n### 安全与稳定性\n\n- 修复更新检查\n- 改进桌面安装体验\n\n## 0.0.3 - 2026-11-01\n\n- 新增自动更新`)).toEqual([
       {

@@ -15,6 +15,7 @@ import androidx.media3.session.SessionResult;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
+@androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
 public class NativeMediaService extends MediaSessionService {
     private ExoPlayer player;
     private MediaSession mediaSession;
@@ -23,6 +24,8 @@ public class NativeMediaService extends MediaSessionService {
     public void onCreate() {
         super.onCreate();
         player = new ExoPlayer.Builder(this).build();
+        player.setHandleAudioBecomingNoisy(true);
+        player.setWakeMode(C.WAKE_MODE_LOCAL);
         player.setAudioAttributes(new AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)

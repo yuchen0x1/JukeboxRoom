@@ -23,6 +23,7 @@ public class NativeMediaPlugin extends Plugin {
     private MediaController controller;
     private String requestedQueueId;
     private String requestedStatus = "idle";
+    private final java.util.concurrent.atomic.AtomicLong loadGeneration = new java.util.concurrent.atomic.AtomicLong();
 
     static NativeMediaPlugin getActivePlugin() { return activePlugin; }
 
@@ -59,7 +60,7 @@ public class NativeMediaPlugin extends Plugin {
             } catch (Exception e) {
                 emitState(e.getMessage());
             }
-        }, getActivity().getMainExecutor());
+        }, androidx.core.content.ContextCompat.getMainExecutor(context));
     }
 
     @PluginMethod
@@ -69,11 +70,13 @@ public class NativeMediaPlugin extends Plugin {
             call.reject("url is required");
             return;
         }
-        requestedQueueId = call.getString("queueId");
-        String queueId = requestedQueueId;
+        String queueId = call.getString("queueId");
+        long generation = loadGeneration.incrementAndGet();
         boolean autoplay = call.getBoolean("autoplay", true);
         requestedStatus = "loading";
         withController(call, c -> {
+            if (generation != loadGeneration.get()) { call.resolve(); return; }
+            requestedQueueId = queueId;
             androidx.media3.common.MediaItem item = new androidx.media3.common.MediaItem.Builder()
                     .setUri(url)
                     .setMediaId(queueId == null ? url : queueId)
@@ -103,7 +106,7 @@ public class NativeMediaPlugin extends Plugin {
     @PluginMethod public void play(PluginCall call) { withController(call, c -> { startService(); c.play(); requestedStatus = "playing"; emitState(null); call.resolve(); }); }
     @PluginMethod public void pause(PluginCall call) { withController(call, c -> { c.pause(); requestedStatus = "paused"; emitState(null); call.resolve(); }); }
     @PluginMethod public void seekTo(PluginCall call) { long position = Math.max(0, call.getLong("position", 0L)); withController(call, c -> { c.seekTo(position); emitState(null); call.resolve(); }); }
-    @PluginMethod public void stop(PluginCall call) { withController(call, c -> { c.stop(); c.clearMediaItems(); requestedQueueId = null; requestedStatus = "idle"; stopService(); emitState(null); call.resolve(); }); }
+    @PluginMethod public void stop(PluginCall call) { long generation = loadGeneration.incrementAndGet(); withController(call, c -> { if (generation != loadGeneration.get()) { call.resolve(); return; } c.stop(); c.clearMediaItems(); requestedQueueId = null; requestedStatus = "idle"; stopService(); emitState(null); call.resolve(); }); }
     @PluginMethod public void setVolume(PluginCall call) { double volume = call.getDouble("volume", 1.0); withController(call, c -> { c.setVolume((float) Math.max(0.0, Math.min(1.0, volume))); call.resolve(); }); }
     @PluginMethod public void getState(PluginCall call) { withController(call, c -> call.resolve(buildState(null))); }
 
@@ -117,12 +120,15 @@ public class NativeMediaPlugin extends Plugin {
             } catch (Exception e) {
                 call.reject("Media controller error: " + e.getMessage(), e);
             }
-        }, getActivity().getMainExecutor());
+        }, androidx.core.content.ContextCompat.getMainExecutor(getContext()));
     }
 
     @Override
     protected void handleOnDestroy() {
         if (activePlugin == this) activePlugin = null;
+        if (controllerFuture != null) MediaController.releaseFuture(controllerFuture);
+        controllerFuture = null;
+        controller = null;
         super.handleOnDestroy();
     }
 
@@ -143,8 +149,19 @@ public class NativeMediaPlugin extends Plugin {
 
     private JSObject buildState(String error) {
         JSObject state = new JSObject();
-        state.put("queueId", requestedQueueId);
-        state.put("status", requestedStatus);
+        androidx.media3.common.MediaItem item = controller.getCurrentMediaItem();
+        state.put("queueId", item == null ? requestedQueueId : item.mediaId);
+        String status = requestedStatus;
+        androidx.media3.common.PlaybackException failure = controller.getPlayerError();
+        if (failure != null) { status = "error"; if (error == null) error = failure.getMessage(); }
+        if (!"error".equals(status)) {
+            int playbackState = controller.getPlaybackState();
+            if (playbackState == androidx.media3.common.Player.STATE_ENDED) status = "ended";
+            else if (playbackState == androidx.media3.common.Player.STATE_BUFFERING) status = "loading";
+            else if (playbackState == androidx.media3.common.Player.STATE_READY) status = controller.getPlayWhenReady() ? "playing" : "paused";
+            else if (item == null) status = "idle";
+        }
+        state.put("status", status);
         state.put("positionMs", controller.getCurrentPosition());
         long duration = controller.getDuration();
         state.put("durationMs", duration < 0 ? 0 : duration);

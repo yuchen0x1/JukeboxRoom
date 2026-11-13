@@ -43,6 +43,17 @@ afterEach(() => {
 });
 
 describe('desktop music library', () => {
+  it('invalidates old playback responses when quality changes without losing the current position', () => {
+    installLocalStorage();
+    useDesktopMusicStore.getState().playTrack(song('quality'));
+    useDesktopMusicStore.getState().setCurrentTime(12);
+    const before = useDesktopMusicStore.getState().current!;
+    useDesktopMusicStore.getState().setPlaybackQuality('lossless');
+    const after = useDesktopMusicStore.getState().current!;
+    expect(after.requestId).toBeGreaterThan(before.requestId);
+    expect(after.trackKey).toBe(before.trackKey);
+    expect(useDesktopMusicStore.getState().currentTime).toBe(12);
+  });
   it('plays a queued track and keeps the remaining queue ordered', () => {
     installLocalStorage();
     const store = useDesktopMusicStore.getState();

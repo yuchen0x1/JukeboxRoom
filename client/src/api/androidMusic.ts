@@ -1,9 +1,9 @@
 import { Capacitor, CapacitorHttp, type HttpOptions, type HttpResponse } from '@capacitor/core';
 import type { MusicSource, SearchResult, Song } from '../types';
+import { getMobileMetingUrl } from '../lib/mobileSettings';
 
 const NETEASE_SEARCH_URL = 'https://music.163.com/api/search/get/';
 const TENCENT_API_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
-const METING_API_URL = 'https://api.injahow.cn/meting/';
 const HOT_PLAYLIST_ID = '3778678';
 const USER_AGENT = 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 const DIRECT_SOURCES: Array<Extract<MusicSource, 'netease' | 'tencent'>> = ['netease', 'tencent'];
@@ -68,17 +68,16 @@ function asArray(value: unknown): Array<Record<string, unknown>> {
 
 function normalizeNeteaseSong(raw: Record<string, unknown>): SearchResult | null {
   if (raw.id == null) return null;
-  const album = asObject(raw.album);
-  const artists = asArray(raw.artists);
-  const coverId = String(album.picId || raw.id);
+  const album = asObject(raw.album || raw.al);
+  const artists = asArray(raw.artists || raw.ar);
   return {
     id: String(raw.id),
     source: 'netease',
     name: String(raw.name || '未知歌曲'),
     artist: artists.map((artist) => String(artist.name || '')).filter(Boolean).join(' / ') || '未知歌手',
     album: String(album.name || ''),
-    pic: String(album.picUrl || `${METING_API_URL}?server=netease&type=pic&id=${coverId}`),
-    duration: Number(raw.duration) || undefined,
+    pic: String(album.picUrl || (album.picId ? metingUrl('netease', 'pic', String(album.picId)) : '')),
+    duration: Number(raw.duration || raw.dt) || undefined,
   };
 }
 
@@ -87,7 +86,7 @@ function normalizeTencentSong(raw: Record<string, unknown>): SearchResult | null
   if (!id) return null;
   const singers = asArray(raw.singer);
   const album = asObject(raw.album);
-  const singerMid = String(singers[0]?.singerMid || '');
+  const singerMid = String(singers[0]?.mid || singers[0]?.singerMid || '');
   const albumMid = String(album.mid || '');
   return {
     id,
@@ -103,8 +102,8 @@ function normalizeTencentSong(raw: Record<string, unknown>): SearchResult | null
   };
 }
 
-async function searchNetease(keyword: string): Promise<SearchResult[]> {
-  const params = new URLSearchParams({ s: keyword, type: '1', limit: '30', offset: '0' });
+async function searchNetease(keyword: string, page: number): Promise<SearchResult[]> {
+  const params = new URLSearchParams({ s: keyword, type: '1', limit: '30', offset: String((page - 1) * 30) });
   const response = await request({
     url: `${NETEASE_SEARCH_URL}?${params}`,
     headers: { 'User-Agent': USER_AGENT, Referer: 'https://music.163.com/', Accept: 'application/json' },
@@ -115,7 +114,7 @@ async function searchNetease(keyword: string): Promise<SearchResult[]> {
   return songs;
 }
 
-async function searchTencent(keyword: string): Promise<SearchResult[]> {
+async function searchTencent(keyword: string, page: number): Promise<SearchResult[]> {
   const response = await request({
     url: TENCENT_API_URL,
     method: 'POST',
@@ -124,7 +123,7 @@ async function searchTencent(keyword: string): Promise<SearchResult[]> {
       req_1: {
         method: 'DoSearchForQQMusicDesktop',
         module: 'music.search.SearchCgiService',
-        param: { search_type: 0, query: keyword, page_num: 1, num_per_page: 30 },
+        param: { search_type: 0, query: keyword, page_num: page, num_per_page: 30 },
       },
     },
   });
@@ -139,14 +138,21 @@ async function searchTencent(keyword: string): Promise<SearchResult[]> {
   return songs;
 }
 
-export async function searchAndroidSongs(keyword: string, source: MusicSource | 'all' = 'all'): Promise<SearchResult[]> {
+export interface AndroidSearchPage {
+  songs: SearchResult[];
+  hasMore: boolean;
+  warnings: string[];
+}
+
+export async function searchAndroidSongsPage(keyword: string, source: MusicSource | 'all' = 'all', page = 1): Promise<AndroidSearchPage> {
   const query = keyword.trim();
-  if (!query) return [];
+  if (!query) return { songs: [], hasMore: false, warnings: [] };
+  const safePage = Number.isFinite(page) ? Math.max(1, Math.min(1000, Math.floor(page))) : 1;
   const sources = source === 'all' || !DIRECT_SOURCES.includes(source as (typeof DIRECT_SOURCES)[number])
     ? DIRECT_SOURCES
     : [source as (typeof DIRECT_SOURCES)[number]];
   const requests = await Promise.allSettled(sources.map((provider) => (
-    provider === 'netease' ? searchNetease(query) : searchTencent(query)
+    provider === 'netease' ? searchNetease(query, safePage) : searchTencent(query, safePage)
   )));
   const successes = requests.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
   if (!successes.length) {
@@ -158,13 +164,24 @@ export async function searchAndroidSongs(keyword: string, source: MusicSource | 
   for (let index = 0; index < Math.max(...successes.map((songs) => songs.length)); index += 1) {
     for (const songs of successes) if (songs[index]) merged.push(songs[index]);
   }
-  return merged;
+  return {
+    songs: merged,
+    hasMore: successes.some((songs) => songs.length === 30),
+    warnings: requests.flatMap((result, index) => result.status === 'rejected'
+      ? [`${sources[index] === 'netease' ? '网易云' : 'QQ 音乐'}暂不可用，已显示其他音源结果。`] : []),
+  };
+}
+
+export async function searchAndroidSongs(keyword: string, source: MusicSource | 'all' = 'all'): Promise<SearchResult[]> {
+  return (await searchAndroidSongsPage(keyword, source)).songs;
 }
 
 function metingUrl(source: MusicSource, type: string, id: string, quality?: string): string {
   const params = new URLSearchParams({ server: source, type, id });
   if (quality) params.set('quality', quality);
-  return `${METING_API_URL}?${params}`;
+  const url = new URL(getMobileMetingUrl());
+  url.search = params.toString();
+  return url.toString();
 }
 
 function responseHeader(response: HttpResult, name: string): string {
@@ -225,6 +242,7 @@ export async function getAndroidSongUrl(song: Pick<Song, 'id' | 'source' | 'url'
   if (song.url && /^https?:\/\//i.test(song.url) && !song.url.includes('/api/meting')) return song.url;
   const source = song.source || 'netease';
   if (source === 'tencent') return resolveTencentUrl(song, quality);
+  if (source !== 'netease') throw new Error('Android 暂不支持此音源，请选择网易云或 QQ 音乐');
   const url = metingUrl('netease', 'url', song.id, quality);
   const response = await request({ url, disableRedirects: true });
   if (response.status < 200 || response.status >= 400) throw new Error(`网易云音源解析失败（HTTP ${response.status}）`);
@@ -243,10 +261,12 @@ export async function getAndroidLyrics(song: Pick<Song, 'id' | 'source' | 'name'
   } catch {
     // Try the public lyric fallback below.
   }
-  if (!song.name) return '';
-  const params = new URLSearchParams({ msg: song.name, n: '1' });
-  const response = await request({ url: `https://api.52vmy.cn/api/music/lrc?${params}` });
-  return response.status >= 200 && response.status < 300 ? responseText(response.data) : '';
+  // A song-name lookup may return lyrics from an entirely different recording.
+  if (source !== 'netease' || !/^\d+$/.test(song.id)) return '';
+  const response = await request({ url: `https://music.163.com/api/song/lyric?id=${encodeURIComponent(song.id)}&lv=-1&tv=-1`,
+    headers: { Referer: 'https://music.163.com/', 'User-Agent': USER_AGENT } });
+  const payload = asObject(responseJson<unknown>(response, '网易云歌词'));
+  return String(asObject(payload.lrc).lyric || '');
 }
 
 function normalizeMetingSong(raw: Record<string, unknown>): SearchResult | null {
@@ -257,7 +277,7 @@ function normalizeMetingSong(raw: Record<string, unknown>): SearchResult | null 
     ? raw.artist.map((item) => String(asObject(item).name || '')).filter(Boolean).join(' / ')
     : String(raw.artist || raw.author || '未知歌手');
   return {
-    id: decodeURIComponent(id),
+    id: (() => { try { return decodeURIComponent(id); } catch { return id; } })(),
     source: 'netease',
     name: String(raw.name || raw.title || '未知歌曲'),
     artist: artist || '未知歌手',

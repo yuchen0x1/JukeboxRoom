@@ -39,6 +39,8 @@ jobs:
 
       - name: Check server package boundaries
         run: node --test scripts/package-server.test.mjs
+      - name: Check mobile configuration
+        run: node --test client/scripts/capacitor-config.test.mjs
       - name: Run desktop updater unit tests
         run: npm run test:desktop-updater
       - name: Run server tests

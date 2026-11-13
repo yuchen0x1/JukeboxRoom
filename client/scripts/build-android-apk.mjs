@@ -46,7 +46,7 @@ if (!androidHome) {
 [build-apk] 未找到 Android SDK。
 
 没有 Android Studio 也可以，但需要安装：
-  1. JDK 17+   winget install Microsoft.OpenJDK.17
+  1. JDK 21（Capacitor 7 原生工程）
   2. Android SDK 命令行工具（比 Android Studio 小很多）
      下载：https://developer.android.com/studio#command-line-tools-only
   3. 设置环境变量 ANDROID_HOME 指向 SDK 目录
@@ -61,10 +61,9 @@ process.env.ANDROID_HOME = androidHome;
 process.env.ANDROID_SDK_ROOT = androidHome;
 
 console.log('[build-apk] 先同步 Capacitor…');
-const sync = spawnSync('node', ['scripts/cap-sync.mjs', 'android'], {
+const sync = spawnSync(process.execPath, ['scripts/cap-sync.mjs', 'android'], {
   cwd: clientRoot,
   stdio: 'inherit',
-  shell: process.platform === 'win32',
 });
 if (sync.status !== 0) process.exit(sync.status ?? 1);
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
 import {
   AudioLines,
   ChevronDown,
@@ -30,12 +31,16 @@ import {
   X,
 } from 'lucide-react';
 import type { LyricLine, MusicSource, SearchResult, Song } from '../types';
-import { formatDuration, getCoverUrl, getSourceLabel, parseLrc } from '../api/music';
-import { getAndroidLyrics, getAndroidSongUrl, getAndroidTopSongs, searchAndroidSongs } from '../api/androidMusic';
+import { formatDuration, getSourceLabel, parseLrc } from '../api/music';
+import { getAndroidLyrics, getAndroidSongUrl, getAndroidTopSongs, searchAndroidSongsPage } from '../api/androidMusic';
 import Lyrics from './Lyrics';
 import { useDesktopMusicStore } from '../stores/desktopMusicStore';
 import { NativeMedia, type NativeMediaState } from '../lib/androidMedia';
 import { openExternalUrl, resolveMobileApiUrl } from '../lib/mobileApi';
+import { getMobileMetingUrl, saveMobileMetingUrl } from '../lib/mobileSettings';
+import { acceptsNativeState, nativeQueueId } from '../lib/nativePlayback';
+import { resizeCoverUrl } from '../lib/coverUrl';
+import MobileUpdateSettings from './MobileUpdateSettings';
 import './androidMusic.css';
 
 type MainTab = 'discover' | 'search' | 'favorites' | 'history' | 'playlists' | 'settings';
@@ -63,7 +68,7 @@ function formatTime(seconds: number): string {
 }
 
 function AndroidCover({ song, large = false }: { song: Song; large?: boolean }) {
-  const coverUrl = resolveMobileApiUrl(getCoverUrl(song, large ? 'full' : 'thumb'));
+  const coverUrl = resolveMobileApiUrl(resizeCoverUrl(song.pic || '', large ? 'full' : 'thumb'));
   return (
     <span className={`android-cover${large ? ' android-cover--large' : ''}`}>
       {coverUrl && <img src={coverUrl} alt="" loading={large ? 'eager' : 'lazy'} onError={(event) => { event.currentTarget.style.opacity = '0'; }} />}
@@ -93,6 +98,7 @@ function AndroidNativeAudioEngine() {
   const playbackQuality = useDesktopMusicStore((state) => state.playbackQuality);
   const isPlaying = useDesktopMusicStore((state) => state.isPlaying);
   const loadedTrackKey = useRef<string | null>(null);
+  const endedQueueId = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -101,6 +107,8 @@ function AndroidNativeAudioEngine() {
 
     const applyState = (payload: NativeMediaState) => {
       const store = useDesktopMusicStore.getState();
+      if (!active || !acceptsNativeState(payload, store.current)) return;
+      if (payload.status === 'playing') endedQueueId.current = null;
       if (payload.status === 'loading') store.setTrackLoading(true);
       else if (payload.status === 'error') {
         store.setTrackLoading(false);
@@ -110,6 +118,8 @@ function AndroidNativeAudioEngine() {
         store.setTrackLoading(false);
         if (payload.status === 'playing' || payload.status === 'paused') store.setPlaying(payload.status === 'playing');
         if (payload.status === 'ended') {
+          if (endedQueueId.current === payload.queueId) return;
+          endedQueueId.current = payload.queueId || null;
           if (store.repeatMode === 'one') {
             void NativeMedia.seekTo({ position: 0 }).then(() => NativeMedia.play()).catch(() => undefined);
           } else {
@@ -125,8 +135,9 @@ function AndroidNativeAudioEngine() {
       stateListener = handle;
       if (!active) void handle.remove();
     }).catch(() => undefined);
-    void NativeMedia.addListener('transport', ({ action }) => {
+    void NativeMedia.addListener('transport', ({ action, queueId }) => {
       const store = useDesktopMusicStore.getState();
+      if (!active || !store.current || queueId !== nativeQueueId(store.current)) return;
       if (action === 'next') {
         store.playNextTrack();
       } else if (store.currentTime > 3) {
@@ -165,10 +176,12 @@ function AndroidNativeAudioEngine() {
 
     let active = true;
     const requestId = current.requestId;
-    const trackKey = current.trackKey;
+    const trackKey = nativeQueueId(current);
     const store = useDesktopMusicStore.getState();
     store.setTrackLoading(true);
     store.setPlaybackError('');
+    // Stop the previous recording while resolving the newly selected track.
+    void NativeMedia.pause().catch(() => undefined);
 
     void getAndroidSongUrl(current, playbackQuality).then(async (url) => {
       if (!active || useDesktopMusicStore.getState().current?.requestId !== requestId) return;
@@ -179,13 +192,12 @@ function AndroidNativeAudioEngine() {
         title: current.name,
         artist: current.artist,
         album: current.album,
-        artworkUrl: resolveMobileApiUrl(getCoverUrl(current, 'medium')),
+        artworkUrl: resolveMobileApiUrl(resizeCoverUrl(current.pic || '', 'medium')),
         position: Math.max(0, latest.currentTime * 1000),
         autoplay: latest.isPlaying,
       });
       if (!active || useDesktopMusicStore.getState().current?.requestId !== requestId) return;
       loadedTrackKey.current = trackKey;
-      useDesktopMusicStore.getState().setTrackLoading(false);
     }).catch((error: unknown) => {
       if (!active || useDesktopMusicStore.getState().current?.requestId !== requestId) return;
       const message = error instanceof Error ? error.message : '无法获取这首歌的播放地址';
@@ -198,10 +210,10 @@ function AndroidNativeAudioEngine() {
   }, [current?.requestId, current?.trackKey, playbackQuality]);
 
   useEffect(() => {
-    if (!current || loadedTrackKey.current !== current.trackKey) return;
+    if (!current || loadedTrackKey.current !== nativeQueueId(current)) return;
     const action = useDesktopMusicStore.getState().isPlaying ? NativeMedia.play() : NativeMedia.pause();
     void action.catch(() => undefined);
-  }, [current?.trackKey, isPlaying]);
+  }, [current?.trackKey, current?.requestId, isPlaying]);
 
   useEffect(() => {
     void NativeMedia.setVolume({ volume: useDesktopMusicStore.getState().volume }).catch(() => undefined);
@@ -222,6 +234,13 @@ export default function AndroidMusicApp() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searchError, setSearchError] = useState('');
   const [searching, setSearching] = useState(false);
+  const [searchPage, setSearchPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [searchWarnings, setSearchWarnings] = useState<string[]>([]);
+  const searchSequence = useRef(0);
+  const submittedQuery = useRef('');
+  const [metingInput, setMetingInput] = useState(getMobileMetingUrl);
+  const [settingsMessage, setSettingsMessage] = useState('');
   const [featuredSongs, setFeaturedSongs] = useState<SearchResult[]>([]);
   const [featuredError, setFeaturedError] = useState('');
   const [featuredLoading, setFeaturedLoading] = useState(false);
@@ -266,6 +285,21 @@ export default function AndroidMusicApp() {
   const retryCurrent = useDesktopMusicStore((state) => state.retryCurrent);
 
   const activePlaylist = playlists.find((playlist) => playlist.id === activePlaylistId) || null;
+  const navigation = useRef({ panel, playlistTarget, activePlaylistId, tab });
+  navigation.current = { panel, playlistTarget, activePlaylistId, tab };
+  useEffect(() => {
+    let active = true;
+    let handle: { remove: () => Promise<void> } | undefined;
+    void CapacitorApp.addListener('backButton', () => {
+      const state = navigation.current;
+      if (state.playlistTarget) setPlaylistTarget(null);
+      else if (state.panel) setPanel(null);
+      else if (state.activePlaylistId) setActivePlaylistId(null);
+      else if (state.tab !== 'discover') setTab('discover');
+      else void CapacitorApp.minimizeApp();
+    }).then((listener) => { handle = listener; if (!active) void listener.remove(); }).catch(() => undefined);
+    return () => { active = false; searchSequence.current += 1; if (handle) void handle.remove(); };
+  }, []);
   const isFavorite = useCallback((song: Song) => favorites.some((item) => (
     item.id === song.id && item.source === song.source
   )), [favorites]);
@@ -315,24 +349,38 @@ export default function AndroidMusicApp() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [current, panel, togglePlaying, trackLoading]);
 
-  const runSearch = async (event?: FormEvent) => {
-    event?.preventDefault();
-    const query = searchInput.trim();
+  const executeSearch = async (query: string, source: 'all' | MusicSource, page = 1) => {
     if (!query) return;
+    const sequence = ++searchSequence.current;
+    submittedQuery.current = query;
     setTab('search');
     setSearching(true);
     setSearchError('');
-    setResults([]);
+    setSearchWarnings([]);
+    if (page === 1) { setResults([]); setSearchPage(0); setHasMore(false); }
     try {
       useDesktopMusicStore.getState().addRecentSearch(query);
-      const songs = await searchAndroidSongs(query, sourceFilter);
-      setResults(songs);
-      if (!songs.length) setSearchError('没有找到歌曲，请更换关键词后重试。');
+      const result = await searchAndroidSongsPage(query, source, page);
+      if (sequence !== searchSequence.current) return;
+      setResults((previous) => {
+        const merged = page === 1 ? result.songs : [...previous, ...result.songs];
+        return merged.filter((song, index) => merged.findIndex((item) => item.id === song.id && item.source === song.source) === index);
+      });
+      setSearchPage(page);
+      setHasMore(result.hasMore);
+      setSearchWarnings(result.warnings);
+      if (!result.songs.length && page === 1) setSearchError('没有找到歌曲，请更换关键词后重试。');
     } catch (error) {
+      if (sequence !== searchSequence.current) return;
       setSearchError(error instanceof Error ? error.message : '搜索失败，请稍后重试。');
     } finally {
-      setSearching(false);
+      if (sequence === searchSequence.current) setSearching(false);
     }
+  };
+
+  const runSearch = (event?: FormEvent) => {
+    event?.preventDefault();
+    void executeSearch(searchInput.trim(), sourceFilter);
   };
 
   useEffect(() => {
@@ -429,6 +477,20 @@ export default function AndroidMusicApp() {
         <p className="android-settings-note">收藏、歌单、播放队列和最近播放保存在本机。</p>
       </section>
       <section className="android-settings-section">
+        <h2>音源服务</h2>
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          try { setMetingInput(saveMobileMetingUrl(metingInput)); setSettingsMessage('音源服务已保存，榜单会重新加载。'); setFeaturedRetry((value) => value + 1); }
+          catch (error) { setSettingsMessage(error instanceof Error ? error.message : '无法保存设置'); }
+        }}>
+          <label className="android-settings-note" htmlFor="mobile-meting-url">Meting 服务地址（HTTPS）</label>
+          <div className="android-create-playlist"><input id="mobile-meting-url" type="url" value={metingInput} onChange={(event) => setMetingInput(event.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} /><button type="submit">保存</button></div>
+        </form>
+        <p className="android-settings-note">用于网易云播放解析、热榜与歌词。可填写自己的服务地址；搜索仍直接连接音乐平台。</p>
+        {settingsMessage && <p className="android-settings-note" role="status">{settingsMessage}</p>}
+      </section>
+      <MobileUpdateSettings />
+      <section className="android-settings-section">
         <h2>关于与交流</h2>
         <button type="button" className="android-setting-row" onClick={() => void openExternalUrl(QQ_GROUP_URL)}>
           <span><MessagesSquare aria-hidden="true" />QQ 交流群</span>
@@ -478,15 +540,18 @@ export default function AndroidMusicApp() {
             <form className="android-search-box android-search-box--page" onSubmit={runSearch}>
               <Search aria-hidden="true" />
               <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="搜索歌曲、歌手或专辑" aria-label="搜索歌曲、歌手或专辑" />
-              {searchInput && <button type="button" className="android-clear-search" onClick={() => { setSearchInput(''); setResults([]); setSearchError(''); }} aria-label="清除搜索"><X aria-hidden="true" /></button>}
+              {searchInput && <button type="button" className="android-clear-search" onClick={() => { searchSequence.current += 1; submittedQuery.current = ''; setSearching(false); setSearchInput(''); setResults([]); setSearchError(''); setSearchWarnings([]); setHasMore(false); setSearchPage(0); }} aria-label="清除搜索"><X aria-hidden="true" /></button>}
               <button type="submit" className="android-submit-search" aria-label="开始搜索"><Search aria-hidden="true" /></button>
             </form>
             <div className="android-source-filter" role="group" aria-label="搜索音源">
-              {SOURCE_FILTERS.map((filter) => <button type="button" key={filter.id} className={sourceFilter === filter.id ? 'is-active' : ''} onClick={() => setSourceFilter(filter.id)}>{filter.label}</button>)}
+              {SOURCE_FILTERS.map((filter) => <button type="button" key={filter.id} aria-pressed={sourceFilter === filter.id} className={sourceFilter === filter.id ? 'is-active' : ''} onClick={() => { setSourceFilter(filter.id); if (submittedQuery.current) void executeSearch(submittedQuery.current, filter.id); }}>{filter.label}</button>)}
             </div>
             <section className="android-music-section android-search-results">
               <div className="android-section-heading"><div><h2>{results.length ? '搜索结果' : '搜索音乐'}</h2><p>{searching ? '正在查询所选音源' : results.length ? `${results.length} 首歌曲` : '跨音源查找歌曲'}</p></div>{searching && <LoaderCircle className="is-spinning android-inline-loader" />}</div>
-              {searching ? <div className="android-loading"><LoaderCircle className="is-spinning" />正在搜索音乐</div> : results.length ? renderSongList(results, '', '') : searchError ? <EmptyState icon={WifiOff} title="没有可显示的结果" detail={searchError} /> : <EmptyState icon={Search} title="搜一首想听的歌" detail="支持按歌曲名、歌手名或专辑名搜索。" />}
+              {searchWarnings.map((warning) => <p key={warning} className="android-settings-note" role="status">{warning}</p>)}
+              {searching && !results.length ? <div className="android-loading"><LoaderCircle className="is-spinning" />正在搜索音乐</div> : results.length ? renderSongList(results, '', '') : searchError ? <EmptyState icon={WifiOff} title="没有可显示的结果" detail={searchError} /> : <EmptyState icon={Search} title="搜一首想听的歌" detail="支持按歌曲名、歌手名或专辑名搜索。" />}
+              {results.length > 0 && searchError && <p className="android-playback-error" role="alert">{searchError}</p>}
+              {hasMore && <button type="button" className="android-primary-button" disabled={searching} onClick={() => void executeSearch(submittedQuery.current, sourceFilter, searchPage + 1)}>{searching ? '正在加载…' : '加载更多歌曲'}</button>}
             </section>
           </div>
         )}

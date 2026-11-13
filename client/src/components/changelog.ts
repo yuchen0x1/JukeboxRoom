@@ -6,6 +6,18 @@ export interface ChangelogEntry {
   isLegacy?: boolean;
 }
 
+export function releaseNotesMarkdown(releases: Array<{ version?: string; tag_name?: string; date?: string; published_at?: string; body?: string }>): string {
+  return releases.flatMap((release) => {
+    const version = String(release.version || release.tag_name || '').replace(/^v/, '');
+    if (!/^\d+\.\d+\.\d+$/.test(version) || !release.body) return [];
+    const date = release.date || (release.published_at
+      ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date(release.published_at)) : '');
+    const body = release.body.split(/\r?\n/).filter((line) => !/^#{1,2}\s+/.test(line) || !line.includes(version))
+      .map((line) => line.replace(/^#{1,6}\s+/, '### ')).join('\n');
+    return [`## ${version}${date ? ` - ${date}` : ''}\n\n${body}`];
+  }).join('\n\n');
+}
+
 export function parseChangelog(markdown: string): ChangelogEntry[] {
   const entries: ChangelogEntry[] = [];
   let current: ChangelogEntry | null = null;

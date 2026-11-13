@@ -9,7 +9,8 @@ import './styles/glass.css';
 // Theme initialization: set data-theme before first render to avoid flash.
 // 未显式选择时强制深色——跟随系统的 light 主题会把房间渲染成灰白玻璃，观感很差。
 (function initTheme() {
-  const saved = localStorage.getItem('theme');
+  let saved: string | null = null;
+  try { saved = localStorage.getItem('theme'); } catch { /* Restricted WebView/private storage. */ }
   const theme = saved === 'light' || saved === 'dark' || saved === 'auto' ? saved : 'dark';
   document.documentElement.setAttribute('data-theme', theme);
 })();

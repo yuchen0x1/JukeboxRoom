@@ -25,6 +25,13 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 |:---:|:---:|:---:|
 | ![房间大厅](docs/screenshots/home.png) | ![房间点歌](docs/screenshots/room.png) | ![音源登录](docs/screenshots/login.png) |
 
+## 多端维护（main 待发布）
+
+- **Android**：搜索翻页、切源重查、自定义 HTTPS 音源服务、手机版本检查与更新日志；加强原生播放状态、耳机断开和返回键处理。
+- **Web / PWA**：修复服务器更新权限与失败提示，改进缓存写入和受限存储兼容。
+- **iOS**：统一 JukeboxRoom 品牌及版本信息，完善 HTTPS 站点同步与模拟器编译检查；仍是远程站点客户端。
+- 本轮源码改进尚未作为新的正式版本发布。各端构建、签名与验收范围见 [移动端维护说明](docs/MOBILE.md)。
+
 ## 先选择使用方式
 
 | 使用方式 | 适合场景 | 需要什么 |
@@ -262,7 +269,7 @@ pm2 start deploy/ecosystem.config.cjs
 
 ### Android 独立播放器
 
-Android 版不依赖多人房间服务，支持搜索、播放、歌词、收藏、播放队列、最近播放、本地歌单，以及系统媒体通知、锁屏和耳机控制。音源可用性由对应服务提供方决定。
+Android 版不依赖多人房间服务，支持网易云/QQ 音乐搜索与翻页、播放、歌词、收藏、队列、最近播放、本地歌单及系统媒体控制。设置页可修改 HTTPS Meting 服务地址、检查实际 Android 安装包更新和查看更新日志。音源可用性由服务提供方决定。
 
 ```bash
 npm run cap:run:android
@@ -282,7 +289,7 @@ Release 构建前需配置 `client/android/keystore.properties`，或设置 `AND
 CAPACITOR_SERVER_URL=https://your-domain.com
 ```
 
-当前 Android 是独立播放器；iOS 工程仍是现有远程 URL 客户端，不应按 Android 的独立播放器功能对外宣传。
+Android 始终构建本地独立播放器，不受该远程地址影响；iOS 使用 HTTPS 远程站点，缺少地址时同步会明确失败，且不会覆盖 `client/dist`。iOS 的原生编译和签名需 macOS/Xcode，详见 [移动端维护说明](docs/MOBILE.md)。
 
 ## API 与 WebSocket 入口
 

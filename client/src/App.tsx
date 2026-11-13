@@ -25,13 +25,16 @@ function RouteFallback() {
 
 /** Switch theme and persist to localStorage. Exported for use by theme toggle UI. */
 export function setTheme(theme: 'light' | 'dark' | 'auto') {
-  localStorage.setItem('theme', theme);
+  try { localStorage.setItem('theme', theme); } catch { /* The theme can still apply for this session. */ }
   document.documentElement.setAttribute('data-theme', theme);
 }
 
 /** Read current theme setting without triggering re-render. */
 export function getTheme(): 'light' | 'dark' | 'auto' {
-  return (localStorage.getItem('theme') as 'light' | 'dark' | 'auto') ?? 'dark';
+  try {
+    const theme = localStorage.getItem('theme');
+    return theme === 'light' || theme === 'auto' ? theme : 'dark';
+  } catch { return 'dark'; }
 }
 
 export default function App() {

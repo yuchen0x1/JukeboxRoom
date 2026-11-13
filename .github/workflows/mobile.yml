@@ -1,0 +1,80 @@
+name: Mobile
+
+on:
+  push:
+    branches: [main]
+    paths: ['client/**', 'CHANGELOG.md', '.github/workflows/mobile.yml']
+  pull_request:
+    branches: [main]
+    paths: ['client/**', 'CHANGELOG.md', '.github/workflows/mobile.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android debug build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: npm ci --prefix client
+      - name: Validate mobile configuration
+        run: node --test client/scripts/capacitor-config.test.mjs
+      - name: Prepare Android SDK and wrapper
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          chmod +x client/android/gradlew
+      - name: Build Android player
+        run: npm run cap:build:apk --prefix client
+      - name: Android lint
+        working-directory: client/android
+        run: ./gradlew :app:lintDebug
+      - name: Upload development APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: jukeboxroom-android-debug-${{ github.sha }}
+          path: client/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    name: iOS simulator compile
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci --prefix client
+      - name: Validate mobile configuration
+        run: node --test client/scripts/capacitor-config.test.mjs
+      - name: Sync native iOS project with a compile-only fixture
+        run: npm run cap:sync:ios --prefix client
+        env:
+          # Reserved test domain. This job compiles the native shell; it never publishes an app.
+          CAPACITOR_SERVER_URL: https://example.invalid
+      - name: Compile unsigned iOS simulator application
+        working-directory: client/ios/App
+        run: >-
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath build CODE_SIGNING_ALLOWED=NO build

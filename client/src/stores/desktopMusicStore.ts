@@ -112,7 +112,9 @@ function readSavedState(): Partial<PersistedDesktopMusicState> {
   }
 }
 
-let requestSequence = 0;
+const savedState = readSavedState();
+let requestSequence = [savedState.current, ...(savedState.queue || []), ...(savedState.history || [])]
+  .reduce((largest, track) => Math.max(largest, Number.isFinite(track?.requestId) ? Number(track?.requestId) : 0), 0);
 
 export const useDesktopMusicStore = create<DesktopMusicState>((set, get) => ({
   current: null,
@@ -132,7 +134,7 @@ export const useDesktopMusicStore = create<DesktopMusicState>((set, get) => ({
   currentTime: 0,
   duration: 0,
   autoplayOnLoad: false,
-  ...readSavedState(),
+  ...savedState,
 
   setCurrent: (current) => set({ current }),
   setTrackLoading: (trackLoading) => set({ trackLoading }),
@@ -259,7 +261,10 @@ export const useDesktopMusicStore = create<DesktopMusicState>((set, get) => ({
     set((state) => ({ recentSearches: [trimmed, ...state.recentSearches.filter((item) => item !== trimmed)].slice(0, MAX_SEARCHES) }));
   },
   setVolume: (volume) => set({ volume: Math.min(1, Math.max(0, volume)) }),
-  setPlaybackQuality: (playbackQuality) => set({ playbackQuality }),
+  setPlaybackQuality: (playbackQuality) => set((state) => state.playbackQuality === playbackQuality ? state : ({
+    playbackQuality,
+    current: state.current ? { ...state.current, requestId: ++requestSequence } : null,
+  })),
   setRepeatMode: (repeatMode) => set({ repeatMode }),
   toggleShuffle: () => set((state) => ({ shuffle: !state.shuffle })),
   setSourceFilter: (sourceFilter) => set({ sourceFilter }),

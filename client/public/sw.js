@@ -112,7 +112,7 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         if (isCacheableResponse(response)) {
           const copy = response.clone();
-          void putRuntime(request, copy);
+          event.waitUntil(putRuntime(request, copy));
         }
         return response;
       })

@@ -1,75 +1,42 @@
-/**
- * Capacitor sync：远程 URL 模式用 capacitor-stub 占位 webDir，避免每次全量 build。
- * 未配置 CAPACITOR_SERVER_URL 时会先执行 vite build。
- */
+/** Sync Android's bundled player or the iOS HTTPS site without deleting web builds. */
 import { spawnSync } from 'node:child_process';
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createCapacitorConfig } from './capacitor-config.mjs';
 
 const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const stubDir = resolve(clientRoot, 'capacitor-stub');
-const distDir = resolve(clientRoot, 'dist');
-const envPath = resolve(clientRoot, '.env.capacitor');
 const configPath = resolve(clientRoot, 'capacitor.config.json');
-
-function getServerUrl() {
-  if (process.env.CAPACITOR_SERVER_URL?.trim()) {
-    return process.env.CAPACITOR_SERVER_URL.trim();
-  }
-  if (!existsSync(envPath)) return '';
+const envPath = resolve(clientRoot, '.env.capacitor');
+const platform = process.argv[2] || 'android';
+const original = readFileSync(configPath);
+let serverUrl = process.env.CAPACITOR_SERVER_URL?.trim() || '';
+if (!serverUrl && existsSync(envPath)) {
   for (const rawLine of readFileSync(envPath, 'utf8').split('\n')) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const m = line.match(/^CAPACITOR_SERVER_URL=(.+)$/);
-    if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+    const match = rawLine.trim().match(/^CAPACITOR_SERVER_URL=(.+)$/);
+    if (match) { serverUrl = match[1].trim().replace(/^["']|["']$/g, ''); break; }
   }
-  return '';
 }
 
-function writeCapacitorConfig(serverUrl) {
-  const base = JSON.parse(readFileSync(configPath, 'utf8'));
-  const normalized = serverUrl.replace(/\/+$/, '');
-  if (normalized) {
-    base.server = {
-      url: normalized,
-      cleartext: normalized.startsWith('http://'),
-      androidScheme: normalized.startsWith('https://') ? 'https' : 'http',
-    };
-    console.log(`[cap-sync] 远程 URL 模式: ${normalized}`);
+try {
+  const config = createCapacitorConfig(JSON.parse(original.toString('utf8')), platform, serverUrl);
+  if (platform === 'android') {
+    console.log('[cap-sync] Android 独立播放器：构建并同步本地资源');
+    const build = spawnSync('npm run build', { cwd: clientRoot, stdio: 'inherit', shell: true });
+    if (build.status !== 0) throw new Error('前端构建失败，未同步原生工程');
   } else {
-    delete base.server;
-    console.log('[cap-sync] 未配置 CAPACITOR_SERVER_URL，将同步本地 dist');
+    console.log('[cap-sync] iOS 远程站点：同步占位资源，保留现有 dist');
   }
-  writeFileSync(configPath, `${JSON.stringify(base, null, 2)}\n`);
+  try {
+    writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+    const sync = spawnSync('npx', ['cap', 'sync', platform], { cwd: clientRoot, stdio: 'inherit', shell: process.platform === 'win32' });
+    if (sync.error) throw sync.error;
+    if (sync.status !== 0) throw new Error(`Capacitor ${platform} 同步失败`);
+  } finally {
+    // Restore byte-for-byte, even when the native toolchain rejects the sync.
+    writeFileSync(configPath, original);
+  }
+} catch (error) {
+  console.error(`[cap-sync] ${error instanceof Error ? error.message : '同步失败'}`);
+  process.exitCode = 1;
 }
-
-const serverUrl = getServerUrl();
-const platform = process.argv[2] || '';
-
-writeCapacitorConfig(serverUrl);
-
-if (serverUrl) {
-  rmSync(distDir, { recursive: true, force: true });
-  mkdirSync(distDir, { recursive: true });
-  cpSync(stubDir, distDir, { recursive: true });
-} else {
-  console.log('[cap-sync] 执行 vite build…');
-  const build = spawnSync('npm run build', { cwd: clientRoot, stdio: 'inherit', shell: true });
-  if (build.status !== 0) process.exit(build.status ?? 1);
-}
-
-const capArgs = ['cap', 'sync', ...(platform ? [platform] : [])];
-const sync = spawnSync('npx', capArgs, { cwd: clientRoot, stdio: 'inherit', shell: true });
-
-// 恢复仓库内的基础配置，避免 server.url 被提交
-writeCapacitorConfig('');
-
-process.exit(sync.status ?? 1);

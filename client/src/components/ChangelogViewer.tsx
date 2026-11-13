@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { CalendarDays, Loader2, ScrollText, X } from 'lucide-react';
-import { parseChangelog, type ChangelogEntry } from './changelog';
+import { parseChangelog, releaseNotesMarkdown, type ChangelogEntry } from './changelog';
+import { isAndroidRuntime } from '../lib/mobileApi';
+import { fetchMobileReleases } from '../api/mobileUpdates';
+import { fetchWithTimeout } from '../api/http';
 
 interface Props {
   onClose: () => void;
@@ -17,16 +20,20 @@ export default function ChangelogViewer({ onClose }: Props) {
       // 动态优先：GitHub Releases 的说明永远最新；静态 changelog.md 作为兜底（离线/接口不可用时）
       let markdown = '';
       try {
-        const response = await fetch('/api/update/changelog', { signal: controller.signal });
-        if (response.ok) {
-          const data = await response.json() as { releases?: Array<{ body?: string }> };
-          markdown = (data.releases || []).map((item) => item.body || '').filter(Boolean).join('\n\n');
+        if (isAndroidRuntime()) {
+          markdown = releaseNotesMarkdown(await fetchMobileReleases(controller.signal));
+        } else {
+          const response = await fetchWithTimeout('/api/update/changelog', { signal: controller.signal });
+          if (response.ok) {
+            const data = await response.json() as { releases?: Array<{ version?: string; date?: string; body?: string }> };
+            markdown = releaseNotesMarkdown(data.releases || []);
+          }
         }
       } catch {
         // 回退静态文件
       }
       try {
-        const staticResponse = await fetch('/changelog.md', { signal: controller.signal, cache: 'force-cache' });
+        const staticResponse = await fetchWithTimeout('/changelog.md', { signal: controller.signal, cache: 'no-cache' });
         if (staticResponse.ok) {
           const staticMarkdown = await staticResponse.text();
           markdown = markdown ? `${markdown}\n\n${staticMarkdown}` : staticMarkdown;
@@ -92,7 +99,7 @@ export default function ChangelogViewer({ onClose }: Props) {
                   </h3>
                 )}
                 <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <h3 className="text-base font-semibold text-white">v{entry.version}</h3>
+                  <h3 className="text-base font-semibold text-white">{entry.version === 'Unreleased' ? '待发布改进' : `v${entry.version}`}</h3>
                   {entry.date && (
                     <span className="inline-flex items-center gap-1 text-xs text-white/40">
                       <CalendarDays className="h-3.5 w-3.5" />{entry.date}

@@ -25,6 +25,9 @@
   font: inherit;
 }
 
+.android-changelog-dialog { width: min(94vw, 720px); height: min(85dvh, 800px); overflow: hidden; border-radius: 18px; background: #18222c; }
+.android-music-app button:disabled { opacity: .5; cursor: default; }
+
 .android-app-header {
   display: flex;
   min-height: 62px;
