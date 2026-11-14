@@ -19,9 +19,19 @@
 
 [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.18) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.18)
 
-## 未发布（main 分支，非 v0.0.18 安装包内容）
+## 0.0.19（GitHub 正式发布，2026-11-14）
 
-- 咪咕短信登录深度修复：实测确认验证码与「发码时的会话」绑定，SDK 两段式请求互不关联导致正确验证码也被判「错误或已失效」；自实现会话保持（Cookie + 固定指纹）的登录流程，并修复 pacmtoken 提取（SDK 只扫描请求自带 Cookie 的同名 key，新登录必为空）。需下一版安装包才会包含。
+- 咪咕短信登录深度修复：实测确认验证码与「发码时的会话」绑定，SDK 两段式请求互不关联导致正确验证码也被判「错误或已失效」；自实现会话保持（Cookie + 固定指纹）的登录流程，并修复 pacmtoken 提取（SDK 只扫描请求自带 Cookie 的同名 key，新登录必为空）。
+- 登录令牌一次性约束下 token-validate 严格只调用一次；登录与验证码失败继续透传咪咕通行证的真实原因。
+- 已通过真实接口完成发码、登录与用户信息校验的端到端验证。
+
+发布资产：Windows x64 安装包、自动更新元数据及校验清单。本次未发布 Android APK。
+
+[本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.19) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.19)
+
+## 未发布（main 分支，非 v0.0.19 安装包内容）
+
+（暂无）
 
 ## 0.0.17（GitHub 正式发布，2026-11-13）
 

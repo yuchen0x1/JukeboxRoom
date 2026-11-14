@@ -14,12 +14,10 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 
 ## 最新更新
 
-### v0.0.18（2026-11-14）
+### v0.0.19（2026-11-14）
 
-- 开启规则模式系统代理（Clash 等）时，国内音源域名（网易/QQ/酷狗/咪咕/汽水及其 CDN）在桌面版内强制直连：封面、歌词、播放解析和音频兜底不再被推进国外代理链；GitHub 更新检查等其余流量仍走系统代理。
-- 修复咪咕短信登录始终提示「未返回有效会话」的问题；登录与验证码失败会显示真实原因（如「短信验证码错误或已失效」）。
-- 队列管理改进（多关键词搜索、我的点歌筛选、批量移除）与网易云封面歌词修复随本版安装包发布。本版仅提供 Windows 安装包，Android 暂缓发布。
-- [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.18) · [完整发布历史](docs/releases/release-notes.md) · [技术变更](CHANGELOG.md) · [自动更新说明](docs/AUTO_UPDATE.md)
+- 咪咕短信登录深度修复：实测确认验证码与「发码时的会话」绑定，旧实现两段式请求互不关联导致正确验证码也被判「错误或已失效」；新实现保持会话（Cookie + 固定指纹）并正确提取 pacmtoken，已通过真实接口端到端验证。
+- [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.19) · [完整发布历史](docs/releases/release-notes.md) · [技术变更](CHANGELOG.md) · [自动更新说明](docs/AUTO_UPDATE.md)
 
 | 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
 |:---:|:---:|:---:|

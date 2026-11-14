@@ -1,7 +1,7 @@
 {
   "name": "jukeboxroom-desktop",
   "productName": "JukeboxRoom",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "private": true,
   "description": "JukeboxRoom 桌面版（内置本地服务端）",
   "main": "main.js",
