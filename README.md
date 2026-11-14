@@ -19,9 +19,9 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 - 修复更新面板把发布说明显示为 HTML 源码的问题；桌面版设置页与 Web 端更新浮层同步修复。
 - [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.20) · [完整发布历史](docs/releases/release-notes.md) · [技术变更](CHANGELOG.md) · [自动更新说明](docs/AUTO_UPDATE.md)
 
-| 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
+| 音乐搜索 | 设置与音源账号 | 发现音乐 |
 |:---:|:---:|:---:|
-| ![房间大厅](docs/screenshots/home.png) | ![房间点歌](docs/screenshots/room.png) | ![音源登录](docs/screenshots/login.png) |
+| ![音乐搜索](docs/screenshots/desktop-music-search.png) | ![设置与音源账号](docs/screenshots/desktop-settings.png) | ![发现音乐](docs/screenshots/desktop-discover.png) |
 - 本轮源码改进尚未作为新的正式版本发布。各端构建、签名与验收范围见 [移动端维护说明](docs/MOBILE.md)。
 
 ## 先选择使用方式
