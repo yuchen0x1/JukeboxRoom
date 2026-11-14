@@ -59,6 +59,7 @@ import ChangelogViewer from './ChangelogViewer';
 import Modal from './Modal';
 import { useTrackLyrics } from '../hooks/useTrackLyrics';
 import { getSharedAudio } from '../lib/audioElement';
+import { releaseNotesToPlainText } from '../lib/releaseNotesText';
 import {
   useDesktopMusicStore,
   type DesktopPlaylist,
@@ -1034,7 +1035,7 @@ export default function DesktopMusicApp() {
                             {nativeUpdate.releaseDate && <span>{formatUpdateTime(nativeUpdate.releaseDate)}</span>}
                           </div>
                           {nativeUpdate.total > 0 && nativeUpdate.state !== 'downloading' && <p>安装包大小：{formatUpdateBytes(nativeUpdate.total)}</p>}
-                          {nativeUpdate.releaseNotes && <p>{nativeUpdate.releaseNotes.replace(/^#{1,6}\s*/gm, '').replace(/\*/g, '').trim()}</p>}
+                          {nativeUpdate.releaseNotes && <p className="whitespace-pre-line">{releaseNotesToPlainText(nativeUpdate.releaseNotes)}</p>}
                           {nativeUpdate.state === 'downloading' && (
                             <div className="desktop-native-download-progress" role="status" aria-live="polite">
                               <div className="desktop-native-download-progress-track"><span style={{ width: `${nativeUpdate.percent}%` }} /></div>
@@ -1059,7 +1060,7 @@ export default function DesktopMusicApp() {
                             <strong>JukeboxRoom v{updateInfo.latestVersion}</strong>
                             {updateInfo.publishedAt && <span>{formatUpdateTime(updateInfo.publishedAt)}</span>}
                           </div>
-                          {updateInfo.releaseNotes && <p>{updateInfo.releaseNotes.replace(/^#{1,6}\s*/gm, '').replace(/\*/g, '').trim()}</p>}
+                          {updateInfo.releaseNotes && <p className="whitespace-pre-line">{releaseNotesToPlainText(updateInfo.releaseNotes)}</p>}
                           <button
                             type="button"
                             className="desktop-primary-button"

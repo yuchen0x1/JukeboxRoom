@@ -3,6 +3,7 @@ import { Download, ExternalLink, Loader2, RefreshCw, Rocket, Sparkles, X } from 
 import { ApiError } from '../api/http';
 import { getStoredUser } from '../api/auth';
 import { fetchUpdateInfo, fetchSelfUpdateState, startServerUpdate, type UpdateInfo } from '../api/update';
+import { releaseNotesToPlainText } from '../lib/releaseNotesText';
 
 const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const DISMISSED_VERSION_KEY = 'openmusic-update-dismissed-v1';
@@ -133,7 +134,7 @@ export default function UpdateNotice() {
             <div><p className="text-sm font-semibold">发现新版本 v{update.latestVersion}</p><p className="mt-1 text-xs text-white/50">当前 v{update.currentVersion || '未知'}{releaseDate ? ` · ${releaseDate}` : ''}</p></div>
             <button type="button" aria-label="稍后提醒" onClick={() => { try { sessionStorage.setItem(DISMISSED_VERSION_KEY, update.latestVersion || ''); } catch { /* ignore */ } setDismissed(true); }} className="rounded-lg p-1 text-white/40 transition-colors hover:bg-white/10 hover:text-white"><X className="h-4 w-4" /></button>
           </div>
-          {update.releaseNotes && <p className="mt-2 max-h-10 overflow-hidden whitespace-pre-line text-xs leading-5 text-white/65">{update.releaseNotes.replace(/^#{1,6}\s*/gm, '').replace(/\*/g, '')}</p>}
+          {update.releaseNotes && <p className="mt-2 max-h-10 overflow-hidden whitespace-pre-line text-xs leading-5 text-white/65">{releaseNotesToPlainText(update.releaseNotes)}</p>}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {canApply && <button type="button" onClick={() => void applyUpdateNow()} disabled={applying} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition-colors hover:bg-emerald-300 disabled:opacity-60">
               {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
