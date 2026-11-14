@@ -97,25 +97,85 @@ export async function resolveMiguPlayUrl(id, quality = 'standard', session = nul
   return null;
 }
 
+// 咪咕通行证统一响应格式：{ status, message, header: { resultcode }, result }
+// 成功时 status 为 2000（header.resultcode 为 104000），会话令牌位于 result.token；
+// 失败时（如验证码错误）status 非 2000，且不带 error 字段。
+const PASSPORT_SUCCESS_STATUS = 2000;
+
+export function passportFailed(result) {
+  const record = asRecord(result);
+  if (!record) return true;
+  if (record.error) return true;
+  const status = Number(record.status);
+  if (Number.isFinite(status)) return status !== PASSPORT_SUCCESS_STATUS;
+  const resultcode = String(record.header?.resultcode || '').trim();
+  return resultcode !== '' && resultcode !== '104000';
+}
+
+function passportMessage(result) {
+  return String(asRecord(result)?.message || '').trim();
+}
+
+// 兜底扫描：防止上游把令牌挪到其他 *token* 字段
+function collectTokenCandidates(value, depth = 0, found = []) {
+  if (depth > 3) return found;
+  const record = asRecord(value);
+  if (!record) return found;
+  for (const [key, item] of Object.entries(record)) {
+    if (typeof item === 'string' && /token/i.test(key)) found.push(item);
+    else collectTokenCandidates(item, depth + 1, found);
+  }
+  return found;
+}
+
 export async function requestMiguSmsCode(phone) {
-  const result = await loginPhone.getMsgCode(phone);
-  if (asRecord(result)?.error) throw new Error('咪咕验证码发送失败，请稍后重试');
+  let result;
+  try {
+    result = await loginPhone.getMsgCode(phone);
+  } catch {
+    throw new Error('咪咕验证码发送失败，请稍后重试');
+  }
+  if (passportFailed(result)) {
+    throw new Error(`咪咕验证码发送失败：${passportMessage(result) || '请稍后重试'}`);
+  }
   return { success: true };
 }
 
-function extractToken(result) {
-  const candidates = [result?.token, result?.data?.token, result?.body?.token, result?.data?.data?.token];
-  return candidates.map((value) => String(value || '').trim()).find((value) => value) || '';
+export function extractToken(result) {
+  const record = asRecord(result);
+  const candidates = [
+    record?.result?.token,
+    record?.token,
+    record?.data?.token,
+    record?.body?.token,
+    record?.data?.data?.token,
+    ...collectTokenCandidates(record),
+  ];
+  return candidates
+    .map((value) => String(value || '').trim())
+    .find((value) => value && value.length <= MAX_SESSION_TOKEN_LENGTH) || '';
 }
 
 export async function loginMiguByPhone(phone, smsCode) {
-  const result = await loginPhone.authn(phone, smsCode);
-  if (asRecord(result)?.error) throw new Error('咪咕登录失败，请检查验证码是否正确或已过期');
+  let result;
+  try {
+    result = await loginPhone.authn(phone, smsCode);
+  } catch {
+    throw new Error('咪咕登录失败，无法连接咪咕服务，请稍后重试');
+  }
+  if (passportFailed(result)) {
+    throw new Error(`咪咕登录失败：${passportMessage(result) || '请检查验证码是否正确或已过期'}`);
+  }
   const token = extractToken(result);
   if (!token || token.length > MAX_SESSION_TOKEN_LENGTH) {
     throw new Error('咪咕登录未返回有效会话，请稍后重试');
   }
-  const pacmResult = await getPacmToken(token);
+  let pacmResult;
+  try {
+    pacmResult = await getPacmToken(token);
+  } catch {
+    throw new Error('咪咕登录会话获取失败，请稍后重试');
+  }
   const pacmToken = String(pacmResult?.pacmToken || '').trim();
   if (!pacmToken || pacmToken.length > MAX_SESSION_TOKEN_LENGTH) {
     throw new Error('咪咕登录会话获取失败，请稍后重试');
