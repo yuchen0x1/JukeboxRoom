@@ -22,7 +22,7 @@ python -m http.server 8765
 | 构建命令 | 留空 |
 | 输出目录 | `website` |
 
-保存后每次推送 `main` 会自动重新部署，分配的默认域名为 `*.edgeone.app`。
+保存后每次推送 `main` 会自动重新部署，分配的默认域名为 `*.edgeone.dev`。
 
 ## 替代方式：拖拽上传
 
