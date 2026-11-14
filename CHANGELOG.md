@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### 咪咕短信登录深度修复（v0.0.18 安装包之后）
+
+- 自实现咪咕通行证短信登录，替换 migu-api-enhanced 的 loginPhone/getPacmToken：实测验证码与「发码时的会话」绑定（Cookie + 固定指纹），SDK 两段请求互不关联，导致正确验证码也返回 4005「短信验证码错误或已失效」。发码与登录现在复用同一会话（内存保持 10 分钟）。
+- pacmtoken 改为从 token-validate 的响应头/Set-Cookie 提取；SDK 的 ckfetch 只扫描请求自带 Cookie 的同名 key，新登录必然取不到 pacmtoken。
+- 登录令牌（STnid…）为一次性凭证，token-validate 严格只调用一次；RSA 加密改用 node:crypto 复刻（JWK + PKCS#1 v1.5 + hex），不再依赖 SDK 内部模块。
+- 新增 9 项回归测试覆盖会话保持、真实失败透传、pacmtoken 双通道提取与一次性令牌约束。
+
 ## 0.0.18（2026-11-14）
 
 ### 代理兼容与音源连接修复
