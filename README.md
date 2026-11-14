@@ -14,10 +14,10 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 
 ## 最新更新
 
-### v0.0.19（2026-11-14）
+### v0.0.20（2026-11-14）
 
-- 咪咕短信登录深度修复：实测确认验证码与「发码时的会话」绑定，旧实现两段式请求互不关联导致正确验证码也被判「错误或已失效」；新实现保持会话（Cookie + 固定指纹）并正确提取 pacmtoken，已通过真实接口端到端验证。
-- [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.19) · [完整发布历史](docs/releases/release-notes.md) · [技术变更](CHANGELOG.md) · [自动更新说明](docs/AUTO_UPDATE.md)
+- 修复更新面板把发布说明显示为 HTML 源码的问题；桌面版设置页与 Web 端更新浮层同步修复。
+- [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.20) · [完整发布历史](docs/releases/release-notes.md) · [技术变更](CHANGELOG.md) · [自动更新说明](docs/AUTO_UPDATE.md)
 
 | 房间大厅 | 房间点歌与聊天 | 音源登录（房主专属） |
 |:---:|:---:|:---:|

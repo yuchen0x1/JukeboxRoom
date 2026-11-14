@@ -29,7 +29,16 @@
 
 [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.19) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.19)
 
-## 未发布（main 分支，非 v0.0.19 安装包内容）
+## 0.0.20（GitHub 正式发布，2026-11-14）
+
+- 修复更新面板把发布说明显示为 HTML 源码的问题：electron-updater 下发的是转换后的 HTML，面板此前只按 Markdown 处理导致标签裸露。新增统一纯文本转换，桌面版设置页与 Web 端更新浮层同步修复。
+- 测试样例中的过期短信验证码替换为虚构码（数据清理）。
+
+发布资产：Windows x64 安装包、自动更新元数据及校验清单。本次未发布 Android APK。
+
+[本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.20) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.20)
+
+## 未发布（main 分支，非 v0.0.20 安装包内容）
 
 （暂无）
 
