@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JukeboxRoom · 多人实时在线点歌系统</title>
+  <meta name="description" content="JukeboxRoom 是一个可自托管的多人实时在线点歌系统：聚会、宿舍、办公室里，大家扫码进同一个房间，搜索歌曲、排队点歌、同步播放、看歌词、聊天互动。支持 Docker 自托管、Windows 桌面版和 Android 播放器。" />
+  <meta property="og:title" content="JukeboxRoom · 让整个房间一起点歌" />
+  <meta property="og:description" content="可自托管的多人实时在线点歌系统：聚合搜索、实时同步、聊天互动、TV 大屏。Docker 一键部署。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="assets/desktop-music-search.png" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #151e28;
+      --card-hover: #1b2632;
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f5f7fa;
+      --muted: #94a3b8;
+      --accent: #ec4141;
+      --accent-soft: rgba(236, 65, 65, 0.12);
+      --radius: 16px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+    .container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---------- 顶部导航 ---------- */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      transition: background 0.3s, border-color 0.3s;
+      border-bottom: 1px solid transparent;
+    }
+    .nav.scrolled { background: rgba(11, 15, 20, 0.85); backdrop-filter: blur(12px); border-color: var(--border); }
+    .nav-inner { display: flex; align-items: center; gap: 28px; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+    .brand svg { width: 28px; height: 28px; }
+    .nav-links { display: flex; gap: 24px; margin-left: auto; }
+    .nav-links a { color: var(--muted); font-size: 14px; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { display: flex; gap: 12px; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 20px; border-radius: 999px; font-size: 14px; font-weight: 600;
+      border: 1px solid var(--border); transition: transform 0.15s, background 0.2s, border-color 0.2s;
+      cursor: pointer;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 4px 20px rgba(236, 65, 65, 0.3); }
+    .btn-primary:hover { background: #f05050; }
+    .btn-ghost { background: rgba(255, 255, 255, 0.04); color: var(--text); }
+    .btn-ghost:hover { background: var(--card-hover); }
+    .btn-lg { padding: 14px 28px; font-size: 16px; }
+    .btn svg { width: 16px; height: 16px; }
+
+    /* ---------- Hero ---------- */
+    .hero { position: relative; padding: 160px 0 100px; text-align: center; }
+    .hero-glow {
+      position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+    }
+    .hero-glow::before, .hero-glow::after {
+      content: ""; position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.25;
+    }
+    .hero-glow::before { width: 560px; height: 560px; background: var(--accent); top: -180px; left: 50%; transform: translateX(-80%); }
+    .hero-glow::after { width: 480px; height: 480px; background: #7c3aed; top: -120px; left: 50%; transform: translateX(10%); opacity: 0.15; }
+    .hero-inner { position: relative; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 999px; font-size: 13px; color: var(--muted);
+      background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); margin-bottom: 28px;
+    }
+    .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .hero h1 { font-size: clamp(40px, 7vw, 68px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+    .hero h1 .grad {
+      background: linear-gradient(120deg, #ec4141 20%, #ff8a65 60%, #f5f7fa 90%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero p.sub { max-width: 640px; margin: 24px auto 0; color: var(--muted); font-size: 18px; }
+    .hero-actions { display: flex; gap: 16px; justify-content: center; margin-top: 40px; flex-wrap: wrap; }
+
+    /* 黑胶 + 均衡器装饰 */
+    .vinyl-scene { margin: 72px auto 0; max-width: 880px; position: relative; }
+    .vinyl {
+      width: 200px; height: 200px; margin: 0 auto; border-radius: 50%;
+      background:
+        radial-gradient(circle at center, #ec4141 0 8%, #1a1a1a 9% 26%, #111 27% 100%);
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 80px rgba(236, 65, 65, 0.15);
+      animation: spin 14s linear infinite;
+    }
+    .vinyl::before {
+      content: ""; position: absolute; inset: 6%;
+      border-radius: 50%;
+      background: repeating-radial-gradient(circle, rgba(255,255,255,0.03) 0 2px, transparent 2px 5px);
+    }
+    .vinyl::after {
+      content: ""; position: absolute; top: 50%; left: 50%; width: 28px; height: 28px;
+      transform: translate(-50%, -50%); border-radius: 50%;
+      background: #ec4141; box-shadow: 0 0 24px rgba(236, 65, 65, 0.8);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .eq { display: flex; align-items: flex-end; justify-content: center; gap: 6px; height: 56px; margin-top: 48px; }
+    .eq span {
+      width: 5px; border-radius: 3px; background: var(--accent);
+      animation: eq 0.9s ease-in-out infinite alternate;
+      opacity: 0.85;
+    }
+    .eq span:nth-child(1) { animation-delay: 0s;   height: 12px; }
+    .eq span:nth-child(2) { animation-delay: 0.1s; height: 30px; }
+    .eq span:nth-child(3) { animation-delay: 0.2s; height: 44px; }
+    .eq span:nth-child(4) { animation-delay: 0.15s; height: 26px; }
+    .eq span:nth-child(5) { animation-delay: 0.3s; height: 40px; }
+    .eq span:nth-child(6) { animation-delay: 0.05s; height: 20px; }
+    .eq span:nth-child(7) { animation-delay: 0.25s; height: 34px; }
+    .eq span:nth-child(8) { animation-delay: 0.35s; height: 14px; }
+    .eq span:nth-child(9) { animation-delay: 0.2s; height: 28px; }
+    @keyframes eq { from { transform: scaleY(0.4); } to { transform: scaleY(1.3); } }
+
+    /* ---------- 通用 section ---------- */
+    section { padding: 88px 0; }
+    .sec-head { text-align: center; max-width: 640px; margin: 0 auto 56px; }
+    .sec-head .kicker { color: var(--accent); font-size: 14px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .sec-head h2 { font-size: clamp(28px, 4vw, 40px); font-weight: 800; margin-top: 12px; letter-spacing: -0.01em; }
+    .sec-head p { color: var(--muted); margin-top: 14px; font-size: 16px; }
+
+    /* 功能卡片 */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .feature {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px; transition: transform 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .feature:hover { transform: translateY(-4px); border-color: rgba(236, 65, 65, 0.4); background: var(--card-hover); }
+    .feature .icon {
+      width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      background: var(--accent-soft); color: var(--accent); font-size: 20px; margin-bottom: 18px;
+    }
+    .feature h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .feature p { color: var(--muted); font-size: 14px; }
+
+    /* 多端支持 */
+    .platforms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .platform {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .platform .tag {
+      align-self: flex-start; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+      background: var(--accent-soft); color: var(--accent);
+    }
+    .platform h3 { font-size: 18px; font-weight: 700; }
+    .platform p { color: var(--muted); font-size: 14px; flex: 1; }
+    .platform .link { color: var(--accent); font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+    .platform .link:hover { text-decoration: underline; }
+
+    /* 截图 */
+    .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .shot { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: transform 0.2s, border-color 0.2s; }
+    .shot:hover { transform: translateY(-4px); border-color: rgba(236, 65, 65, 0.4); }
+    .shot img { width: 100%; aspect-ratio: 1603 / 1003; object-fit: cover; }
+    .shot figcaption { padding: 16px 20px; color: var(--muted); font-size: 14px; text-align: center; }
+
+    /* 快速开始 */
+    .terminal {
+      background: #0d1218; border: 1px solid var(--border); border-radius: var(--radius);
+      max-width: 720px; margin: 0 auto; overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+    .terminal-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .terminal-bar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+    .terminal-bar i:nth-child(1) { background: #ff5f57; }
+    .terminal-bar i:nth-child(2) { background: #febc2e; }
+    .terminal-bar i:nth-child(3) { background: #28c840; }
+    .terminal-bar .title { margin-left: 10px; color: var(--muted); font-size: 12px; }
+    .terminal pre { padding: 20px; font-family: "JetBrains Mono", Consolas, monospace; font-size: 14px; overflow-x: auto; }
+    .terminal .prompt { color: var(--accent); user-select: none; }
+    .copy-wrap { position: relative; }
+    .copy-btn {
+      position: absolute; top: 14px; right: 14px; padding: 6px 12px; font-size: 12px;
+      background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); color: var(--muted);
+      border-radius: 8px; cursor: pointer; transition: color 0.2s, border-color 0.2s;
+    }
+    .copy-btn:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.2); }
+    .terminal-note { text-align: center; color: var(--muted); font-size: 14px; margin-top: 20px; }
+    .terminal-note a { color: var(--accent); }
+    .terminal-note a:hover { text-decoration: underline; }
+
+    /* 下载 CTA */
+    .cta-box {
+      background: linear-gradient(135deg, rgba(236, 65, 65, 0.16), rgba(124, 58, 237, 0.10));
+      border: 1px solid rgba(236, 65, 65, 0.3); border-radius: 24px;
+      padding: 56px 32px; text-align: center;
+    }
+    .cta-box h2 { font-size: clamp(26px, 4vw, 36px); font-weight: 800; }
+    .cta-box p { color: var(--muted); margin: 14px auto 32px; max-width: 520px; }
+    .cta-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+    /* 页脚 */
+    footer { border-top: 1px solid var(--border); padding: 48px 0 40px; color: var(--muted); font-size: 14px; }
+    .foot-grid { display: flex; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+    .foot-brand { max-width: 320px; }
+    .foot-brand .brand { margin-bottom: 12px; }
+    .foot-col h4 { color: var(--text); font-size: 14px; margin-bottom: 12px; }
+    .foot-col a { display: block; margin-bottom: 8px; transition: color 0.2s; }
+    .foot-col a:hover { color: var(--text); }
+    .foot-bottom { margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+
+    /* 滚动淡入 */
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease-out, transform 0.6s ease-out; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    /* 响应式 */
+    @media (max-width: 900px) {
+      .features, .platforms, .shots { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      .hero { padding-top: 120px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="#top">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="48" fill="#ec4141"/>
+          <circle cx="50" cy="50" r="20" fill="#1a1a1a"/>
+          <circle cx="50" cy="50" r="6" fill="#ec4141"/>
+        </svg>
+        JukeboxRoom
+      </a>
+      <div class="nav-links">
+        <a href="#features">功能特性</a>
+        <a href="#platforms">多端支持</a>
+        <a href="#screenshots">界面预览</a>
+        <a href="#quickstart">快速开始</a>
+      </div>
+      <div class="nav-cta">
+        <a class="btn btn-ghost" href="https://github.com/yuchen0x1/JukeboxRoom" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55v-1.94c-3.2.7-3.87-1.54-3.87-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.66.41.36.78 1.06.78 2.14v3.17c0 .3.21.66.8.55A10.52 10.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+          GitHub
+        </a>
+        <a class="btn btn-primary" href="https://github.com/yuchen0x1/JukeboxRoom/releases/latest" target="_blank" rel="noopener">下载安装包</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="hero-glow"></div>
+    <div class="container hero-inner">
+      <span class="badge"><span class="dot"></span>开源 · 可自托管 · MIT License</span>
+      <h1>让整个房间<span class="grad">一起点歌</span></h1>
+      <p class="sub">
+        聚会、宿舍、办公室——大家扫码进同一个房间：搜索歌曲、排队点歌、进度实时同步、歌词逐字高亮。
+        一台服务器，你们的专属点唱机。
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="#quickstart">Docker 一键部署</a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/yuchen0x1/JukeboxRoom/releases/latest" target="_blank" rel="noopener">Windows / Android 下载</a>
+      </div>
+      <div class="vinyl-scene">
+        <div class="vinyl"></div>
+        <div class="eq" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="features">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="kicker">核心能力</div>
+          <h2>点歌之外的每一件事都做好了</h2>
+          <p>不只是同步播放：从搜索到聊天、从权限到大屏，一个房间需要的它都有。</p>
+        </div>
+        <div class="features">
+          <div class="feature reveal">
+            <div class="icon">🎧</div>
+            <h3>实时同步播放</h3>
+            <p>基于 Socket.IO：播放状态、队列、进度、暂停、拖动和跳歌，全房间毫秒级同步，断线自动重连。</p>
+          </div>
+          <div class="feature reveal">
+            <div class="icon">🔍</div>
+            <h3>四平台聚合搜索</h3>
+            <p>一次搜索网易云、QQ 音乐、酷狗、汽水四大曲库；房主授权登录音源，全房间共享高品质音源，凭据加密保存在服务端。</p>
+          </div>
+          <div class="feature reveal">
+            <div class="icon">💬</div>
+            <h3>房间聊天互动</h3>
+            <p>文本、表情、回复、@ 提及、消息回应；FM 模式随机放歌，聊天区直接点歌，气氛不冷场。</p>
+          </div>
+          <div class="feature reveal">
+            <div class="icon">🛡️</div>
+            <h3>房主权限管理</h3>
+            <p>6 位房间号、密码房间、锁定房间；管理员/贵宾角色、禁言踢人、点歌规则和音质设置，房主权杖在手。</p>
+          </div>
+          <div class="feature reveal">
+            <div class="icon">📺</div>
+            <h3>TV 大屏模式</h3>
+            <p>浏览器访问 <code>/tv/房间号</code>，投上客厅大屏或投影；封面背景视觉效果跟随播放变化。</p>
+          </div>
+          <div class="feature reveal">
+            <div class="icon">⚙️</div>
+            <h3>AutoDJ 与本地曲库</h3>
+            <p>队列低水位自动补歌、按歌曲/歌手去重；扫描本地音乐标签建立曲库，深夜没人点歌也不冷场。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="platforms">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="kicker">多端支持</div>
+          <h2>挑一种你喜欢的方式开始</h2>
+          <p>同一个项目，三种用法：从自建社群服务器到单机个人播放器。</p>
+        </div>
+        <div class="platforms">
+          <div class="platform reveal">
+            <span class="tag">推荐</span>
+            <h3>自托管 Web</h3>
+            <p>Docker 一条命令拉起，或 Node.js 20+ / PM2 / 宝塔部署。适合聚会、社群、办公室和家庭共享房间，成员扫码即进。</p>
+            <a class="link" href="https://github.com/yuchen0x1/JukeboxRoom#readme" target="_blank" rel="noopener">查看部署文档 →</a>
+          </div>
+          <div class="platform reveal">
+            <span class="tag">Windows</span>
+            <h3>桌面版安装包</h3>
+            <p>NSIS 安装包内置本地服务端和完整页面，无需安装 Node.js；支持系统托盘和应用内自动更新。</p>
+            <a class="link" href="https://github.com/yuchen0x1/JukeboxRoom/releases/latest" target="_blank" rel="noopener">下载安装包 →</a>
+          </div>
+          <div class="platform reveal">
+            <span class="tag">Android</span>
+            <h3>独立播放器</h3>
+            <p>手机本地搜索、播放、收藏和后台播放，不需要填写服务器地址；支持歌词、队列和系统媒体控制。</p>
+            <a class="link" href="https://github.com/yuchen0x1/JukeboxRoom/releases/latest" target="_blank" rel="noopener">获取 APK →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screenshots">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="kicker">界面预览</div>
+          <h2>先看一眼再决定</h2>
+          <p>深色界面，为长时间听歌设计。</p>
+        </div>
+        <div class="shots">
+          <figure class="shot reveal">
+            <img src="assets/desktop-music-search.png" alt="音乐搜索界面" loading="lazy" />
+            <figcaption>聚合搜索 · 一次搜遍四大曲库</figcaption>
+          </figure>
+          <figure class="shot reveal">
+            <img src="assets/desktop-discover.png" alt="发现音乐界面" loading="lazy" />
+            <figcaption>发现音乐 · 热榜、歌单与推荐</figcaption>
+          </figure>
+          <figure class="shot reveal">
+            <img src="assets/desktop-settings.png" alt="设置与音源账号界面" loading="lazy" />
+            <figcaption>设置中心 · 音源账号授权与品质切换</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="quickstart">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="kicker">快速开始</div>
+          <h2>三行命令，开始营业</h2>
+          <p>一台有 Docker 的服务器就够了。</p>
+        </div>
+        <div class="terminal reveal">
+          <div class="terminal-bar"><i></i><i></i><i></i><span class="title">bash — JukeboxRoom</span></div>
+          <div class="copy-wrap">
+            <button class="copy-btn" id="copyBtn">复制</button>
+            <pre id="cmd"><code><span class="prompt">$</span> git clone https://github.com/yuchen0x1/JukeboxRoom.git
+<span class="prompt">$</span> cd JukeboxRoom
+<span class="prompt">$</span> docker compose up -d --build</code></pre>
+          </div>
+        </div>
+        <p class="terminal-note">
+          打开 <code>http://服务器IP:4000</code> 创建房间即可。
+          生产环境的安全配置见 <a href="https://github.com/yuchen0x1/JukeboxRoom#readme" target="_blank" rel="noopener">README</a>。
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <div class="cta-box reveal">
+          <h2>今晚就开一间房</h2>
+          <p>开源免费，MIT 协议。自托管意味着数据在你手里，规则你来定。</p>
+          <div class="cta-actions">
+            <a class="btn btn-primary btn-lg" href="https://github.com/yuchen0x1/JukeboxRoom/releases/latest" target="_blank" rel="noopener">前往 GitHub Release 下载</a>
+            <a class="btn btn-ghost btn-lg" href="https://github.com/yuchen0x1/JukeboxRoom" target="_blank" rel="noopener">⭐ 给项目点个 Star</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-brand">
+          <a class="brand" href="#top">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <circle cx="50" cy="50" r="48" fill="#ec4141"/>
+              <circle cx="50" cy="50" r="20" fill="#1a1a1a"/>
+              <circle cx="50" cy="50" r="6" fill="#ec4141"/>
+            </svg>
+            JukeboxRoom
+          </a>
+          <p>可自托管的多人实时在线点歌系统。项目基于 <a href="https://github.com/qq01-hub/openmusic" target="_blank" rel="noopener" style="color:var(--accent)">OpenMusic</a> 二次开发。</p>
+        </div>
+        <div class="foot-col">
+          <h4>项目</h4>
+          <a href="https://github.com/yuchen0x1/JukeboxRoom" target="_blank" rel="noopener">GitHub 仓库</a>
+          <a href="https://github.com/yuchen0x1/JukeboxRoom/releases/latest" target="_blank" rel="noopener">版本下载</a>
+          <a href="https://github.com/yuchen0x1/JukeboxRoom/issues" target="_blank" rel="noopener">问题反馈</a>
+        </div>
+        <div class="foot-col">
+          <h4>社区</h4>
+          <a href="#top">QQ 交流群：1016190748</a>
+          <a href="https://t.me/lenmoC" target="_blank" rel="noopener">Telegram</a>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span>© 2026 JukeboxRoom · 基于 MIT License 开源</span>
+        <span>音乐搜索与播放能力由第三方音源提供，请遵守相关服务条款。</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // 导航滚动背景
+    const nav = document.getElementById('nav');
+    const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 8);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    // 滚动淡入
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } }),
+      { threshold: 0.15 }
+    );
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+    // 复制部署命令
+    document.getElementById('copyBtn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      try {
+        await navigator.clipboard.writeText(
+          'git clone https://github.com/yuchen0x1/JukeboxRoom.git\ncd JukeboxRoom\ndocker compose up -d --build'
+        );
+        btn.textContent = '已复制 ✓';
+      } catch {
+        btn.textContent = '复制失败';
+      }
+      setTimeout(() => { btn.textContent = '复制'; }, 2000);
+    });
+  </script>
+</body>
+</html>
