@@ -20,7 +20,7 @@ const fs = require('fs');
 const net = require('net');
 const path = require('path');
 const { createDesktopUpdater } = require('./updater');
-const { configureDesktopSessionProxy } = require('./network');
+const { configureDesktopSessionProxy, mergeDomesticMusicNoProxy } = require('./network');
 const { CancellationToken } = require('builder-util-runtime');
 const { assertTrustedRendererRequest } = require('./ipc-security');
 
@@ -360,6 +360,10 @@ async function startServer() {
     CLIENT_URL: `http://127.0.0.1:${port}`,
     OPENMUSIC_DATA_DIR: dataDir,
     ELECTRON_RUN_AS_NODE: '1',
+    // 国内音源域名强制直连：即使用户终端带有 HTTP(S)_PROXY 环境变量，
+    // axios 系依赖（咪咕 SDK 等）也不会把国内音源请求推进代理链。
+    NO_PROXY: mergeDomesticMusicNoProxy([process.env.NO_PROXY, process.env.no_proxy, userEnv.NO_PROXY, userEnv.no_proxy]),
+    no_proxy: mergeDomesticMusicNoProxy([process.env.NO_PROXY, process.env.no_proxy, userEnv.NO_PROXY, userEnv.no_proxy]),
   };
 
   serverStopping = false;
