@@ -128,7 +128,7 @@ test('migu sms login keeps one session: cookies and fingerprint shared between s
   }));
 
   await requestMiguSmsCode(phone);
-  const { token, pacmToken } = await loginMiguByPhone(phone, '652149');
+  const { token, pacmToken } = await loginMiguByPhone(phone, '246813');
 
   assert.equal(token, 'STnid-login-test-token-0001');
   // 实测响应头与 Set-Cookie 携带相同值；实现优先取响应头（API 明确暴露的通道）
@@ -176,7 +176,7 @@ test('migu pacm exchange falls back to the pacmtoken response header', async (t)
   }));
 
   await requestMiguSmsCode(phone);
-  const { pacmToken } = await loginMiguByPhone(phone, '444530');
+  const { pacmToken } = await loginMiguByPhone(phone, '135790');
   assert.equal(pacmToken, 'HEADERONLYVALUE');
 });
 
@@ -190,5 +190,5 @@ test('migu login fails clearly when token-validate returns no pacmtoken', async 
   }));
 
   await requestMiguSmsCode(phone);
-  await assert.rejects(loginMiguByPhone(phone, '652149'), /咪咕登录会话获取失败/);
+  await assert.rejects(loginMiguByPhone(phone, '246813'), /咪咕登录会话获取失败/);
 });
