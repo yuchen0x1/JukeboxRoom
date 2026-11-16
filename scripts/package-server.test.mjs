@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import test from 'node:test';
-import { copyServerFiles, isServerPackageEntry } from './package-server.mjs';
+import { copyServerFiles, isServerPackageEntry, relativeServerPath } from './package-server.mjs';
 
 test('server bundle keeps runtime files and excludes local credentials, stores and tests', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jukeboxroom-package-'));
@@ -23,6 +23,13 @@ test('server bundle keeps runtime files and excludes local credentials, stores a
   copyServerFiles(source, target);
   for (const name of allowed) assert.ok(fs.existsSync(path.join(target, name)), name);
   for (const name of excluded) assert.ok(!fs.existsSync(path.join(target, name)), name);
+});
+
+test('server package paths normalize Windows extended-length copy paths', () => {
+  if (process.platform !== 'win32') return;
+  const source = 'C:\\work\\server';
+  const entry = '\\\\?\\C:\\work\\server\\package.json';
+  assert.equal(relativeServerPath(source, entry), 'package.json');
 });
 
 test('Windows installer uses the same source-only boundary and preserves runtime modules', () => {
