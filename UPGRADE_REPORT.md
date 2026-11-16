@@ -70,7 +70,7 @@ JukeboxRoom 领先的地方是房间级实时协作、聊天、权限/投票、T
 ### 文档同步
 
 - README.md：补充本轮安全/健康接口行为和审计文档入口；
-- CHANGELOG.md：新增 2026-11-16 Unreleased 条目。
+- CHANGELOG.md：新增 0.0.21（2026-11-16）发布条目。
 
 本轮没有数据库 schema 迁移。JSON/Redis 数据结构没有被改写。
 

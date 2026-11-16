@@ -7,7 +7,7 @@
 
 JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在同一个房间里搜索歌曲、提交队列、同步播放进度、看歌词、聊天和管理播放规则。
 
-- 当前版本：**v0.0.20**（2026-11-14；本轮安全改进尚未单独发布新版本）
+- 当前版本：**v0.0.21**（2026-11-16）
 - 宣传页（官网）：<https://jukeboxroom.edgeone.dev>
 - 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
@@ -16,23 +16,19 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 
 ## 最新更新
 
-### Unreleased（2026-11-16）
+### v0.0.21（2026-11-16）
 
 - 收紧 QQ 扫码登录重定向：只允许已知 HTTPS QQ 登录域名，并对每一跳执行 DNS/私网 SSRF 校验。
 - provider JSON 请求统一使用安全出站请求器；保留受控登录流程需要的多个 Set-Cookie。
 - 运行时进入不健康状态后拒绝新的业务 API 请求；429 响应增加标准 Retry-After；健康接口返回版本和存储后端。
 - Prometheus 指标增加累计请求耗时和 HTTP 状态码计数。
-- 本轮改动尚未作为新的 GitHub Release 发布；验证范围和未完成项见 [UPGRADE_REPORT.md](UPGRADE_REPORT.md)。
-
-### v0.0.20（2026-11-14）
-
-- 修复更新面板把发布说明显示为 HTML 源码的问题；桌面版设置页与 Web 端更新浮层同步修复。
-- [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.20) · [完整发布历史](docs/releases/release-notes.md) · [技术变更](CHANGELOG.md) · [自动更新说明](docs/AUTO_UPDATE.md)
+- 新增可部署到 EdgeOne Pages 的静态宣传页，更新首页截图并补充官网入口；桌面构建依赖锁定 `minimatch` 11.0.1。
+- [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.21) · [完整发布历史](docs/releases/release-notes.md) · [技术变更](CHANGELOG.md) · [自动更新说明](docs/AUTO_UPDATE.md)
 
 | 音乐搜索 | 设置与音源账号 | 发现音乐 |
 |:---:|:---:|:---:|
 | ![音乐搜索](docs/screenshots/desktop-music-search.png) | ![设置与音源账号](docs/screenshots/desktop-settings.png) | ![发现音乐](docs/screenshots/desktop-discover.png) |
-- 本轮源码改进尚未作为新的正式版本发布。各端构建、签名与验收范围见 [移动端维护说明](docs/MOBILE.md)。
+- 本次正式发布包含 Windows 安装包；Android 与 iOS 仍按 [移动端维护说明](docs/MOBILE.md) 单独构建和验收。
 
 ## 先选择使用方式
 

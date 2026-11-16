@@ -2,6 +2,37 @@
 
 > 本页为面向用户的完整版本历史。日期按北京时间（Asia/Shanghai）记录；技术细节见 [CHANGELOG.md](../../CHANGELOG.md)。历史 OpenMusic 2.x 与 JukeboxRoom 0.0.x 为不同阶段的版本序列，不能按数字大小判断新旧。
 
+## 0.0.21（GitHub 正式发布，2026-11-16）
+
+- 收紧 QQ 扫码登录的回调地址校验：仅允许已知 HTTPS QQ 登录域名，并对响应重定向与 HTML 跳转逐跳执行 DNS、私网地址和 SSRF 校验。
+- provider JSON 请求统一使用安全出站请求器，限制 DNS、私网目标、重定向和响应大小；受控扫码会话保留多个 `Set-Cookie`。
+- 进程进入不健康状态后，健康探针仍可访问，但新的业务 API 请求明确返回 503；429 响应增加标准 `Retry-After`。
+- 健康接口补充版本与 memory/redis 存储信息；Prometheus 指标增加累计请求耗时和按状态码统计；HTTPS 下身份 Cookie 按 `req.secure` 设置 `Secure`。
+- 新增可部署到 EdgeOne Pages 的静态宣传页，更新首页截图并补充官网入口；桌面构建依赖锁定 `minimatch` 11.0.1。
+
+发布资产：Windows x64 安装包、自动更新元数据及校验清单。本次未发布 Android APK 或 iOS IPA。
+
+[本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.21) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.21)
+
+## 0.0.20（GitHub 正式发布，2026-11-14）
+
+- 修复更新面板把发布说明显示为 HTML 源码的问题：electron-updater 下发的是转换后的 HTML，面板此前只按 Markdown 处理导致标签裸露。新增统一纯文本转换，桌面版设置页与 Web 端更新浮层同步修复。
+- 测试样例中的过期短信验证码替换为虚构码（数据清理）。
+
+发布资产：Windows x64 安装包、自动更新元数据及校验清单。本次未发布 Android APK。
+
+[本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.20) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.20)
+
+## 0.0.19（GitHub 正式发布，2026-11-14）
+
+- 咪咕短信登录深度修复：实测确认验证码与「发码时的会话」绑定，SDK 两段式请求互不关联导致正确验证码也被判「错误或已失效」；自实现会话保持（Cookie + 固定指纹）的登录流程，并修复 pacmtoken 提取（SDK 只扫描请求自带 Cookie 的同名 key，新登录必为空）。
+- 登录令牌一次性约束下 token-validate 严格只调用一次；登录与验证码失败继续透传咪咕通行证的真实原因。
+- 已通过真实接口完成发码、登录与用户信息校验的端到端验证。
+
+发布资产：Windows x64 安装包、自动更新元数据及校验清单。本次未发布 Android APK。
+
+[本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.19) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.19)
+
 ## 0.0.18（GitHub 正式发布，2026-11-14）
 
 - 开启规则模式系统代理（Clash 等）时，国内音源域名（网易/QQ/酷狗/咪咕/汽水及其 CDN）在桌面版内强制直连，不再走国外代理链：封面、歌词、播放解析和音频兜底恢复正常；GitHub 更新检查等其余流量仍走系统代理。
@@ -19,26 +50,7 @@
 
 [本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.18) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.18)
 
-## 0.0.19（GitHub 正式发布，2026-11-14）
-
-- 咪咕短信登录深度修复：实测确认验证码与「发码时的会话」绑定，SDK 两段式请求互不关联导致正确验证码也被判「错误或已失效」；自实现会话保持（Cookie + 固定指纹）的登录流程，并修复 pacmtoken 提取（SDK 只扫描请求自带 Cookie 的同名 key，新登录必为空）。
-- 登录令牌一次性约束下 token-validate 严格只调用一次；登录与验证码失败继续透传咪咕通行证的真实原因。
-- 已通过真实接口完成发码、登录与用户信息校验的端到端验证。
-
-发布资产：Windows x64 安装包、自动更新元数据及校验清单。本次未发布 Android APK。
-
-[本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.19) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.19)
-
-## 0.0.20（GitHub 正式发布，2026-11-14）
-
-- 修复更新面板把发布说明显示为 HTML 源码的问题：electron-updater 下发的是转换后的 HTML，面板此前只按 Markdown 处理导致标签裸露。新增统一纯文本转换，桌面版设置页与 Web 端更新浮层同步修复。
-- 测试样例中的过期短信验证码替换为虚构码（数据清理）。
-
-发布资产：Windows x64 安装包、自动更新元数据及校验清单。本次未发布 Android APK。
-
-[本版下载与升级说明](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.20) · [版本源码](https://github.com/yuchen0x1/JukeboxRoom/tree/v0.0.20)
-
-## 未发布（main 分支，非 v0.0.20 安装包内容）
+## 未发布（main 分支，非 v0.0.21 安装包内容）
 
 （暂无）
 

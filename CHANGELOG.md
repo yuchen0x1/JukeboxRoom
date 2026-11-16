@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased（2026-11-16）
+## 0.0.21（2026-11-16）
+
+> [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.21) · [本版发布说明](RELEASE_NOTES_CN.md)。日期按北京时间记录。
 
 ### 安全、健康检查与可观测性
 
@@ -14,6 +16,11 @@
 ### 研究与交付文档
 
 - 新增 PROJECT_AUDIT.md、COMPETITOR_ANALYSIS.md、UPGRADE_ROADMAP.md 和 UPGRADE_REPORT.md，记录 15 个开源项目对标、34 个 EV 升级点、实现证据和后续阻塞项。
+
+### 宣传页与发布依赖
+
+- 新增可部署到 EdgeOne Pages 的静态宣传页，使用当前桌面版截图，并在 README 中补充官网入口。
+- 桌面构建依赖锁定 `minimatch` 11.0.1，清理已知依赖告警并保持锁文件可复现。
 
 ## 0.0.20（2026-11-14）
 
