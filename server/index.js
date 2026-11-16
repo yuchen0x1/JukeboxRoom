@@ -176,7 +176,7 @@ import {
   isApihzStickerConfigured,
   searchApihzStickers,
 } from './apihzSticker.js';
-import { fetchRecentReleaseNotes, isAllowedReleaseRedirectUrl, updateService } from './update.js';
+import { CURRENT_VERSION, fetchRecentReleaseNotes, isAllowedReleaseRedirectUrl, updateService } from './update.js';
 import { getProviderHealth } from './mediaHealth.js';
 import { applySelfUpdate, getSelfUpdateState } from './selfUpdate.js';
 import { isAllowedMediaUrl } from './mediaProxyPolicy.js';
@@ -319,6 +319,9 @@ const httpApiRateLimit = createHttpApiRateLimit({ max: HTTP_API_RATE_LIMIT_PER_M
 app.use('/api', httpApiRateLimit);
 /** 房间列表/账号等信息不应被浏览器或中间层缓存；个别路由（更新日志、封面代理）会显式覆盖。 */
 app.use('/api', apiNoStore);
+// 未捕获异常会把运行时标记为 unready。此时保留健康探针，但拒绝新的业务请求，
+// 防止负载均衡继续把流量送入可能已损坏的进程。
+app.use('/api', runtime.rejectWhenUnhealthy);
 app.use(express.json({
   limit: '2mb',
   verify: (req, _res, buf) => {
@@ -701,17 +704,17 @@ async function proxyMetingResponse(targetUrl, res, thumbPx = 0, metingType = '')
 }
 
 app.get('/api/health/live', (_req, res) => {
-  res.json({ ok: true, status: 'live' });
+  res.json({ ok: true, status: 'live', version: CURRENT_VERSION });
 });
 
 app.get('/api/health/ready', (_req, res) => {
-  if (!runtime.ready) return res.status(503).json({ ok: false, status: 'starting' });
-  res.json({ ok: true, status: 'ready', storage: isRedisEnabled() ? 'redis' : 'memory' });
+  if (!runtime.ready) return res.status(503).json({ ok: false, status: 'starting', version: CURRENT_VERSION });
+  res.json({ ok: true, status: 'ready', version: CURRENT_VERSION, storage: isRedisEnabled() ? 'redis' : 'memory' });
 });
 
 app.get('/api/health', (_req, res) => {
-  if (!runtime.ready) return res.status(503).json({ ok: false, status: 'starting' });
-  res.json({ ok: true, status: 'ready', storage: isRedisEnabled() ? 'redis' : 'memory' });
+  if (!runtime.ready) return res.status(503).json({ ok: false, status: 'starting', version: CURRENT_VERSION });
+  res.json({ ok: true, status: 'ready', version: CURRENT_VERSION, storage: isRedisEnabled() ? 'redis' : 'memory' });
 });
 
 app.get('/api/update/changelog', async (_req, res) => {
@@ -1546,8 +1549,10 @@ function createServerClientId() {
   return randomBytes(18).toString('base64url');
 }
 
-function setIdentityCookieHeaders(res, userId, token, deviceId = null) {
-  const secure = IS_PRODUCTION ? '; Secure' : '';
+function setIdentityCookieHeaders(res, userId, token, deviceId = null, req = null) {
+  // HTTPS 本地预览/反向代理即使没有 NODE_ENV=production 也必须保护会话 Cookie。
+  // Express 的 req.secure 仅在可信代理配置正确时才会依据转发头判定为 HTTPS。
+  const secure = (IS_PRODUCTION || req?.secure === true) ? '; Secure' : '';
   const base = `Path=/; Max-Age=${IDENTITY_COOKIE_MAX_AGE_SEC}; HttpOnly; SameSite=Lax${secure}`;
   const cookies = [
     `${IDENTITY_UID_COOKIE}=${encodeURIComponent(userId)}; ${base}`,
@@ -1594,7 +1599,7 @@ app.post('/api/session/bootstrap', async (req, res) => {
   if (existing) {
     const deviceId = hintedDeviceId || createServerClientId();
     await linkDeviceToUser(deviceId, existing.userId);
-    setIdentityCookieHeaders(res, existing.userId, signClientId(existing.userId), deviceId);
+    setIdentityCookieHeaders(res, existing.userId, signClientId(existing.userId), deviceId, req);
     return res.json({ clientId: existing.userId });
   }
 
@@ -1603,7 +1608,7 @@ app.post('/api/session/bootstrap', async (req, res) => {
     const boundUserId = await getUserIdForDevice(hintedDeviceId);
     if (boundUserId) {
       await linkDeviceToUser(hintedDeviceId, boundUserId);
-      setIdentityCookieHeaders(res, boundUserId, signClientId(boundUserId), hintedDeviceId);
+      setIdentityCookieHeaders(res, boundUserId, signClientId(boundUserId), hintedDeviceId, req);
       return res.json({ clientId: boundUserId });
     }
   }
@@ -1611,7 +1616,7 @@ app.post('/api/session/bootstrap', async (req, res) => {
   const userId = createServerClientId();
   const deviceId = hintedDeviceId || createServerClientId();
   await linkDeviceToUser(deviceId, userId);
-  setIdentityCookieHeaders(res, userId, signClientId(userId), deviceId);
+  setIdentityCookieHeaders(res, userId, signClientId(userId), deviceId, req);
   return res.json({ clientId: userId });
 });
 

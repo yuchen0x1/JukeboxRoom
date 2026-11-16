@@ -20,7 +20,7 @@ import {
 import { getRoomSourceCredential, getRoomInternal, setRoomSourceCredential } from './roomManager.js';
 import { removeSourceAccount, saveSourceAccountSession } from './sourceAccounts.js';
 import { canRequestProvider, recordProviderFailure, recordProviderSuccess } from './mediaHealth.js';
-import { isSafeHttpUrl } from './outboundUrl.js';
+import { isSafeHttpUrl, safeFetch, safeFetchFollow } from './outboundUrl.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -29,15 +29,9 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 /* ------------------------------------------------------------------ */
 
 async function fetchJson(url, options = {}, timeoutMs = 12000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    if (!res.ok) throw new Error(`上游返回 HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  const res = await safeFetchFollow(url, options, timeoutMs);
+  if (!res.ok) throw new Error(`上游返回 HTTP ${res.status}`);
+  return await res.json();
 }
 
 function md5(text) {
@@ -180,6 +174,37 @@ const QQ_CONNECT_DAID = '383';
 const QQ_MUSIC_AID = '100497308';
 const QQ_LOGIN_S_URL = 'https://graph.qq.com/oauth2.0/login_jump';
 const QQ_XUI_REFERER = 'https://xui.ptlogin2.qq.com/';
+const QQ_LOGIN_ALLOWED_HOSTS = new Set([
+  'graph.qq.com',
+  'ptlogin2.qq.com',
+  'ssl.ptlogin2.qq.com',
+  'xui.ptlogin2.qq.com',
+  'y.qq.com',
+  'u.y.qq.com',
+]);
+
+/**
+ * QQ 登录上游会把 check_url 作为响应数据返回。它必须保持在已知的
+ * QQ 登录业务域名内；仅检查 URL 查询串关键词不足以阻止 SSRF。
+ */
+export function isAllowedQqLoginUrl(rawUrl) {
+  try {
+    const parsed = new URL(String(rawUrl || ''));
+    return parsed.protocol === 'https:'
+      && !parsed.username
+      && !parsed.password
+      && QQ_LOGIN_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+async function fetchQqLoginUrl(rawUrl, options = {}, timeoutMs = 12000) {
+  if (!isAllowedQqLoginUrl(rawUrl)) {
+    throw new Error('QQ 登录跳转地址未通过主机校验');
+  }
+  return safeFetch(rawUrl, { ...options, redirect: 'manual' }, timeoutMs);
+}
 
 function qqXloginUrl() {
   return `https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=${QQ_CONNECT_APPID}&daid=${QQ_CONNECT_DAID}`
@@ -239,7 +264,7 @@ export async function startTencentQrLogin() {
   const jar = createCookieJar();
 
   // 1) 先建立登录会话（缺失这一步会让后续 ptqrlogin 一律 403）
-  const xr = await fetch(qqXloginUrl(), {
+  const xr = await fetchQqLoginUrl(qqXloginUrl(), {
     headers: { 'User-Agent': UA, Referer: QQ_REFERER },
     redirect: 'manual',
   });
@@ -256,7 +281,7 @@ export async function startTencentQrLogin() {
   const showUrl = `https://ssl.ptlogin2.qq.com/ptqrshow?appid=${QQ_CONNECT_APPID}&e=2&l=M&s=3&d=72&v=4`
     + `&t=${Math.random()}&daid=${QQ_CONNECT_DAID}&pt_3rd_aid=${QQ_MUSIC_AID}`
     + `&u1=${encodeURIComponent(QQ_LOGIN_S_URL)}`;
-  const res = await fetch(showUrl, {
+  const res = await fetchQqLoginUrl(showUrl, {
     headers: { 'User-Agent': UA, Cookie: jar.toString(), Referer: QQ_XUI_REFERER },
     redirect: 'manual',
   });
@@ -311,7 +336,7 @@ export async function pollTencentQrLogin(sessionKey) {
     `&action=0-0-${Date.now()}&js_ver=20122815&js_type=1&login_sig=&pt_uistyle=40` +
     `&aid=${QQ_CONNECT_APPID}&daid=${QQ_CONNECT_DAID}&pt_3rd_aid=${QQ_MUSIC_AID}&`;
 
-  const first = await fetch(loginUrl, {
+  const first = await fetchQqLoginUrl(loginUrl, {
     headers: { 'User-Agent': UA, Cookie: jar.toString(), Referer: QQ_XUI_REFERER },
     redirect: 'manual',
   });
@@ -356,7 +381,7 @@ export async function pollTencentQrLogin(sessionKey) {
 
   let url = checkUrl;
   for (let hop = 0; hop < 6 && url; hop += 1) {
-    const r = await fetch(url, {
+    const r = await fetchQqLoginUrl(url, {
       headers: { 'User-Agent': UA, Cookie: jar.toString(), Referer: QQ_REFERER },
       redirect: 'manual',
     });
@@ -366,7 +391,11 @@ export async function pollTencentQrLogin(sessionKey) {
     console.log(`[qq-qr] check_url hop${hop + 1} http=${r.status} location=${location ? 'yes' : 'no'}`);
 
     if (location && r.status >= 300 && r.status < 400) {
-      url = new URL(location, url).toString();
+      const nextUrl = new URL(location, url).toString();
+      if (!isAllowedQqLoginUrl(nextUrl)) {
+        throw new Error('QQ 登录重定向地址未通过主机校验');
+      }
+      url = nextUrl;
       collectUin(url);
       continue;
     }
@@ -375,7 +404,7 @@ export async function pollTencentQrLogin(sessionKey) {
     const jump = body.match(/https?:\\?\/\\?\/[^\s"'<>\\]+/);
     if (jump) {
       const candidate = jump[0].replace(/\\\//g, '/');
-      if (candidate !== url && /check_sig|login_jump|graph\.qq\.com|ptlogin/i.test(candidate)) {
+      if (candidate !== url && isAllowedQqLoginUrl(candidate) && /check_sig|login_jump|graph\.qq\.com|ptlogin/i.test(candidate)) {
         url = candidate;
         collectUin(url);
         continue;
@@ -386,7 +415,7 @@ export async function pollTencentQrLogin(sessionKey) {
 
   // 补齐 y.qq.com 业务 Cookie（部分环境会在此下发 qm_keyst）
   try {
-    const home = await fetch('https://y.qq.com/', {
+    const home = await fetchQqLoginUrl('https://y.qq.com/', {
       headers: { 'User-Agent': UA, Cookie: jar.toString() },
       redirect: 'manual',
     });
@@ -396,7 +425,7 @@ export async function pollTencentQrLogin(sessionKey) {
     // 补齐失败不阻塞登录
   }
   try {
-    const warm = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+    const warm = await fetchQqLoginUrl('https://u.y.qq.com/cgi-bin/musicu.fcg', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Referer: QQ_REFERER, 'User-Agent': UA, Cookie: jar.toString() },
       body: JSON.stringify({
@@ -497,7 +526,7 @@ async function neteaseWeapiPost(path, obj, cookie = '') {
     Referer: 'https://music.163.com/',
     Cookie: [NETEASE_BASE_COOKIE, cookie].filter(Boolean).join('; '),
   };
-  const res = await fetch(`https://music.163.com${path}`, {
+  const res = await safeFetchFollow(`https://music.163.com${path}`, {
     method: 'POST',
     headers,
     body: `params=${encodeURIComponent(params)}&encSecKey=${encodeURIComponent(encSecKey)}`,
@@ -597,7 +626,7 @@ export async function resolveNeteasePlayUrlWithCookie(songId, quality, roomCooki
   if (!roomCookie) return null;
   const br = quality === 'lossless' || quality === 'hires' ? 999000 : quality === 'exhigh' ? 320000 : 128000;
   const url = `https://music.163.com/api/song/enhance/player/url?ids=[${encodeURIComponent(songId)}]&br=${br}`;
-  const res = await fetch(url, {
+  const res = await safeFetchFollow(url, {
     headers: { 'User-Agent': UA, Referer: 'https://music.163.com/', Cookie: roomCookie },
   });
   if (!res.ok) throw new Error(`网易解析返回 HTTP ${res.status}`);
@@ -718,7 +747,7 @@ async function resolveKugouV5Url(hash, quality, cookieStr) {
   };
 
   const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-  const res = await fetch(`https://gateway.kugou.com/v5/url?${qs}`, {
+  const res = await safeFetchFollow(`https://gateway.kugou.com/v5/url?${qs}`, {
     headers: {
       'User-Agent': UA,
       'x-router': 'trackercdn.kugou.com',

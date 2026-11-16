@@ -87,6 +87,7 @@ test('API 超过阈值返回 429 并带限流响应头', async () => {
     for (let i = 0; i < 4; i += 1) last = await request(server, '/api/rooms');
     assert.equal(last.status, 429);
     assert.equal(last.headers['x-ratelimit-remaining'], '0');
+    assert.match(String(last.headers['retry-after'] || ''), /^\d+$/);
   } finally {
     await close(server);
   }

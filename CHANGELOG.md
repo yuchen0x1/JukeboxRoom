@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased（2026-11-16）
+
+### 安全、健康检查与可观测性
+
+- 收紧 QQ 扫码登录的 check_url：只允许已知 HTTPS QQ 登录域名，并对响应重定向和 HTML 跳转逐跳执行 SSRF 校验。
+- provider JSON 请求改用带 DNS/私网/响应大小/重定向边界的安全出站请求器；safeFetch 适配层保留多个 Set-Cookie，兼容受控扫码会话。
+- 运行时发生未捕获异常后，健康探针仍可访问，但新的业务 API 请求会明确返回 503，避免不健康进程继续接收流量。
+- 限流 429 增加标准 Retry-After 响应头，同时保留原有 JSON retryAfter 字段。
+- HTTPS 请求下身份 Cookie 会根据 req.secure 设置 Secure；健康接口补充版本和 memory/redis 存储信息。
+- Prometheus 指标增加累计请求耗时和按状态码统计。
+
+### 研究与交付文档
+
+- 新增 PROJECT_AUDIT.md、COMPETITOR_ANALYSIS.md、UPGRADE_ROADMAP.md 和 UPGRADE_REPORT.md，记录 15 个开源项目对标、34 个 EV 升级点、实现证据和后续阻塞项。
+
 ## 0.0.20（2026-11-14）
 
 ### 更新面板显示修复

@@ -7,13 +7,22 @@
 
 JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在同一个房间里搜索歌曲、提交队列、同步播放进度、看歌词、聊天和管理播放规则。
 
-- 当前版本：**v0.0.17**（2026-11-13）
+- 当前版本：**v0.0.20**（2026-11-14；本轮安全改进尚未单独发布新版本）
 - 宣传页（官网）：<https://jukeboxroom.edgeone.dev>
 - 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
 - 完整版本历史：[发布说明历史](docs/releases/release-notes.md) · [CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
+- 当前审计与演进记录：[项目审计](PROJECT_AUDIT.md) · [竞品对标](COMPETITOR_ANALYSIS.md) · [升级路线图](UPGRADE_ROADMAP.md) · [升级报告](UPGRADE_REPORT.md)
 
 ## 最新更新
+
+### Unreleased（2026-11-16）
+
+- 收紧 QQ 扫码登录重定向：只允许已知 HTTPS QQ 登录域名，并对每一跳执行 DNS/私网 SSRF 校验。
+- provider JSON 请求统一使用安全出站请求器；保留受控登录流程需要的多个 Set-Cookie。
+- 运行时进入不健康状态后拒绝新的业务 API 请求；429 响应增加标准 Retry-After；健康接口返回版本和存储后端。
+- Prometheus 指标增加累计请求耗时和 HTTP 状态码计数。
+- 本轮改动尚未作为新的 GitHub Release 发布；验证范围和未完成项见 [UPGRADE_REPORT.md](UPGRADE_REPORT.md)。
 
 ### v0.0.20（2026-11-14）
 

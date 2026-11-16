@@ -202,6 +202,11 @@ function responseFromIncoming(statusCode, headers, body, nodeStream = null) {
     rawHeaders: headers,
     headers: {
       get: (name) => headers[String(name).toLowerCase()] ?? null,
+      getSetCookie: () => {
+        const value = headers['set-cookie'];
+        if (Array.isArray(value)) return value.slice();
+        return value ? [String(value)] : [];
+      },
       forEach: (callback) => {
         for (const [key, value] of Object.entries(headers)) callback(value, key);
       },

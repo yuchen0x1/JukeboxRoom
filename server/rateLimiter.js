@@ -110,10 +110,12 @@ function rateLimiter(options = {}) {
     res.setHeader('X-RateLimit-Remaining', String(result.remaining));
     res.setHeader('X-RateLimit-Reset', String(Math.ceil(result.reset / 1000)));
     if (!result.allowed) {
+      const retryAfter = Math.max(1, Math.ceil((result.reset - Date.now()) / 1000));
+      res.setHeader('Retry-After', String(retryAfter));
       return res.status(429).json({
         error: 'rate_limited',
         message: '请求过于频繁，请稍后再试',
-        retryAfter: Math.max(1, Math.ceil((result.reset - Date.now()) / 1000)),
+        retryAfter,
       });
     }
     next();

@@ -90,6 +90,23 @@ test('缓冲模式在阈值内正常返回 JSON', async () => {
   }
 });
 
+test('缓冲响应保留 Set-Cookie，供受控上游会话使用', async () => {
+  const server = await startUpstream((_req, res) => {
+    res.writeHead(200, {
+      'content-type': 'application/json',
+      'set-cookie': ['sid=abc; Path=/', 'theme=dark; Path=/'],
+    });
+    res.end('{}');
+  });
+  try {
+    const port = server.address().port;
+    const response = await safeFetch(`http://127.0.0.1:${port}/session`, localOptions());
+    assert.deepEqual(response.headers.getSetCookie(), ['sid=abc; Path=/', 'theme=dark; Path=/']);
+  } finally {
+    await close(server);
+  }
+});
+
 test('流式响应不允许误用 text()/json()，避免隐式整体缓冲', async () => {
   const server = await startUpstream((_req, res) => {
     res.writeHead(200, { 'content-type': 'audio/mpeg' });
