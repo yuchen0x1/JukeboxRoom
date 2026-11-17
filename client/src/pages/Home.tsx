@@ -17,6 +17,7 @@ import Tooltip from '../components/Tooltip';
 import VersionStatus from '../components/VersionStatus';
 import BaseModal from '../components/Modal';
 import ChangelogViewer from '../components/ChangelogViewer';
+import { useI18n } from '../lib/i18n';
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -171,6 +172,7 @@ function Modal({
 }
 
 export default function Home() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const nickname = useRoomStore((s) => s.nickname);
   const setNickname = useRoomStore((s) => s.setNickname);
@@ -360,8 +362,8 @@ export default function Home() {
           <div className="hidden min-w-0 xl:block"><p className="truncate text-sm font-semibold text-white">JukeboxRoom</p><p className="mt-0.5 text-[10px] text-white/35">一起听歌</p></div>
         </div>
         <p className="hidden px-3 pb-2 text-[10px] font-medium text-white/35 xl:block">音乐空间</p>
-        <button type="button" title="音乐大厅" className="flex h-10 items-center justify-center gap-3 rounded-lg border border-[rgba(var(--om-accent-rgb),0.2)] bg-[rgba(var(--om-accent-rgb),0.08)] px-2 text-sm font-medium text-[var(--om-accent)] xl:justify-start xl:px-3" aria-current="page">
-          <Radio className="h-4 w-4 flex-shrink-0" /><span className="hidden xl:inline">音乐大厅</span><span className="hidden rounded-md bg-white/[0.07] px-1.5 py-0.5 text-[10px] text-white/65 xl:ml-auto xl:inline">{rooms.length}</span>
+        <button type="button" title={t('lobby')} className="flex h-10 items-center justify-center gap-3 rounded-lg border border-[rgba(var(--om-accent-rgb),0.2)] bg-[rgba(var(--om-accent-rgb),0.08)] px-2 text-sm font-medium text-[var(--om-accent)] xl:justify-start xl:px-3" aria-current="page">
+          <Radio className="h-4 w-4 flex-shrink-0" /><span className="hidden xl:inline">{t('lobby')}</span><span className="hidden rounded-md bg-white/[0.07] px-1.5 py-0.5 text-[10px] text-white/65 xl:ml-auto xl:inline">{rooms.length}</span>
         </button>
         <div className="mt-8 flex items-center justify-center px-1 pb-2 xl:justify-between xl:px-3">
           <p className="hidden text-[10px] font-medium text-white/35 xl:block">最近访问</p>
@@ -396,7 +398,7 @@ export default function Home() {
           </div>
 
           <div className="hidden min-w-0 flex-1 md:block">
-            <p className="text-sm font-semibold text-white">音乐大厅</p>
+            <p className="text-sm font-semibold text-white">{t('lobby')}</p>
             <p className="mt-0.5 text-[11px] text-white/40">和朋友一起听歌</p>
           </div>
 
@@ -411,13 +413,13 @@ export default function Home() {
               className="glass-button-secondary hidden h-9 items-center gap-1.5 rounded-lg px-3 text-sm sm:flex"
             >
               <Hash className="w-4 h-4" />
-              加入房间
+              {t('join')}
             </button>
             <button
               type="button"
               onClick={() => { setError(''); setShowJoin(true); }}
               className="glass-button-secondary flex h-9 w-9 items-center justify-center rounded-lg sm:hidden"
-              aria-label="加入房间"
+              aria-label={t('join')}
             >
               <Hash className="w-4 h-4" />
             </button>
@@ -427,7 +429,7 @@ export default function Home() {
               className="glass-button-primary flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-[filter,box-shadow] hover:brightness-105"
             >
               <Plus className="w-4 h-4" />
-              创建房间
+              {t('create')}
             </button>
 
             <button
@@ -466,7 +468,7 @@ export default function Home() {
               </div>
               <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl flex items-center gap-3">
                 <span className="sr-only">JukeboxRoom 在线点歌 - </span>
-                房间大厅
+                {t('lobby')}
                 <span className="cyber-badge text-xs">V{__APP_VERSION__} PRO</span>
               </h1>
               <p className="mt-2 text-sm text-white/50">选择在线协同空间接入，或初始化你的私人全息音乐矩阵</p>
@@ -483,7 +485,7 @@ export default function Home() {
               className="glass-button-secondary flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm disabled:opacity-50 transition-all hover:border-[rgba(var(--om-accent-rgb),0.4)] hover:shadow-[0_0_15px_rgba(var(--om-accent-rgb),0.15)]"
             >
               <RefreshCw className={`h-4 w-4 ${roomsLoading ? 'animate-spin' : ''}`} />
-              刷新矩阵
+              {t('retry')}
             </button>
           </div>
 
@@ -494,7 +496,7 @@ export default function Home() {
           )}
 
           {roomsLoading && rooms.length === 0 ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),26rem))] gap-4" aria-label="正在加载房间" aria-busy="true">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),26rem))] gap-4" aria-label={t('loadingRooms')} aria-busy="true">
               {[0, 1, 2, 3].map((item) => <div key={item} className="h-[10.75rem] motion-safe:animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5"><div className="h-4 w-2/5 rounded bg-white/[0.08]" /><div className="mt-8 h-3 w-1/3 rounded bg-white/[0.06]" /><div className="mt-3 h-3 w-3/5 rounded bg-white/[0.06]" /><div className="mt-7 border-t border-white/[0.06] pt-3"><div className="h-3 w-1/4 rounded bg-white/[0.06]" /></div></div>)}
             </div>
           ) : roomsLoadFailed && rooms.length === 0 ? (
@@ -502,10 +504,10 @@ export default function Home() {
               <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-300/15 bg-amber-300/[0.06] text-amber-200/70">
                 <Radio className="h-7 w-7" aria-hidden="true" />
               </div>
-              <h2 className="text-lg font-semibold text-white/80">暂时无法连接房间服务</h2>
+              <h2 className="text-lg font-semibold text-white/80">{t('unavailable')}</h2>
               <p className="mt-2 max-w-sm text-sm leading-6 text-white/45">房间列表还没有加载成功。请检查网络连接，或稍后重试。</p>
               <button type="button" onClick={() => fetchRooms()} disabled={roomsLoading} className="glass-button-secondary mt-6 flex h-10 items-center gap-2 rounded-lg px-4 text-sm disabled:opacity-50">
-                <RefreshCw className={`h-4 w-4 ${roomsLoading ? 'motion-safe:animate-spin' : ''}`} />重新加载
+                <RefreshCw className={`h-4 w-4 ${roomsLoading ? 'motion-safe:animate-spin' : ''}`} />{t('retry')}
               </button>
             </section>
           ) : rooms.length === 0 ? (
@@ -513,14 +515,14 @@ export default function Home() {
               <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
                 <Radio className="w-9 h-9 text-white/20" />
               </div>
-              <p className="text-lg font-medium text-white/60 mb-2">还没有活跃房间</p>
-              <p className="text-sm text-white/35 mb-6">成为第一个创建房间的人吧</p>
+              <p className="text-lg font-medium text-white/60 mb-2">{t('empty')}</p>
+              <p className="text-sm text-white/35 mb-6">{t('createFirst')}</p>
               <div className="flex flex-wrap justify-center gap-2">
                 <button type="button" onClick={() => { setError(''); setShowCreate(true); }} className="glass-button-primary flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-[filter] hover:brightness-105">
-                  <Plus className="h-4 w-4" />创建房间
+                  <Plus className="h-4 w-4" />{t('create')}
                 </button>
                 <button type="button" onClick={() => { setError(''); setShowJoin(true); }} className="glass-button-secondary flex h-10 items-center gap-2 rounded-lg px-4 text-sm">
-                  <Hash className="h-4 w-4" />加入房间
+                  <Hash className="h-4 w-4" />{t('join')}
                 </button>
               </div>
             </div>
@@ -605,9 +607,9 @@ export default function Home() {
       </BaseModal>
 
       {showCreate && (
-        <Modal title="创建房间" onClose={() => { setShowCreate(false); setCreateRoomName(''); setCreatePassword(''); }}>
+        <Modal title={t('create')} onClose={() => { setShowCreate(false); setCreateRoomName(''); setCreatePassword(''); }}>
           <p className="text-sm text-white/45 mb-4">先给你的房间起个名字，方便大家在大厅里找到</p>
-          <label className="block text-xs text-white/50 mb-1.5">房间名称</label>
+          <label className="block text-xs text-white/50 mb-1.5">{t('roomName')}</label>
           <input
             type="text"
             value={createRoomName}
@@ -616,7 +618,7 @@ export default function Home() {
             maxLength={30}
             className={`${inputCls} mb-4`}
           />
-          <label className="block text-xs text-white/50 mb-1.5">房间密码（可选）</label>
+          <label className="block text-xs text-white/50 mb-1.5">{t('password')}（{t('optional')}）</label>
           <input
             type="password"
             value={createPassword}
@@ -632,14 +634,14 @@ export default function Home() {
             className="glass-button-primary glass-interactive w-full flex items-center justify-center gap-2 disabled:opacity-50 font-medium py-3 rounded-xl"
           >
             {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            创建并进入
+            {t('createAndEnter')}
           </button>
         </Modal>
       )}
 
       {showJoin && (
-        <Modal title="加入房间" onClose={() => { setShowJoin(false); setJoinCode(''); setJoinPassword(''); }}>
-          <label className="block text-xs text-white/50 mb-1.5">房间号</label>
+        <Modal title={t('join')} onClose={() => { setShowJoin(false); setJoinCode(''); setJoinPassword(''); }}>
+          <label className="block text-xs text-white/50 mb-1.5">{t('roomCode')}</label>
           <input
             type="text"
             value={joinCode}
@@ -664,7 +666,7 @@ export default function Home() {
             className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 disabled:opacity-50 text-white font-medium py-3 rounded-xl border border-white/10 transition-colors"
           >
             {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
-            加入房间
+            {t('joinNow')}
           </button>
         </Modal>
       )}

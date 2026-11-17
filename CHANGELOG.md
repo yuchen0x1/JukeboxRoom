@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Web 客户端核心大厅支持简体中文/English 语言选择，自动模式按浏览器/系统语言匹配并在无法识别时回退到简体中文。
+- 语言选择保存到本地存储，切换后立即更新页面语言属性和大厅导航、房间操作、加载与错误状态文案；歌曲名、歌词和房间用户内容保持原文。
+
 ## 0.0.21（2026-11-16）
 
 > [GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.21) · [本版发布说明](RELEASE_NOTES_CN.md)。日期按北京时间记录。
