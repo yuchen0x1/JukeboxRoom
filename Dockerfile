@@ -1,5 +1,5 @@
 # ---- 阶段 1：构建前端 ----
-FROM node:24-alpine AS client-build
+FROM node:26-alpine AS client-build
 WORKDIR /app/client
 COPY client/package.json client/package-lock.json client/.npmrc ./
 RUN npm ci
@@ -11,7 +11,7 @@ COPY LICENSE /app/LICENSE
 RUN npm run build
 
 # ---- 阶段 2：服务端运行 ----
-FROM node:24-alpine
+FROM node:26-alpine
 WORKDIR /app/server
 
 ENV NODE_ENV=production
