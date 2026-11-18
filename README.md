@@ -407,6 +407,8 @@ node scripts/check-queue-browser.mjs
 
 应用内更新日志会优先读取 `GET /api/update/changelog` 的 GitHub Releases 内容；网络不可用或上游失败时，会回退到随包日志并按版本号去重。完整历史见 [CHANGELOG.md](CHANGELOG.md)。
 
+发布时可在 `docs/releases/<标签>.md` 编写本版概述、实际下载项、升级方式和已知限制。发布任务优先使用该文件，也可读取[更新历史](docs/releases/release-notes.md)中的同版章节。缺少匹配说明时由 GitHub 生成当版变更记录。
+
 欢迎通过 GitHub [Issue](https://github.com/yuchen0x1/JukeboxRoom/issues) 或 Pull Request 反馈问题和提交改进。提交前至少运行：
 
 ```bash

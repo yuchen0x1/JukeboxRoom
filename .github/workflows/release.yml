@@ -105,12 +105,17 @@ jobs:
       - name: Generate SHA-256 manifest
         run: node desktop/scripts/write-checksums.cjs
 
+      - name: Select notes for the release tag
+        id: notes
+        run: node .github/scripts/select-release-notes.mjs
+
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           prerelease: false
-          body_path: RELEASE_NOTES_CN.md
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.path == '' }}
           fail_on_unmatched_files: true
           files: |
             release/desktop/jukeboxroom-desktop-setup-*.exe
