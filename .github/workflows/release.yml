@@ -92,6 +92,7 @@ jobs:
         with:
           node-version: 24
       - run: npm ci --prefix client
+      - run: npm ci --prefix server
       - run: npm ci --prefix desktop
       - run: npm run build
       - name: Build Windows x64 and verify signatures when configured
