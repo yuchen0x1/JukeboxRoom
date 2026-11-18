@@ -96,4 +96,7 @@ jobs:
           curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4000/api/health/ready
       - name: Print container logs on failure
         if: failure()
-        run: docker logs jukeboxroom-ci
+        run: |
+          if docker container inspect jukeboxroom-ci >/dev/null 2>&1; then
+            docker logs jukeboxroom-ci
+          fi

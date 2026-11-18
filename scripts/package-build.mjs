@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -58,10 +58,15 @@ rm(archivePath);
 fs.mkdirSync(path.dirname(archivePath), { recursive: true });
 
 if (process.platform === 'win32') {
-  const ps = `Compress-Archive -Path '${outDir.replace(/'/g, "''")}\\*' -DestinationPath '${archivePath.replace(/'/g, "''")}' -Force`;
-  execSync(`powershell -NoProfile -Command "${ps}"`, { stdio: 'inherit' });
+  execFileSync('powershell.exe', [
+    '-NoProfile', '-NonInteractive', '-Command',
+    "Compress-Archive -Path (Join-Path $env:JUKEBOX_PACKAGE_DIR '*') -DestinationPath $env:JUKEBOX_PACKAGE_ARCHIVE -Force",
+  ], {
+    stdio: 'inherit',
+    env: { ...process.env, JUKEBOX_PACKAGE_DIR: outDir, JUKEBOX_PACKAGE_ARCHIVE: archivePath },
+  });
 } else {
-  execSync(`cd "${outDir}" && zip -r "${archivePath}" .`, { stdio: 'inherit' });
+  execFileSync('zip', ['-r', archivePath, '.'], { cwd: outDir, stdio: 'inherit' });
 }
 
 console.log('');

@@ -1,9 +1,10 @@
 # ---- 阶段 1：构建前端 ----
 FROM node:24-alpine AS client-build
 WORKDIR /app/client
-COPY client/package.json client/package-lock.json ./
+COPY client/package.json client/package-lock.json client/.npmrc ./
 RUN npm ci
 COPY client/ ./
+COPY server/seoFiles.js /app/server/seoFiles.js
 # Vite emits the root changelog as the offline release-history fallback.
 COPY CHANGELOG.md /app/CHANGELOG.md
 RUN npm run build
