@@ -7,6 +7,7 @@ COPY client/ ./
 COPY server/seoFiles.js /app/server/seoFiles.js
 # Vite emits the root changelog as the offline release-history fallback.
 COPY CHANGELOG.md /app/CHANGELOG.md
+COPY LICENSE /app/LICENSE
 RUN npm run build
 
 # ---- 阶段 2：服务端运行 ----
@@ -19,6 +20,7 @@ COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY server/ ./
+COPY LICENSE /app/LICENSE
 COPY --from=client-build /app/client/dist ../client/dist
 
 # 房间/收藏等 JSON 持久化目录（建议挂载卷）

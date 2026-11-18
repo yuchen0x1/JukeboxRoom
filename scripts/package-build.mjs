@@ -58,13 +58,7 @@ rm(archivePath);
 fs.mkdirSync(path.dirname(archivePath), { recursive: true });
 
 if (process.platform === 'win32') {
-  execFileSync('powershell.exe', [
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Compress-Archive -Path (Join-Path $env:JUKEBOX_PACKAGE_DIR '*') -DestinationPath $env:JUKEBOX_PACKAGE_ARCHIVE -Force",
-  ], {
-    stdio: 'inherit',
-    env: { ...process.env, JUKEBOX_PACKAGE_DIR: outDir, JUKEBOX_PACKAGE_ARCHIVE: archivePath },
-  });
+  execFileSync('tar.exe', ['--format', 'zip', '-cf', archivePath, '-C', outDir, '.'], { stdio: 'inherit' });
 } else {
   execFileSync('zip', ['-r', archivePath, '.'], { cwd: outDir, stdio: 'inherit' });
 }

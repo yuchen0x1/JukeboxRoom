@@ -90,10 +90,10 @@ jobs:
             --env CLIENT_ID_SECRET=ci-only-client-id-secret-1111111111 \
             --env AUTH_JWT_SECRET=ci-only-auth-jwt-secret-2222222222 \
             --env CLIENT_URL=http://127.0.0.1:4000 jukeboxroom:ci
-          curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4000/api/health/ready
+          curl --fail --silent --show-error --max-time 3 --retry 15 --retry-all-errors --retry-delay 1 http://127.0.0.1:4000/api/health/ready
           curl --fail --silent --show-error --output /dev/null http://127.0.0.1:4000/
           docker restart jukeboxroom-ci
-          curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4000/api/health/ready
+          curl --fail --silent --show-error --max-time 3 --retry 15 --retry-all-errors --retry-delay 1 http://127.0.0.1:4000/api/health/ready
       - name: Print container logs on failure
         if: failure()
         run: |

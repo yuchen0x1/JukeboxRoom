@@ -88,6 +88,11 @@ function changelogAsset() {
         fileName: 'changelog.md',
         source: readFileSync(changelogPath, 'utf-8'),
       });
+      this.emitFile({
+        type: 'asset',
+        fileName: 'LICENSE',
+        source: readFileSync(new URL('../LICENSE', import.meta.url), 'utf8'),
+      });
     },
   };
 }
@@ -120,6 +125,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(appVersion),
   },
   build: {
+    license: { fileName: 'THIRD-PARTY-LICENSES.md' },
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
