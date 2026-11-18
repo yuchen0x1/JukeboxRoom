@@ -117,7 +117,7 @@ jobs:
               throw 'Missing update publisher identity'
             }
           } else {
-            npm run dist --prefix desktop -- --publish never -c.win.signExecutable=false
+            npm run dist --prefix desktop -- --publish never --config.win.signExecutable=false
             if ($LASTEXITCODE -ne 0) { throw 'Windows preview packaging failed' }
           }
           node desktop/scripts/write-checksums.cjs
