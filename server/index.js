@@ -1812,11 +1812,9 @@ app.get('/sitemap.xml', (req, res) => {
 app.use(express.static(clientDist, {
   setHeaders(res, filePath) {
     const rel = path.relative(clientDist, filePath).replace(/\\/g, '/');
-    // 构建产物使用稳定文件名（发版会覆盖同路径），因此不能 immutable：
-    // 但完全 no-cache 会让每次导航产生 20+ 次条件请求，弱网下明显拖慢首屏。
-    // 折中：短缓存 + 必须回源校验，发版后最多 5 分钟自然失效。
     if (rel.startsWith('assets/')) {
-      res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+      const hashed = /-[\w-]{8}\.[^/]+$/.test(rel);
+      res.setHeader('Cache-Control', hashed ? 'public, max-age=31536000, immutable' : 'no-cache');
       return;
     }
     if (rel === 'index.html' || rel === 'sw.js') {
@@ -1830,6 +1828,7 @@ app.use(express.static(clientDist, {
   },
 }));
 app.get('/{*splat}', (req, res, next) => {
+  if (req.path.startsWith('/assets/')) return res.sendStatus(404);
   if (
     req.path.startsWith('/api')
     || req.path.startsWith('/socket.io')
@@ -3238,8 +3237,8 @@ if (!DESKTOP_MODE) {
 runtime.setReady(true);
 if (!DESKTOP_MODE) ensureSeedRoom(); // 测试房仅在非生产环境创建
 
-// 每日自动检查更新：发现新版本且部署环境支持时自动完成拉取/构建/重启（AUTO_UPDATE=0 关闭）
-const AUTO_UPDATE_ENABLED = !DESKTOP_MODE && process.env.AUTO_UPDATE !== '0';
+// 背景安装会重启服务，仅在部署方显式启用后执行。
+const AUTO_UPDATE_ENABLED = !DESKTOP_MODE && process.env.AUTO_UPDATE === '1' && getSelfUpdateState().supported;
 const AUTO_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 if (AUTO_UPDATE_ENABLED) {
   const autoUpdateTick = async () => {
@@ -3247,7 +3246,8 @@ if (AUTO_UPDATE_ENABLED) {
       const info = await updateService.getUpdateInfo();
       if (info?.updateAvailable) {
         console.info(`[auto-update] 发现新版本 v${info.latestVersion}，开始自动更新…`);
-        applySelfUpdate();
+        const result = await applySelfUpdate();
+        if (result.error) console.warn('[auto-update]', result.error);
       }
     } catch (error) {
       console.warn('[auto-update] 检查失败:', error.message);

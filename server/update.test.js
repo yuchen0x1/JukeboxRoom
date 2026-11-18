@@ -9,7 +9,7 @@ import {
   parseVersion,
   resolveChannel,
 } from './update.js';
-import { isExpectedGithubRemote, isExpectedUpdateBranch } from './selfUpdate.js';
+import { isExpectedGithubRemote, isExpectedUpdateBranch, selectSelfUpdateTag } from './selfUpdate.js';
 
 test('自更新只接受确认的 GitHub 仓库远程地址', () => {
   assert.equal(isExpectedGithubRemote('https://github.com/yuchen0x1/JukeboxRoom.git'), true);
@@ -25,6 +25,19 @@ test('自更新只允许在 main 分支执行', () => {
 });
 
 const githubAsset = (name) => `https://github.com/yuchen0x1/JukeboxRoom/releases/download/v2.0.2/${name}`;
+
+test('self update requires a fresh, versioned release from the owning repository', () => {
+  const release = {
+    updateAvailable: true,
+    latestVersion: '0.0.23',
+    releaseUrl: 'https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.23',
+  };
+  assert.equal(selectSelfUpdateTag(release), 'v0.0.23');
+  assert.equal(selectSelfUpdateTag({ ...release, stale: true }), null);
+  assert.equal(selectSelfUpdateTag({ ...release, latestVersion: '0.0.23-beta.1' }), null);
+  assert.equal(selectSelfUpdateTag({ ...release, updateAvailable: false }), null);
+  assert.equal(selectSelfUpdateTag({ ...release, releaseUrl: release.releaseUrl.replace('yuchen0x1', 'another-owner') }), null);
+});
 
 test('版本比较支持 v 前缀和缺省的小版本号', () => {
   assert.deepEqual(parseVersion('v2.3'), [2, 3, 0]);

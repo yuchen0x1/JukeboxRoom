@@ -2,7 +2,8 @@
 
 [![Release](https://img.shields.io/github/v/release/yuchen0x1/JukeboxRoom?display_name=tag&label=release&color=blue)](https://github.com/yuchen0x1/JukeboxRoom/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-brightgreen.svg)
+[![CI](https://github.com/yuchen0x1/JukeboxRoom/actions/workflows/ci.yml/badge.svg)](https://github.com/yuchen0x1/JukeboxRoom/actions/workflows/ci.yml)
+![Node.js](https://img.shields.io/badge/Node.js-24%20LTS-brightgreen.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
 
 JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在同一个房间里搜索歌曲、提交队列、同步播放进度、看歌词、聊天和管理播放规则。
@@ -11,7 +12,7 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 - 仓库、Issue 与 Release：<https://github.com/yuchen0x1/JukeboxRoom>
 - 项目基于 [OpenMusic](https://github.com/qq01-hub/openmusic) 二次开发，感谢原作者
 - 完整版本历史：[发布说明历史](docs/releases/release-notes.md) · [CHANGELOG.md](CHANGELOG.md) · [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases)
-- 当前审计与演进记录：[项目审计](PROJECT_AUDIT.md) · [竞品对标](COMPETITOR_ANALYSIS.md) · [升级路线图](UPGRADE_ROADMAP.md) · [升级报告](UPGRADE_REPORT.md)
+- 当前审计与演进记录：[平台与交付状态](docs/PLATFORMS.md) · [同类项目研究](docs/ECOSYSTEM-RESEARCH.md) · [贡献指南](CONTRIBUTING.md)
 
 ## 最新更新
 
@@ -31,18 +32,20 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 |:---:|:---:|:---:|
 | ![音乐搜索](docs/screenshots/desktop-music-search.png) | ![设置与音源账号](docs/screenshots/desktop-settings.png) | ![发现音乐](docs/screenshots/desktop-discover.png) |
 
-Windows 安装包见最新发行页。Android 与 iOS 仍按 [移动端维护说明](docs/MOBILE.md) 单独构建和验收。
+| Web 大厅 | Web 房间 |
+|:---:|:---:|
+| ![本地 Web 大厅](docs/screenshots/web-lobby.png) | ![本地 Web 房间](docs/screenshots/web-room.png) |
 
 ## 先选择使用方式
 
 | 使用方式 | 适合场景 | 需要什么 |
 |---|---|---|
-| **自托管 Web** | 聚会、社群、办公室或家庭共享房间 | 一台 Node.js 20+ 服务器，或 Docker |
-| **Windows 桌面版** | 单机使用，或在本机运行一个房间服务 | 从 GitHub Release 下载 NSIS 安装包；无需 Node.js |
-| **Android 独立播放器** | 手机本地搜索、播放、收藏和后台播放 | Android 6.0（API 23）及以上，安装 APK 即可 |
-| **iOS / Capacitor** | 将现有站点装进移动端 WebView | 需要自己的 HTTPS 站点和 Capacitor 工具链；当前不等同于 Android 独立播放器 |
+| **自托管 Web 与 PWA** | 共享房间、手机和桌面浏览器安装 | Node.js 24 LTS 或 Docker，自托管站点启用 HTTPS |
+| **Windows 桌面版** | 独立播放器、系统托盘及本机服务端 | Windows x64 NSIS；正式资产需要签名 |
+| **Android 开发构建** | 测试手机播放器与系统媒体控制 | 安卓 Gradle 调试 APK，需独立验证真机 |
+| **iOS / Capacitor 源码** | 使用已有的 HTTPS 点歌站点 | macOS、Xcode、Capacitor 与 Apple 签名 |
 
-> Windows 和 Android 安装包、版本说明及签名状态以 [最新 GitHub Release](https://github.com/yuchen0x1/JukeboxRoom/releases/latest) 为准。当前 Windows 构建未使用商业代码签名证书，Android 发布资产为 debug 签名。
+各平台的功能、下载与验收状态见 [平台支持](docs/PLATFORMS.md)。
 
 ## 核心能力
 
@@ -100,7 +103,7 @@ docker compose up -d --build
 
 ### 方式二：源码开发
 
-要求 Node.js 20+ 和 npm。首次安装网页端依赖：
+使用 Node.js 24 LTS 和 npm。首次安装网页端依赖：
 
 ```bash
 git clone https://github.com/yuchen0x1/JukeboxRoom.git
@@ -151,18 +154,20 @@ npm run dev
 
 从 [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases/latest) 下载：
 
-- **Windows**：`jukeboxroom-desktop-setup-<版本>-x64.exe`。内置本地服务端和完整页面，无需安装 Node.js。
-- **Android**：`jukeboxroom-android-<版本>-debug.apk`。独立个人音乐播放器，不需要填写 JukeboxRoom 服务器地址。
+- **自托管包**：`jukeboxroom-server-<版本>.zip`。解压后按包内指南安装服务端依赖、配置并启动。
+- **Web 静态包**：`jukeboxroom-web-<版本>.tar.gz`。配合同源的 JukeboxRoom API 和 Socket.IO 服务部署。
+- **Windows 历史安装包**：[v0.0.22](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.22) 提供未签名的 x64 历史安装包。后续发行页只附带通过签名检查的安装包。
+- **移动端**：开发产物与本地构建方式见 [移动端说明](docs/MOBILE.md)。
 
-Windows 首次运行若出现 SmartScreen，请先核对文件确实来自本项目 GitHub Release。桌面版关闭主窗口默认进入系统托盘；当前 NSIS 配置保留本机应用数据目录，升级或卸载前仍建议按需备份。
+桌面版关闭主窗口默认进入系统托盘。NSIS 安装流程保留原有应用数据目录。
 
 ## 生产部署
 
 ### 自动更新边界
 
-服务端默认每天检查 GitHub Release。执行一键更新前会检查 Git 工作区必须干净，并确认 `origin` 指向 `yuchen0x1/JukeboxRoom`；存在未提交/未跟踪文件、远程地址不匹配或本地分支无法快进时会拒绝更新，不会覆盖本地代码。需要手动维护版本时可设置 `AUTO_UPDATE=0`。
+自托管一键更新使用官方 GitHub Release 标签。部署者可设置 `AUTO_UPDATE=1` 启用定时安装。PWA 提示在新网页资源可用后出现，刷新时会短暂离开当前房间。
 
-Windows 桌面安装包使用独立的 `electron-updater` 流程：只在已打包的 Windows NSIS 版本启用，检查不会自动下载，用户确认后才下载并退出安装。Android/iOS 仍使用应用商店或手动分发。完整流程见 [docs/AUTO_UPDATE.md](docs/AUTO_UPDATE.md)。
+Windows 签名构建使用 `electron-updater`。下载安装由用户确认。完整流程见 [自动更新说明](docs/AUTO_UPDATE.md)。
 
 ### Node.js / PM2
 

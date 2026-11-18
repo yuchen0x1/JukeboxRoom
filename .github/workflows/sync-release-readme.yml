@@ -4,7 +4,7 @@ on:
     types: [published, edited, released, unpublished, deleted]
   workflow_dispatch:
   workflow_run:
-    workflows: ["Release Windows Desktop"]
+    workflows: ["Publish verified release"]
     types: [completed]
   # Catch releases published by another workflow using GITHUB_TOKEN and missed events.
   schedule:

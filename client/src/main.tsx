@@ -49,12 +49,3 @@ async function mountApplication() {
 }
 
 void mountApplication();
-
-// PWA（F1）：生产构建下注册 Service Worker，提供离线壳层与静态资源缓存。
-if (!isDesktop && !isAndroid && 'serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // 注册失败不应影响主流程（如非 HTTPS / 不支持）。
-    });
-  });
-}

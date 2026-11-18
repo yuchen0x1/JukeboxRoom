@@ -22,14 +22,14 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(__dirname, '..');
 
-const THREE_CHUNK = 'three-vendor.js';
-const THREE_ONLY_ENTRIES = ['GalaxyBackground3D.js', 'TopographyBackground3D.js'];
+const THREE_CHUNK = 'three-vendor';
+const THREE_ONLY_ENTRIES = ['GalaxyBackground3D', 'TopographyBackground3D'];
 /** 静态闭包 gzip 预算（KB）。当前实测 Home≈153、Room≈213、TvDisplay≈160、Admin≈84。 */
 const ENTRY_BUDGET_KB = {
-  'Home.js': 200,
-  'Room.js': 260,
-  'TvDisplay.js': 200,
-  'Admin.js': 120,
+  'Home': 200,
+  'Room': 260,
+  'TvDisplay': 200,
+  'Admin': 120,
 };
 
 function parseArgs(argv) {
@@ -49,6 +49,9 @@ if (!fs.existsSync(assetsDir)) {
 
 const staticImportPattern = /(?:from|import)\s*["']\.\/([A-Za-z0-9_.-]+\.js)["']/g;
 const depCache = new Map();
+const assetFiles = fs.readdirSync(assetsDir);
+const findChunk = (name) => assetFiles.find((file) => file.startsWith(`${name}-`) && file.endsWith('.js'));
+const threeFile = findChunk(THREE_CHUNK);
 
 function staticDeps(file) {
   if (depCache.has(file)) return depCache.get(file);
@@ -95,12 +98,13 @@ const failures = [];
 const report = [];
 
 for (const [entry, budgetKb] of Object.entries(ENTRY_BUDGET_KB)) {
-  if (!fs.existsSync(path.join(assetsDir, entry))) {
+  const file = findChunk(entry);
+  if (!file) {
     failures.push(`缺少入口 chunk：${entry}`);
     continue;
   }
-  const closure = staticClosure(entry);
-  const pullsThree = closure.has(THREE_CHUNK);
+  const closure = staticClosure(file);
+  const pullsThree = closure.has(threeFile);
   const sizeKb = gzipSizeKb(closure);
 
   report.push(`${entry.padEnd(14)} chunks=${String(closure.size).padStart(2)} gzip=${sizeKb.toFixed(0)}KB 预算=${budgetKb}KB three=${pullsThree ? 'YES' : 'no'}`);
@@ -114,28 +118,29 @@ for (const [entry, budgetKb] of Object.entries(ENTRY_BUDGET_KB)) {
 }
 
 for (const entry of THREE_ONLY_ENTRIES) {
-  if (!fs.existsSync(path.join(assetsDir, entry))) {
+  const file = findChunk(entry);
+  if (!file) {
     failures.push(`缺少 3D 入口 chunk：${entry}`);
     continue;
   }
-  const closure = staticClosure(entry);
-  report.push(`${entry.padEnd(26)} chunks=${String(closure.size).padStart(2)} three=${closure.has(THREE_CHUNK) ? 'YES' : 'NO'}`);
-  if (!closure.has(THREE_CHUNK)) {
+  const closure = staticClosure(file);
+  report.push(`${entry.padEnd(26)} chunks=${String(closure.size).padStart(2)} three=${closure.has(threeFile) ? 'YES' : 'NO'}`);
+  if (!closure.has(threeFile)) {
     failures.push(`${entry} 未能解析到 ${THREE_CHUNK}，3D 页面可能已损坏`);
   }
 }
 
 /**
  * Service Worker 必须在构建时注入版本化缓存名。
- * 构建产物是稳定文件名，固定缓存名会让离线用户长期拿到旧 bundle。
+ * 构建指纹让离线壳与同一个版本的静态资源一起生效。
  */
 const swPath = path.join(distDir, 'sw.js');
 if (!fs.existsSync(swPath)) {
   failures.push('缺少 dist/sw.js（PWA 离线壳层）');
 } else {
   const swSource = fs.readFileSync(swPath, 'utf8');
-  if (swSource.includes('__SW_VERSION__')) {
-    failures.push('dist/sw.js 仍包含未替换的 __SW_VERSION__ 占位符');
+  if (/__(SW_VERSION|SHELL_ASSETS|ENTRY_FILE)__/.test(swSource)) {
+    failures.push('dist/sw.js 仍包含未替换的构建占位符');
   }
   const cacheMatch = swSource.match(/const CACHE = `\$\{CACHE_PREFIX\}([^`]+)`/);
   if (!cacheMatch) {

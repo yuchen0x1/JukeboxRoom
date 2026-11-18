@@ -1,16 +1,7 @@
 /* JukeboxRoom PWA Service Worker
  *
  * 缓存策略（修改时请保持以下边界）：
- * - 版本化缓存：缓存名包含构建版本，占位符由 vite 插件在构建时替换为
- *   `<package version>-<assets 指纹>`。构建产物使用稳定文件名（assets/[name].js），
- *   如果缓存名固定不变，发版后离线/弱网场景可能把旧 chunk 与新 index.html 混用，
- *   表现为白屏或运行时错误。
- * - 导航请求 network-first：在线时始终拿最新 index.html，只有网络失败才回退壳层。
- * - 静态资源 network-first + 只缓存成功响应：失败响应（404/500）不进缓存，
- *   避免一次上游抖动被永久固化。
- * - 跳过 /api、/socket.io、/downloads：接口与实时通道必须走网络，安装包体积大，
- *   缓存会迅速占满存储配额。
- * - 跳过 Range 请求：音频/媒体分段请求不能整体缓存。
+ * 每次部署在独立缓存中验证并准备离线大厅。实时请求直接走网络。
  */
 const CACHE_PREFIX = 'jukeboxroom-shell-';
 const CACHE = `${CACHE_PREFIX}__SW_VERSION__`;
@@ -19,8 +10,7 @@ const MAX_RUNTIME_ENTRIES = 120;
 const MAX_CACHEABLE_BYTES = 4 * 1024 * 1024;
 
 const SHELL = [
-  '/',
-  '/index.html',
+  /*__SHELL_ASSETS__*/
   '/manifest.webmanifest',
   '/icons/jukeboxroom-32.png',
   '/icons/jukeboxroom-192.png',
@@ -28,12 +18,15 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE)
-      // 单个图标缺失不应让整个 SW 安装失败；壳层页面才是离线可用的关键。
-      .then((cache) => Promise.allSettled(SHELL.map((url) => cache.add(url))))
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil((async () => {
+    const index = await fetch('/index.html', { cache: 'reload' });
+    if (!index.ok || !(await index.clone().text()).includes('__ENTRY_FILE__')) {
+      throw new Error('The deployed HTML does not match the service worker build');
+    }
+    const cache = await caches.open(CACHE);
+    await cache.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' })));
+    await cache.put('/index.html', index);
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -42,7 +35,7 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((keys) => Promise.all(
         keys
-          .filter((key) => key.startsWith(CACHE_PREFIX) && !key.startsWith(CACHE))
+          .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE && key !== RUNTIME_CACHE)
           .map((key) => caches.delete(key)),
       ))
       .then(() => self.clients.claim()),
@@ -50,22 +43,23 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
 });
 
 function isCacheableRequest(request, url) {
   if (request.method !== 'GET') return false;
   if (request.headers.has('range')) return false;
   if (url.origin !== self.location.origin) return false;
-  if (url.pathname.startsWith('/api/')) return false;
-  if (url.pathname.startsWith('/socket.io/')) return false;
-  if (url.pathname.startsWith('/downloads/')) return false;
-  return true;
+  if (request.mode === 'navigate') {
+    return url.pathname === '/' || /^\/(room|tv)\/[^/]+$/.test(url.pathname);
+  }
+  return SHELL.includes(url.pathname) || /^\/(assets|icons|qface|vendor)\//.test(url.pathname);
 }
 
 function isCacheableResponse(response) {
   if (!response || !response.ok) return false;
   if (response.type !== 'basic' && response.type !== 'default') return false;
+  if (response.headers.get('content-type')?.includes('text/html')) return false;
   const length = Number(response.headers.get('content-length') || 0);
   if (Number.isFinite(length) && length > MAX_CACHEABLE_BYTES) return false;
   return true;
@@ -107,20 +101,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (isCacheableResponse(response)) {
-          const copy = response.clone();
-          event.waitUntil(putRuntime(request, copy));
-        }
-        return response;
-      })
-      .catch(async () => {
-        const cached = await caches.match(request);
-        if (cached) return cached;
-        // 同一请求可能命中旧缓存名（升级瞬间），最后再试一次壳层缓存。
-        return (await caches.match(request, { cacheName: CACHE })) || Response.error();
-      }),
-  );
+  event.respondWith((async () => {
+    const shell = await caches.match(request, { cacheName: CACHE });
+    if (shell) return shell;
+    try {
+      const response = await fetch(request);
+      if (isCacheableResponse(response)) event.waitUntil(putRuntime(request, response.clone()));
+      return response;
+    } catch {
+      return (await caches.match(request, { cacheName: RUNTIME_CACHE })) || Response.error();
+    }
+  })());
 });

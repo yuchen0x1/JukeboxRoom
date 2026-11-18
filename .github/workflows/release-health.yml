@@ -1,0 +1,33 @@
+name: Check published assets
+
+on:
+  schedule:
+    - cron: '24 4 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Verify latest public asset set
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          mkdir "$RUNNER_TEMP/assets"
+          cd "$RUNNER_TEMP/assets"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*'
+          sha256sum --strict --check SHA256SUMS.txt
+          if compgen -G '*.exe' > /dev/null; then
+            test -s latest.yml
+            test -s "jukeboxroom-desktop-setup-${tag#v}-x64.exe.blockmap"
+            grep -Fx "version: ${tag#v}" latest.yml
+          fi
+          if compgen -G '*.tar.gz' > /dev/null; then
+            test -s "jukeboxroom-web-${tag#v}.tar.gz"
+            test -s "jukeboxroom-server-${tag#v}.zip"
+          fi

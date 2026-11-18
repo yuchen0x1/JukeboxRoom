@@ -39,7 +39,7 @@ npm run build         # 构建前端 → client/dist
 cd /www/wwwroot/openmusic/server
 cp .env.example .env
 nano .env   # 或用宝塔文件管理器编辑
-npm install --production
+npm ci --omit=dev
 ```
 
 ### `.env` 必改项
@@ -143,5 +143,4 @@ npm install --production
 pm2 restart openmusic
 ```
 
-前端静态资源已改为**固定文件名**（如 `assets/Room.js`），源站对 `index.html` 与 `/assets/*` 返回 `Cache-Control: no-cache`。  
-若挂了 EO / CDN 缓存，建议在控制台将 **HTML 与 `/assets/*` 设为跟随源站** 或 **不缓存**，发版后无需每次手动清缓存。
+前端资源名含内容哈希。部署时先上传新资源，再切换 HTML 和 `sw.js`，并在切换期间保留上一版的哈希资源供已打开的页面使用。CDN 需让 HTML 与 `sw.js` 重新验证，哈希资源可长期缓存。

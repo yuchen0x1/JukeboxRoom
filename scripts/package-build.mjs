@@ -35,15 +35,16 @@ copyServerFiles(path.join(root, 'server'), path.join(outDir, 'server'));
 
 copyDir(path.join(root, 'client', 'dist'), path.join(outDir, 'client', 'dist'));
 copyDir(path.join(root, 'deploy'), path.join(outDir, 'deploy'));
+fs.copyFileSync(path.join(root, 'LICENSE'), path.join(outDir, 'LICENSE'));
 
 fs.writeFileSync(
   path.join(outDir, 'README-DEPLOY.txt'),
-  `OpenMusic 宝塔部署包
+  `JukeboxRoom 自托管部署包
 
 1. 上传本目录到服务器，例如 /www/wwwroot/openmusic
 2. cd /www/wwwroot/openmusic/server
 3. cp .env.example .env 并编辑配置（PORT、METING_API_URL、CLIENT_URL 填你的域名）
-4. npm install --production
+4. 使用 Node.js 24 LTS，运行 npm ci --omit=dev
 5. pm2 start ../deploy/ecosystem.config.cjs
 6. 宝塔 Nginx 参考 deploy/nginx.conf.example 配置反向代理
 

@@ -4,6 +4,8 @@ import { ApiError } from '../api/http';
 import { getStoredUser } from '../api/auth';
 import { fetchUpdateInfo, fetchSelfUpdateState, startServerUpdate, type UpdateInfo } from '../api/update';
 import { releaseNotesToPlainText } from '../lib/releaseNotesText';
+import { activateWebUpdate, useWebUpdate } from '../hooks/useWebUpdate';
+import { useI18n } from '../lib/i18n';
 
 const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const DISMISSED_VERSION_KEY = 'openmusic-update-dismissed-v1';
@@ -13,28 +15,17 @@ function formatReleaseDate(value: string | null) {
   try { return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(value)); } catch { return ''; }
 }
 
-async function refreshWebApp() {
-  try {
-    const registration = await navigator.serviceWorker?.getRegistration();
-    await registration?.update();
-    if (registration?.waiting) {
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      let reloaded = false;
-      const reload = () => { if (!reloaded) { reloaded = true; window.location.reload(); } };
-      navigator.serviceWorker.addEventListener('controllerchange', reload, { once: true });
-      window.setTimeout(reload, 1500);
-      return;
-    }
-  } catch { /* Fall back to a normal reload below. */ }
-  window.location.reload();
-}
-
 function DownloadLink({ label, asset }: { label: string; asset: UpdateInfo['assets']['desktop'] }) {
   if (!asset) return null;
   return <a href={asset.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1.5 text-xs text-white/75 transition-colors hover:bg-white/10 hover:text-white"><Download className="h-3.5 w-3.5" />{label}</a>;
 }
 
 export default function UpdateNotice() {
+  const { t } = useI18n();
+  const waiting = useWebUpdate();
+  const [deferredWorker, setDeferredWorker] = useState<ServiceWorker | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [webError, setWebError] = useState<ServiceWorker | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -123,6 +114,31 @@ export default function UpdateNotice() {
     return () => { window.clearInterval(timer); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility); };
   }, [checkForUpdates]);
 
+  if (waiting && waiting !== deferredWorker && !applying) {
+    return (
+      <aside className="fixed bottom-4 right-4 z-[100] w-[min(calc(100vw-2rem),24rem)] rounded-2xl border border-emerald-300/20 bg-slate-950/95 p-4 text-white shadow-2xl">
+        <div role="status">
+          <p className="text-sm font-semibold">{t('webUpdateReady')}</p>
+          <p className="mt-1 text-xs text-white/70">{t('webUpdateHint')}</p>
+        </div>
+        {webError === waiting && <p role="alert" className="mt-2 text-xs text-amber-300">{t('webUpdateFailed')}</p>}
+        <div className="mt-3 flex gap-2">
+          <button type="button" disabled={refreshing} onClick={async () => {
+            setRefreshing(true);
+            setWebError(null);
+            try {
+              await activateWebUpdate(waiting);
+              window.location.reload();
+            } catch {
+              setRefreshing(false);
+              setWebError(waiting);
+            }
+          }} className="rounded-lg bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-60">{t('refreshApp')}</button>
+          <button type="button" disabled={refreshing} onClick={() => setDeferredWorker(waiting)} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs">{t('later')}</button>
+        </div>
+      </aside>
+    );
+  }
   if (!update || dismissed || !update.latestVersion) return null;
   const releaseDate = formatReleaseDate(update.publishedAt);
   return (
@@ -140,7 +156,7 @@ export default function UpdateNotice() {
               {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
               {applying ? '更新中…' : '更新服务器'}
             </button>}
-            <button type="button" onClick={() => void refreshWebApp()} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/10"><RefreshCw className="h-3.5 w-3.5" />刷新网站</button>
+            <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/10"><RefreshCw className="h-3.5 w-3.5" />刷新网站</button>
             <DownloadLink label="电脑版" asset={update.assets.desktop} />
             <DownloadLink label="Android" asset={update.assets.android} />
             <DownloadLink label="iOS" asset={update.assets.ios} />

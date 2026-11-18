@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 私密报告安全漏洞
+    url: https://github.com/yuchen0x1/JukeboxRoom/security/advisories/new
+    about: 涉及访问控制、用户数据或凭据的问题请使用私密报告。

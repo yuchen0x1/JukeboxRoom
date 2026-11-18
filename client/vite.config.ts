@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { buildRobotsTxt, buildSitemapXml, resolveDevSiteOrigin } from '../server/seoFiles.js';
 
@@ -20,39 +20,47 @@ function isPackage(id: string, packages: string[]): boolean {
 /**
  * 给 public/sw.js 里的 `__SW_VERSION__` 注入构建指纹。
  *
- * 构建产物使用稳定文件名（assets/[name].js），Service Worker 若用固定缓存名，
- * 发版后离线用户可能拿到「新 index.html + 旧 chunk」的组合。缓存名必须随构建
- * 内容变化，同时保持相同输入可复现：指纹取所有 assets 的文件名与内容哈希，而不是
- * 构建时间（仅用体积会漏掉同尺寸改动）。
+ * 预缓存入口和大厅的静态依赖，房间及 3D 模块按需加载。
  */
-function swCacheVersionPlugin() {
+function swCacheVersionPlugin(): Plugin {
   const distDir = new URL('./dist', import.meta.url);
   const swPath = new URL('./dist/sw.js', import.meta.url);
 
-  function buildFingerprint(): string {
-    const assetsDir = new URL('./dist/assets/', import.meta.url);
-    if (!existsSync(assetsDir)) return 'dev';
-    const hash = createHash('sha256');
-    const files = readdirSync(assetsDir).sort();
-    for (const file of files) {
-      const full = new URL(`./dist/assets/${file}`, import.meta.url);
-      hash.update(file);
-      hash.update(readFileSync(full));
-    }
-    return hash.digest('hex').slice(0, 12);
-  }
+  let shellAssets: string[] = [];
+  let entryFile = '';
 
   return {
     name: 'jukeboxroom-sw-cache-version',
     apply: 'build' as const,
+    generateBundle(_options, bundle) {
+      const files = new Set<string>();
+      function add(filename: string) {
+        if (files.has(filename)) return;
+        files.add(filename);
+        const item = bundle[filename];
+        if (item?.type === 'chunk') item.imports.forEach(add);
+      }
+      for (const item of Object.values(bundle)) {
+        if (item.type === 'chunk' && item.isEntry) entryFile = item.fileName;
+        if (item.type === 'chunk' && (item.isEntry || item.name === 'Home')) add(item.fileName);
+        if (item.type === 'asset' && item.fileName.endsWith('.css')) add(item.fileName);
+      }
+      shellAssets = [...files].sort().map((file) => `/${file}`);
+    },
     closeBundle() {
       if (!existsSync(swPath)) return;
       const source = readFileSync(swPath, 'utf8');
-      if (!source.includes('__SW_VERSION__')) {
-        throw new Error('sw.js 缺少 __SW_VERSION__ 占位符，无法注入缓存版本');
+      const index = readFileSync(new URL('./dist/index.html', import.meta.url), 'utf8');
+      if (!source.includes('__SW_VERSION__') || !entryFile || !index.includes(`/${entryFile}`)) {
+        throw new Error('无法生成与入口页面匹配的 Service Worker');
       }
-      const version = `${appVersion}-${buildFingerprint()}`;
-      const output = source.replaceAll('__SW_VERSION__', version);
+      const fingerprint = createHash('sha256').update(index).update(source);
+      const assets = new URL('./dist/assets/', import.meta.url);
+      for (const file of readdirSync(assets).sort()) fingerprint.update(file);
+      const version = `${appVersion}-${fingerprint.digest('hex').slice(0, 12)}`;
+      const output = source.replace('__SW_VERSION__', version)
+        .replace('/*__SHELL_ASSETS__*/', shellAssets.map((asset) => `${JSON.stringify(asset)},`).join('\n  '))
+        .replace('__ENTRY_FILE__', `/${entryFile}`);
       writeFileSync(swPath, output);
       // distDir 仅用于错误提示的可读路径
       console.log(`[sw] cache version: ${version} (${distDir.pathname})`);
@@ -115,10 +123,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
-        // 固定资源名，部署覆盖同路径即可；配合服务端 no-cache，避免 EO 缓存 hash 文件名导致每次清缓存
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name][extname]',
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
         /**
          * 分桶必须是「包边界」匹配，不能用 id.includes('three')。
          * 后者会把 node_modules/use-sync-external-store、node_modules/react-use-measure

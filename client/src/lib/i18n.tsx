@@ -11,6 +11,9 @@ const messages = {
     retry: '重试', empty: '还没有活跃房间', createFirst: '成为第一个创建房间的人吧',
     roomName: '房间名称', roomCode: '房间号', password: '房间密码', optional: '可选',
     createAndEnter: '创建并进入', joinNow: '加入房间', close: '关闭',
+    webUpdateReady: '网页更新已就绪', refreshApp: '立即刷新', later: '稍后',
+    webUpdateHint: '刷新时会暂时离开当前房间。',
+    webUpdateFailed: '更新暂未激活，请重试。',
   },
   'en-US': {
     language: 'Language', auto: 'Auto', lobby: 'Music lobby', create: 'Create room', join: 'Join room',
@@ -18,6 +21,9 @@ const messages = {
     retry: 'Retry', empty: 'No active rooms', createFirst: 'Be the first to create a room',
     roomName: 'Room name', roomCode: 'Room code', password: 'Room password', optional: 'optional',
     createAndEnter: 'Create and enter', joinNow: 'Join room', close: 'Close',
+    webUpdateReady: 'Web update ready', refreshApp: 'Refresh now', later: 'Later',
+    webUpdateHint: 'Refreshing briefly disconnects you from the room.',
+    webUpdateFailed: 'The update hasn’t activated. Try again.',
   },
 } as const;
 

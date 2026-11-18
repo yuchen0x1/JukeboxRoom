@@ -152,7 +152,7 @@ let desktopUpdaterTimer = null;
 function getDesktopUpdater() {
   if (desktopUpdater) return desktopUpdater;
   let updater = null;
-  if (isPackaged && process.platform === 'win32') {
+  if (isPackaged && process.platform === 'win32' && require('./package.json').jukeboxroomSignedUpdates === true) {
     try {
       ({ autoUpdater: updater } = require('electron-updater'));
     } catch (error) {

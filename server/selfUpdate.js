@@ -1,7 +1,7 @@
 /**
  * 服务端自更新（面向 git clone + pm2/systemd/Docker 部署方式）。
  *
- * 流程：检测到 GitHub 有更新版本 → 检查干净工作区 → git fetch/快进合并到 main →
+ * 流程：检测到 GitHub 有更新版本 → 检查干净工作区 → 快进到已发布标签 →
  * 重装依赖 → 重建前端 → 在进程管理器（pm2/Docker）下自动重启进程。
  *
  * 安全边界：
@@ -16,6 +16,7 @@ import { exec } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { updateService } from './update.js';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -77,6 +78,13 @@ export function isExpectedUpdateBranch(value) {
   return String(value || '').trim() === 'main';
 }
 
+export function selectSelfUpdateTag(update) {
+  const version = update?.latestVersion;
+  if (!update?.updateAvailable || update.stale || typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) return null;
+  const tag = `v${version}`;
+  return update.releaseUrl === `https://github.com/yuchen0x1/JukeboxRoom/releases/tag/${tag}` ? tag : null;
+}
+
 function parseRemoteUrl(output) {
   const line = String(output || '')
     .split(/\r?\n/)
@@ -132,6 +140,13 @@ export async function applySelfUpdate() {
     return { started: false, error: '自动更新仅允许在 main 分支执行' };
   }
 
+  const update = await updateService.getUpdateInfo().catch(() => null);
+  const tag = selectSelfUpdateTag(update);
+  if (!tag) {
+    state.phase = 'idle';
+    return { started: false, error: '当前没有来自官方 GitHub 仓库的可验证新版' };
+  }
+  const ref = `refs/tags/${tag}`;
   state.phase = 'running';
   state.startedAt = new Date().toISOString();
   state.finishedAt = null;
@@ -141,10 +156,18 @@ export async function applySelfUpdate() {
 
   void (async () => {
     try {
-      // 1. 同步到远端最新 main。工作区已确认干净，快进合并仍会保留本地提交。
-      let step = await run('git fetch origin main');
+      // Only fast-forward to the published tag, which must be reachable from main.
+      let step = await run(`git fetch --no-tags origin main ${ref}:${ref}`);
       if (!step.ok) throw new Error('git fetch 失败');
-      step = await run('git merge --ff-only origin/main');
+      step = await run(`git merge-base --is-ancestor ${ref} origin/main`);
+      if (!step.ok) throw new Error('发布标签不在 origin/main 历史中');
+      step = await run(`git merge-base --is-ancestor HEAD ${ref}`);
+      if (!step.ok) throw new Error('当前版本不能快进到发布标签');
+      step = await run(`git show ${ref}:server/package.json`);
+      if (!step.ok || JSON.parse(step.output).version !== tag.slice(1)) throw new Error('发布标签与应用版本不一致');
+      step = await run('git status --porcelain --untracked-files=all');
+      if (!step.ok || step.output.trim()) throw new Error('更新期间工作区出现改动');
+      step = await run(`git merge --ff-only ${ref}`);
       if (!step.ok) throw new Error('git 快进合并失败，请手动处理本地分支后再更新');
 
       // 2. 重装服务端依赖

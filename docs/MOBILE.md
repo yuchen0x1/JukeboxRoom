@@ -43,7 +43,7 @@ npm run cap:open:ios --prefix client
 
 缺少站点地址或使用不安全地址时，同步会在修改工程前失败。远程模式使用 `capacitor-stub`，不删除或覆盖 `client/dist`。原始 Capacitor 配置会在同步成功或失败后恢复。
 
-iOS 保留 `com.openmusic.app` 身份，品牌改为 JukeboxRoom，当前版本元数据为 0.0.17 / 17。它仍是远程站点客户端；不承诺 Android 的本机独立播放或后台音乐服务。真机 IPA 需要用户自己的开发者签名和实际站点。
+iOS 保留 `com.openmusic.app` 身份。产品版本和构建号在 Xcode 工程中维护。iOS 以远程站点模式运行，真机 IPA 需要 Apple 开发者签名及 HTTPS 站点。
 
 ## 持续检查与验收边界
 
