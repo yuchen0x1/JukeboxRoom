@@ -20,7 +20,7 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 
 **[v0.0.23](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.23)** · 2026-11-18
 
-网页和已安装的 PWA 会在新版本准备好后提示刷新。可以继续听歌，等方便时再刷新。断网时可打开已缓存的大厅。GitHub 发行页提供 Web 静态包和包含服务端的自托管包，方便部署和回退。
+本版将 GitHub 发行资产标准化为可验证的部署包：发行页提供 Web 静态包和包含服务端的自托管包，附 SHA256SUMS.txt 校验清单，方便部署和回退；同时构建 Docker 镜像并加入容器就绪检查与许可声明，修复 Windows 打包问题。
 
 [全部发行记录](https://github.com/yuchen0x1/JukeboxRoom/releases)
 
