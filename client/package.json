@@ -21,7 +21,7 @@
   "dependencies": {
     "@capacitor/android": "^7.2.0",
     "@capacitor/app": "^7.0.1",
-    "@capacitor/core": "^7.2.0",
+    "@capacitor/core": "^8.6.2",
     "@capacitor/ios": "^7.6.8",
     "@mediapipe/tasks-vision": "^1.2.3",
     "@react-three/fiber": "^9.8.2",
