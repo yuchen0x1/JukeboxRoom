@@ -18,10 +18,12 @@ for (const fail of [false, true]) {
     const content = '[{"id":"keep-this-record"}]';
     fs.writeFileSync(sentinel, content);
     const probe = path.join(fixture, 'probe.test.mjs');
+    const probeResult = path.join(fixture, 'probe-result.json');
     fs.writeFileSync(probe, `
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { all, remove, DATA_DIR } from ${JSON.stringify(new URL('../server/db/store.js', import.meta.url).href)};
-console.log('TEST_DATA_PATH=' + DATA_DIR);
+fs.writeFileSync(${JSON.stringify(probeResult)}, JSON.stringify({ dataDir: DATA_DIR }));
 assert.notEqual(DATA_DIR, ${JSON.stringify(sentinelDir)});
 assert.equal(process.env.REDIS_URL, '');
 assert.equal(process.env.REDIS_HOST, '');
@@ -38,8 +40,8 @@ ${fail ? "assert.fail('intentional fixture failure');" : ''}
       });
       assert.equal(result.status, fail ? 1 : 0, result.stdout + result.stderr);
       assert.equal(fs.readFileSync(sentinel, 'utf8'), content);
-      const isolated = result.stdout.match(/TEST_DATA_PATH=([^\r\n]+)/)?.[1];
-      assert.ok(isolated, result.stdout);
+      const { dataDir: isolated } = JSON.parse(fs.readFileSync(probeResult, 'utf8'));
+      assert.ok(isolated);
       assert.equal(path.dirname(isolated), workspace);
       assert.equal(fs.existsSync(isolated), false, 'Disposable data should be removed after test completion');
     } finally {

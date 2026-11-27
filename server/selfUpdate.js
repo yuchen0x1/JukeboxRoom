@@ -21,6 +21,7 @@ import { updateService } from './update.js';
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const UPDATE_LOG_MAX = 200;
+export const CLIENT_DEPENDENCY_INSTALL_COMMAND = 'npm ci --include=dev';
 
 const state = {
   phase: 'idle', // idle | checking | running | restarting | restart-required | failed
@@ -175,7 +176,9 @@ export async function applySelfUpdate() {
       if (!step.ok) throw new Error('服务端依赖安装失败');
 
       // 3. 重装客户端依赖并重建
-      step = await run('npm ci', { cwd: path.join(repoRoot, 'client'), timeoutMs: 900_000 });
+      // Production deployments commonly inherit NODE_ENV=production, which makes
+      // npm omit devDependencies. The client build needs TypeScript and Vite.
+      step = await run(CLIENT_DEPENDENCY_INSTALL_COMMAND, { cwd: path.join(repoRoot, 'client'), timeoutMs: 900_000 });
       if (!step.ok) throw new Error('客户端依赖安装失败');
       step = await run('npm run build', { cwd: path.join(repoRoot, 'client'), timeoutMs: 900_000 });
       if (!step.ok) throw new Error('前端构建失败');

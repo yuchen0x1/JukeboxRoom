@@ -41,7 +41,7 @@ JukeboxRoom 是一个可自托管的多人实时在线点歌系统：大家在�
 | 使用方式 | 适合场景 | 需要什么 |
 |---|---|---|
 | **自托管 Web 与 PWA** | 共享房间、手机和桌面浏览器安装 | Node.js 24 LTS 或 Docker，自托管站点启用 HTTPS |
-| **Windows 桌面版** | 独立播放器、系统托盘及本机服务端 | Windows x64 NSIS；正式资产需要签名 |
+| **Windows 桌面版** | 独立播放器、系统托盘及本机服务端 | Windows x64 NSIS；签名资产可启用后续自动更新 |
 | **Android 开发构建** | 测试手机播放器与系统媒体控制 | 安卓 Gradle 调试 APK，需独立验证真机 |
 | **iOS / Capacitor 源码** | 使用已有的 HTTPS 点歌站点 | macOS、Xcode、Capacitor 与 Apple 签名 |
 
@@ -156,7 +156,7 @@ npm run dev
 
 - **自托管包**：`jukeboxroom-server-<版本>.zip`。解压后按包内指南安装服务端依赖、配置并启动。
 - **Web 静态包**：`jukeboxroom-web-<版本>.tar.gz`。配合同源的 JukeboxRoom API 和 Socket.IO 服务部署。
-- **Windows 历史安装包**：[v0.0.22](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.22) 提供未签名的 x64 历史安装包。后续发行页只附带通过签名检查的安装包。
+- **Windows 历史安装包**：[v0.0.22](https://github.com/yuchen0x1/JukeboxRoom/releases/tag/v0.0.22) 提供未签名的 x64 历史安装包。未签名兼容包可随 Release 发布以保持旧版更新提示，但新安装的未签名版本不会启用后续应用内更新。
 - **移动端**：开发产物与本地构建方式见 [移动端说明](docs/MOBILE.md)。
 
 桌面版关闭主窗口默认进入系统托盘。NSIS 安装流程保留原有应用数据目录。

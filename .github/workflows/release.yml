@@ -84,6 +84,7 @@ jobs:
     timeout-minutes: 45
     outputs:
       signed: ${{ steps.build.outputs.signed }}
+      artifact: ${{ steps.build.outputs.artifact }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,10 +124,12 @@ jobs:
           }
           node desktop/scripts/write-checksums.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Could not verify Windows asset set' }
+          $artifact = if ($signed) { 'release-windows' } else { 'release-windows-unsigned' }
           "signed=$($signed.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "artifact=$artifact" >> $env:GITHUB_OUTPUT
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: ${{ steps.build.outputs.signed == 'true' && 'release-windows' || 'preview-windows-unsigned' }}
+          name: ${{ steps.build.outputs.artifact }}
           path: |
             release/desktop/jukeboxroom-desktop-setup-*.exe
             release/desktop/jukeboxroom-desktop-setup-*.blockmap
@@ -149,9 +152,8 @@ jobs:
           name: release-web
           path: assets
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        if: needs.windows.outputs.signed == 'true'
         with:
-          name: release-windows
+          name: ${{ needs.windows.outputs.artifact }}
           path: assets
       - name: Select release notes
         id: notes
@@ -173,7 +175,7 @@ jobs:
           if [ "$WINDOWS_SIGNED" = true ]; then
             printf '\nWindows x64 附带已验证 Authenticode 签名的安装包和更新元数据。\n' >> "$RELEASE_NOTES"
           else
-            printf '\nWindows x64 未配置签名，本次构建仅保留在 Actions。\n' >> "$RELEASE_NOTES"
+            printf '\nWindows x64 安装包未签名。该安装包和更新元数据随 Release 发布，以便兼容旧版更新提示；首次运行可能触发 SmartScreen。未签名构建的桌面端不会启用后续应用内更新。\n' >> "$RELEASE_NOTES"
           fi
           (cd assets && sha256sum -- * > SHA256SUMS.txt)
           gh release create "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" \

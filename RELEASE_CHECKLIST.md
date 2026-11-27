@@ -42,7 +42,7 @@
 - [ ] 推送代码：`git push origin main`。
 - [ ] 在版本号、日志和构建检查全部完成后创建并推送 Tag：`git tag v<版本号> && git push origin v<版本号>`。
 - [ ] 创建 GitHub Release（`gh release create v<版本号>` 或网页端），正文使用 `RELEASE_NOTES_CN.md` 内容（可附英文版链接）。
-- [ ] 只上传本次实际构建的平台资产；Windows 同时保留自动更新与校验文件：
+- [ ] 只上传本次实际构建的平台资产；Windows 同时保留更新元数据与校验文件；若未签名，Release 正文需说明 SmartScreen 和后续自动更新限制：
 
 | 资产 | 命名规则 |
 |---|---|

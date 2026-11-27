@@ -1,34 +1,47 @@
-# JukeboxRoom v0.0.21
+# JukeboxRoom v0.0.24
 
-> 📅 Release date: 2026-11-16 ｜ 🏷️ Tag: `v0.0.21` ｜ 📦 Compare: [v0.0.20...v0.0.21](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.20...v0.0.21)
+Release date: 2026-11-27 (Beijing Time) · [Compare with previous release](https://github.com/yuchen0x1/JukeboxRoom/compare/v0.0.23...v0.0.24)
 
-This release hardens provider requests, QR login redirects, and runtime health handling.
+## Overview
 
-## Highlights
+This release fixes Socket.IO reconnect races, a Windows-only test isolation failure, and missing frontend build dependencies during production self-updates. The server now explicitly requires Node.js 24 or newer to match its dependencies.
 
-- **Safer QQ QR login redirects**: only known HTTPS QQ login hosts are accepted, and every response redirect or HTML navigation hop is checked for DNS, private-network, and SSRF violations.
-- **Bounded provider requests**: provider JSON calls use the safe outbound fetcher with DNS, private-target, redirect, and response-size limits; controlled QR sessions keep multiple `Set-Cookie` values.
-- **Health and observability**: unhealthy processes keep the health probe available while new business API calls return 503; rate limits include `Retry-After`; health metadata includes version and storage details; Prometheus metrics record cumulative duration and status counts.
-- **Cookie transport**: identity cookies set `Secure` according to `req.secure` for HTTPS requests.
-- **Promo page and build hygiene**: added a deployable EdgeOne Pages landing page with current desktop screenshots, linked the official site from the README, and pinned desktop `minimatch` to 11.0.1.
+## Fixes and improvements
 
-## Download
+- Retry an unfinished Socket.IO connection after its initial timeout without hanging.
+- Ignore stale room-rejoin responses after leaving or switching rooms.
+- Read isolated test paths through a structured result file instead of escaped TAP output.
+- Install TypeScript and Vite dependencies when a production deployment rebuilds the client.
 
-| Platform | File | Notes |
+## Downloads
+
+| File | Platform | Description |
 |---|---|---|
-| Windows desktop | `jukeboxroom-desktop-setup-0.0.21-x64.exe` | x64 NSIS installer with the local server bundled. Update metadata and a SHA-256 checksum manifest are included in the same Release. |
-
-This release builds only the Windows desktop app. No Android APK or iOS IPA is included.
+| `jukeboxroom-server-0.0.24.zip` | Self-hosted, Node.js 24+ | Server deployment package |
+| `jukeboxroom-web-0.0.24.tar.gz` | Web/PWA | Static web assets |
+| `jukeboxroom-desktop-setup-0.0.24-x64.exe` | Windows x64 | Unsigned installer for legacy update compatibility |
+| `jukeboxroom-desktop-setup-0.0.24-x64.exe.blockmap` | Windows x64 | Differential update metadata |
+| `latest.yml` | Windows x64 | Update version and SHA-512 metadata |
+| `SHA256SUMS.txt` | Checksums | SHA-256 manifest for public release assets |
 
 ## Upgrade notes
 
-- Windows users can install over the existing version. The installer is not signed with a commercial code-signing certificate, so SmartScreen may warn on first launch.
-- Windows users on v0.0.20 can open Settings, check for updates, confirm the download, and restart to install v0.0.21.
-- Web and self-hosted users can pull `main` and restart using their existing deployment procedure.
+- Self-hosted Node.js deployments must upgrade to Node.js 24 or newer before updating.
+- Existing data directories and configuration formats are unchanged.
+- An unsigned Windows installer, `latest.yml`, and `.blockmap` are included so legacy desktop versions can receive this update. SmartScreen may warn on first run, and the unsigned new installation does not enable later in-app updates. No Android APK or iOS IPA is included.
 
-## Known items
+## Verification
 
-- The Windows installer is not signed with a commercial code-signing certificate and may trigger SmartScreen.
-- Migu is an experimental unofficial integration; upstream changes may affect availability.
+- Server: 151 tests passed, including 14 update-module tests.
+- Client: 61 tests passed; TypeScript, production build, and bundle-budget checks passed.
+- Desktop updater: 13 tests passed.
+- Production dependency audits: zero known vulnerabilities across root, server, client, and desktop.
+- Windows install/upgrade, Android/iOS devices, and long-running third-party music playback were not tested.
 
-See [CHANGELOG.md](https://github.com/yuchen0x1/JukeboxRoom/blob/main/CHANGELOG.md), the [release-notes history](https://github.com/yuchen0x1/JukeboxRoom/blob/main/docs/releases/release-notes.md), and [GitHub Releases](https://github.com/yuchen0x1/JukeboxRoom/releases) for the full history.
+## Known limitations
+
+- Existing Windows desktop users can receive this installer from this release; it is unsigned and does not enable later in-app updates.
+- Node.js 20 and 22 are no longer supported for the current server dependency set.
+- Music availability depends on external providers, account access, and network conditions.
+
+[Full release history](docs/releases/release-notes.md) · [Deployment guide](docs/DEPLOY.md)

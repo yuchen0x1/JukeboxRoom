@@ -16,9 +16,9 @@
 
 ## Windows
 
-Windows x64 签名构建使用 GitHub Releases 及 `latest.yml`。用户确认后开始下载，可查看进度或取消。Electron 更新器按发布元数据校验文件内容并验证构建中配置的发布者签名。确认安装后由 NSIS 执行，安装后重启程序。应用数据沿用已有目录。
+Windows x64 构建使用 GitHub Releases 及 `latest.yml`。用户确认后开始下载，可查看进度或取消。Electron 更新器按发布元数据校验文件内容；签名构建还会验证构建中配置的发布者签名。确认安装后由 NSIS 执行，安装后重启程序。应用数据沿用已有目录。
 
-面向用户的发行资产必须通过 Windows 的 Authenticode 校验。配置 `WINDOWS_CSC_LINK` 和证书所需的 `WINDOWS_CSC_KEY_PASSWORD` 后，发布作业检查安装器、程序和更新发布者配置。签名未配置时保留构建预览，应用内安装功能停用。历史无签名版 v0.0.22 仍可在原发行页查阅。签名证书安装链、真实跨版本更新、故障回退和 Windows 10/11 真机验收均需专门环境。
+配置 `WINDOWS_CSC_LINK` 和证书所需的 `WINDOWS_CSC_KEY_PASSWORD` 后，发布作业检查安装器、程序和更新发布者配置，并让新安装启用后续应用内更新。签名未配置时仍发布未签名兼容资产和 `latest.yml`，以便旧版客户端收到更新提示；首次运行可能触发 SmartScreen，未签名新安装不会启用后续应用内更新。签名证书安装链、真实跨版本更新、故障回退和 Windows 10/11 真机验收均需专门环境。
 
 ## Android、iOS 与 iPadOS
 
@@ -32,4 +32,4 @@ Android 调试构建使用 Gradle 调试签名，正式同包升级须由部署�
 4. Actions 执行校验和产物测试，将资产上传到草稿后比对 GitHub 提供的摘要，再发布不可变 Release。已存在的 Release 由维护者检查。
 5. 下载并验证发布文件，检查 README 自动同步、应用实际读取的更新版本和客户端安装验证。定期资产检查由 `release-health.yml` 执行。
 
-SHA-256 用于检查字节完整性。下载来源依赖 HTTPS 和官方 GitHub 仓库，Windows 安装还需验证发布者。 [GitHub 发行管理](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
+SHA-256 用于检查字节完整性。下载来源依赖 HTTPS 和官方 GitHub 仓库；签名构建还应验证 Windows 发布者。 [GitHub 发行管理](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)

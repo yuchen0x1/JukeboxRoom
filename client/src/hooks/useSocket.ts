@@ -110,10 +110,8 @@ async function reconnectSocketSession(forceBootstrap = false): Promise<Socket> {
   await requireSessionBootstrap(forceBootstrap);
   const s = getSocket();
   if (s.connected || s.active) {
-    await new Promise<void>((resolve) => {
-      s.once('disconnect', () => resolve());
-      s.disconnect();
-    });
+    // disconnect() is synchronous and emits no event while still connecting.
+    s.disconnect();
   }
   socketConnectRequested = true;
   await waitForSocketConnect(s);
@@ -360,6 +358,7 @@ function emitJoinRoom(s: Socket, session: JoinSession): Promise<JoinAckResponse>
 }
 
 async function attemptRoomRejoin(trigger: string) {
+  const generation = joinGeneration;
   const session = getActiveJoinSession();
   const currentRoom = useRoomStore.getState().room;
   if (!session || !currentRoom) {
@@ -367,6 +366,8 @@ async function attemptRoomRejoin(trigger: string) {
     return;
   }
   if (rejoinInFlight) return;
+  const isCurrentSession = () => generation === joinGeneration
+    && useRoomStore.getState().room?.id === session.roomId;
 
   rejoinInFlight = true;
   useRoomStore.getState().setReconnecting(true);
@@ -375,19 +376,24 @@ async function attemptRoomRejoin(trigger: string) {
   try {
     resetSessionBootstrap();
     await requireSessionBootstrap(true);
+    if (!isCurrentSession()) return;
 
     let s = getSocket();
     if (!s.connected) {
       socketConnectRequested = true;
       if (!s.active) s.connect();
       await waitForSocketConnect(s, 12000);
+      if (!isCurrentSession()) return;
     }
 
     let res = await emitJoinRoom(s, session);
+    if (!isCurrentSession()) return;
 
     if (!res.success && res.needsSession && !session.readOnly) {
       s = await reconnectSocketSession(true);
+      if (!isCurrentSession()) return;
       res = await emitJoinRoom(s, session);
+      if (!isCurrentSession()) return;
     }
 
     if (res.success && res.room) {
@@ -407,6 +413,7 @@ async function attemptRoomRejoin(trigger: string) {
 
     scheduleRoomRejoin('join_failed');
   } catch (err) {
+    if (!isCurrentSession()) return;
     debugLog('room_rejoin_error', debugLine({
       trigger,
       message: err instanceof Error ? err.message : String(err),

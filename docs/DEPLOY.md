@@ -5,7 +5,7 @@
 把下面这段提示词复制给任意 AI 编程助手（ZCode / Claude Code / Cursor 等），并授予服务器操作权限，即可自动完成部署：
 
 ```text
-请帮我在这台服务器上部署 JukeboxRoom 多人在线点歌系统（Node.js ≥ 20）：
+请帮我在这台服务器上部署 JukeboxRoom 多人在线点歌系统（Node.js ≥ 24）：
 
 1. 安装 Node.js 24 LTS（可使用 nvm 或系统包管理器）
 2. 克隆仓库：git clone https://github.com/yuchen0x1/JukeboxRoom.git 并进入目录

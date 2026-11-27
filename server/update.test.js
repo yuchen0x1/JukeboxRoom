@@ -9,7 +9,12 @@ import {
   parseVersion,
   resolveChannel,
 } from './update.js';
-import { isExpectedGithubRemote, isExpectedUpdateBranch, selectSelfUpdateTag } from './selfUpdate.js';
+import {
+  CLIENT_DEPENDENCY_INSTALL_COMMAND,
+  isExpectedGithubRemote,
+  isExpectedUpdateBranch,
+  selectSelfUpdateTag,
+} from './selfUpdate.js';
 
 test('自更新只接受确认的 GitHub 仓库远程地址', () => {
   assert.equal(isExpectedGithubRemote('https://github.com/yuchen0x1/JukeboxRoom.git'), true);
@@ -22,6 +27,10 @@ test('自更新只允许在 main 分支执行', () => {
   assert.equal(isExpectedUpdateBranch('main'), true);
   assert.equal(isExpectedUpdateBranch('codex/audit'), false);
   assert.equal(isExpectedUpdateBranch(''), false);
+});
+
+test('生产环境自更新保留前端构建依赖', () => {
+  assert.equal(CLIENT_DEPENDENCY_INSTALL_COMMAND, 'npm ci --include=dev');
 });
 
 const githubAsset = (name) => `https://github.com/yuchen0x1/JukeboxRoom/releases/download/v2.0.2/${name}`;
